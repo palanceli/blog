@@ -26,3 +26,9 @@
 *.exe
 *.out
 *.app
+
+/scaffolds/
+/public/
+/node_modules/
+/package.json
+/db.json
