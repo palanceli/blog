@@ -6,13 +6,13 @@ tags:   hexo
 ---
 之前在博客园、简书、CSDN等地儿都开过博，一篇文章写好了，我希望能在几个平台可以同步发布，可是操作起来还是挺有难度，主要是成本太高。几个平台下的富文本编辑比较起来还是博客园更顺手，看着更舒服，尤其是代码块的操作灵活、准确。而CSDN对代码块内的文字加粗、修改字色后就会出现html文无法解析的情况，混杂着代码和html文本实在太难看了。后来我知道原来是Markdown的代码块规则限制。而且CSDN刚刚才取消了提交文章要审核通过才能发布的限制，审核没有完成之前，连自己都看不到，且不能修改，这让我一度放弃CSDN平台。如果是写普通的文章写作体验最好的是简书，大气、简洁。但简书更适合一般的写作，比较技术化的中间掺杂大量代码的支持还不够好。
 我觉得作为一名技术狂，应该在GitHub上开博。花了两天时间研究了一下，发现还蛮简单的，而且md格式也被博客园、简书、CSDN所支持，写完一份应该比较容易复制到这三个平台。搞定之后留一份操作记录吧。
-#安装环境
+# 安装环境
 * 安装node.js，去官网下载安装即可，我安装的是最新稳定版。
 * 安装Hexo
 
 `sudo npm install -g hexo`
 
-#第一次搭建Hexo
+# 第一次搭建Hexo
 首次搭建和以后从github恢复的步骤不太一样，需要分开来讲。
 创建blog目录
 
@@ -30,7 +30,7 @@ $ hexo clean
 $ hexo generate
 $ hexo server
 ```
-##上传GitHub
+## 上传GitHub
 在github上创建工程blog，并且使用“Launch automatic page generator”生成页面，它会给该工程创建分支gh-pages。
 手动为之创建dev分支，未来工程源码会放到dev分支下；hexo生成的网站静态页面会放到gh-pages分支。
 
@@ -81,11 +81,23 @@ $ git clone https://github.com/tufu9441/maupassant-hexo.git themes/maupassant
 $ npm install hexo-renderer-jade --save
 $ npm install hexo-renderer-sass --save
 ```
+在blog-dev/themes/maupassant/_config.yml中根据自己的情况修改，比如：
+``` bash
+links:
+  - title: 我的博客园
+    url: http://www.cnblogs.com/palance/
+  - title: 我的CSDN
+    url: http://blog.csdn.net/zchongr
+  - title: 我的简书
+    url: http://www.jianshu.com/users/5e527164a8c2
+```
 
 在blog-dev/_config.yml中修改:
 ``` bash
 theme: maupassant
 ```
+最好把blog-dev/themes/maupassant/.git删掉，否则blog-dev将不包含themes/maupassant文件夹，这会导致针对该主题的修改都不能上传自己的GitHub。
+
 第一次的工作就完成了，可以提交github到blog-dev了。
 
 # 从GitHub恢复hexo
