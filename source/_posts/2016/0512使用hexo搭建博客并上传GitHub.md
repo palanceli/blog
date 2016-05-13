@@ -57,7 +57,7 @@ $ hexo server
 ```
 $ npm install hexo
 $ npm install
-$ npm install hexo-deployer-git
+$ npm install hexo-deployer-git --save
 ```
 可是我在不同的机器上试总是出错。只好采取笨办法，每次先`hexo init`出一个完整文件夹，再把相关文件拷贝到GitHub目录下。千万不要先clone 了blog目录，再在该目录下执行`hexo init`，因为init会把.git信息删掉。
 
