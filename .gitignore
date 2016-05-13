@@ -31,4 +31,5 @@
 /node_modules/
 /db.json
 *.log
+/package.json
 
