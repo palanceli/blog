@@ -1,7 +1,7 @@
 ---
 layout: post
-title:  "Binder学习笔记（二）——1 defaultServiceManager()返回了什么？"
-date:   2016-05-14 01:15:48 +0800
+title:  "Binder学习笔记（二）—— defaultServiceManager()返回了什么？"
+date:   2016-05-07 00:39:48 +0800
 categories: Android
 tags:   binder
 ---
