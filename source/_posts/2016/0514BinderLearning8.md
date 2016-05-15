@@ -5,6 +5,8 @@ title:  "Binder学习笔记（八）—— 客户端如何组织Test()请求
 date:   2016-05-14 21:33:04 +0800
 categories: Android
 tags:   binder
+toc: true
+comments: true
 ---
 还从客户端代码看起TestClient.cpp:14
 ``` c++

@@ -5,6 +5,8 @@ title:  "Binder学习笔记（四）—— ServiceManager如何响应checkServic
 date:   2016-05-09 00:32:48 +0800
 categories: Android
 tags:   binder
+toc: true
+comments: true
 ---
 这要从frameworks/native/cmds/servicemanager/service_manager.c:347的main函数说起，该文件编译后生成servicemanager。
 ``` c++

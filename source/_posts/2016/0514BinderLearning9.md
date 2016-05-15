@@ -5,6 +5,8 @@ title:  "Binder学习笔记（九）—— 服务端如何响应Test()请求
 date:   2016-05-15 11:26:44 +0800
 categories: Android
 tags:   binder
+toc: true
+comments: true
 ---
 从服务端代码出发，TestServer.cpp
 ``` c++

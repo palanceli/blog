@@ -1,11 +1,12 @@
 ---
 layout: post
 title:  "Binder学习笔记（五）—— Parcel是怎么打包的？
-
 "
 date:   2016-05-10 00:55:00 +0800
 categories: Android
 tags:   binder
+toc: true
+comments: true
 ---
 前文中曾经遇到过Parcel，从命名上知道他负责数据打包。在checkService的请求/响应体系中，Parcel只打包了基本数据类型，如Int32、String16……后面还要用于打包抽象数据类型flat_binder_object，这会稍微复杂一些，因此有必要拿出来单独研究。我们从Parcel::writeInterfaceToken(…)追起，它的层层调用关系如下，这些函数都在frameworks/native/libs/binder/Parcel.cpp文件中，行数和函数名为:
 >582    writeInterfaceToken(…)

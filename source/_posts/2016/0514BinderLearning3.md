@@ -5,6 +5,8 @@ title:  "Binder学习笔记（三）—— binder客户端是如何组织checkSe
 date:   2016-05-08 01:20:48 +0800
 categories: Android
 tags:   binder
+toc: true
+comments: true
 ---
 起点从TestClient.cpp的main函数发起：
 ``` c++

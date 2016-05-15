@@ -6,6 +6,8 @@ title:  "Binder学习笔记（七）—— ServiceManager如何响应addService�
 date:   2016-05-12 01:23:04 +0800
 categories: Android
 tags:   binder
+toc: true
+comments: true
 ---
 有了《ServiceManager如何响应checkService请求》的探索，研究addService就轻车熟路了，中间过程不再多说，仅把关键节点列出：
 frameworks/native/cmds/servicemanager/service_manager.c:347

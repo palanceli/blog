@@ -4,6 +4,8 @@ title:  "Binder学习笔记（二）—— defaultServiceManager()返回了什�
 date:   2016-05-07 00:39:48 +0800
 categories: Android
 tags:   binder
+toc: true
+comments: true
 ---
 不管是客户端还是服务端，头部都要先调用
 ``` c++
