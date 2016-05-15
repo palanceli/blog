@@ -171,3 +171,11 @@ $ hexo generate
 $ hexo server
 ```
 如果没做清除，直接生成页面，在我这里会出现路径错误的情况。
+
+## 文章目录
+
+参考[Maupassant作者对该主题的使用说明](https://www.haomwei.com/technology/maupassant-hexo.html)，只需要在文章的`front-matter`（即最头部写title、categories的部分）部分加入`toc: true`即可
+
+## 评论
+
+首先应该去http://disqus.com注册账号，并在设置中选择“Add DisqusTo Site”，然后填写自己的blog url以及shortname，注册成功后，才能在自己的主题配置文件中（themes/maupassant/_config.yml）填写disqus short name。我用的主题默认是开启评论功能的，如果要关掉，可以在`front-matter`中加入`comments: false`
