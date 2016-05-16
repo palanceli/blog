@@ -8,10 +8,10 @@
 	"buffers":
 	[
 		{
-			"file": "_posts/2016/0514BinderLearning9.md",
+			"file": "_posts/2016/0512使用hexo搭建博客并上传GitHub.md",
 			"settings":
 			{
-				"buffer_size": 13972,
+				"buffer_size": 4170,
 				"line_ending": "Unix"
 			}
 		}
@@ -97,18 +97,19 @@
 	],
 	"file_history":
 	[
-		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning3.md",
-		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0511BinderLearning1.md",
-		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning4.md",
+		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning9.md",
 		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning8.md",
+		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning7.md",
+		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning6.md",
+		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning5.md",
+		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning4.md",
+		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning3.md",
+		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning2.md",
+		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0511BinderLearning1.md",
 		"/Users/palance/Documents/SubVersions/blog-dev/source/source.sublime-project",
 		"/Users/palance/Documents/SubVersions/blog-dev/source/about/index.md",
 		"/Users/palance/Documents/SubVersions/blog-dev/source/_drafts/0514BinderLearning8.md",
-		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning5.md",
-		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning6.md",
-		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning2.md",
 		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0512使用hexo搭建博客并上传GitHub.md",
-		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning7.md",
 		"/Users/palance/Documents/SubVersions/blog/_config.yml",
 		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/hello-world.md",
 		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/BinderLearning1.md",
@@ -223,8 +224,7 @@
 		"/Users/palance/Documents/ShareDir/version.php",
 		"/Users/palance/百度云同步盘/workdir/PM/mobile.dbg.daily.statistic.txt",
 		"/Users/palance/Desktop/com.binglen.ipmonitor.xml",
-		"/Library/LaunchDaemons/com.binglen.ipmonitor.plist",
-		"/Library/LaunchDaemons/com.baidu.netdiskmac.BDYunFinderInstaller副本.plist"
+		"/Library/LaunchDaemons/com.binglen.ipmonitor.plist"
 	],
 	"find":
 	{
@@ -335,29 +335,30 @@
 			[
 				{
 					"buffer": 0,
-					"file": "_posts/2016/0514BinderLearning9.md",
+					"file": "_posts/2016/0512使用hexo搭建博客并上传GitHub.md",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 13972,
+						"buffer_size": 4170,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								13972,
-								13972
+								4170,
+								4170
 							]
 						],
 						"settings":
 						{
+							"function_name_status_row": 181,
 							"syntax": "Packages/Markdown/Markdown.tmLanguage",
-							"tab_size": 4,
+							"tab_size": 2,
 							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 0.0,
+						"translation.y": 3560.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 0,
