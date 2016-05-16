@@ -179,3 +179,12 @@ $ hexo server
 ## 评论
 
 首先应该去http://disqus.com注册账号，并在设置中选择“Add DisqusTo Site”，然后填写自己的blog url以及shortname，注册成功后，才能在自己的主题配置文件中（themes/maupassant/_config.yml）填写disqus short name。我用的主题默认是开启评论功能的，如果要关掉，可以在`front-matter`中加入`comments: false`
+
+## 隐藏文件
+可以将文件生成到草稿目录下：
+``` bash
+$ hexo new draft "new draft"
+```
+或者直接在source/_drafts下新建md文件。如果希望在本地`hexo s`时文件可见，要么在md文件的`front-matter`中加入`render_drafts: true`，要么在启动server的时候使用`hexo server --drafts`
+
+

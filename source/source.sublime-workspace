@@ -11,7 +11,23 @@
 			"file": "_posts/2016/0514BinderLearning9.md",
 			"settings":
 			{
-				"buffer_size": 13972,
+				"buffer_size": 13997,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "_drafts/android-drivers.md",
+			"settings":
+			{
+				"buffer_size": 790,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "_posts/2016/0512使用hexo搭建博客并上传GitHub.md",
+			"settings":
+			{
+				"buffer_size": 4372,
 				"line_ending": "Unix"
 			}
 		}
@@ -92,11 +108,14 @@
 	"expanded_folders":
 	[
 		"/Users/palance/Documents/SubVersions/blog-dev/source",
-		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts",
-		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016"
+		"/Users/palance/Documents/SubVersions/blog-dev/source/_drafts",
+		"/Users/palance/Documents/SubVersions/blog-dev/source/_drafts/android-drivers",
+		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016",
+		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning3"
 	],
 	"file_history":
 	[
+		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0512使用hexo搭建博客并上传GitHub.md",
 		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning3.md",
 		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0511BinderLearning1.md",
 		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning4.md",
@@ -107,7 +126,6 @@
 		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning5.md",
 		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning6.md",
 		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning2.md",
-		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0512使用hexo搭建博客并上传GitHub.md",
 		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning7.md",
 		"/Users/palance/Documents/SubVersions/blog/_config.yml",
 		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/hello-world.md",
@@ -330,7 +348,7 @@
 	"groups":
 	[
 		{
-			"selected": 0,
+			"selected": 1,
 			"sheets":
 			[
 				{
@@ -339,15 +357,15 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 13972,
+						"buffer_size": 13997,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								13972,
-								13972
+								13355,
+								13355
 							]
 						],
 						"settings":
@@ -357,10 +375,68 @@
 							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 0.0,
+						"translation.y": 9918.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 1,
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "_drafts/android-drivers.md",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 790,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								671,
+								671
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Markdown/Markdown.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 54.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 0,
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "_posts/2016/0512使用hexo搭建博客并上传GitHub.md",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 4372,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								4371,
+								4371
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Markdown/Markdown.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 4470.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 2,
 					"type": "text"
 				}
 			]
