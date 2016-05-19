@@ -109,9 +109,7 @@
 	[
 		"/Users/palance/Documents/SubVersions/blog-dev/source",
 		"/Users/palance/Documents/SubVersions/blog-dev/source/_drafts",
-		"/Users/palance/Documents/SubVersions/blog-dev/source/_drafts/android-drivers",
-		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016",
-		"/Users/palance/Documents/SubVersions/blog-dev/source/_posts/2016/0514BinderLearning3"
+		"/Users/palance/Documents/SubVersions/blog-dev/source/_drafts/android-drivers"
 	],
 	"file_history":
 	[
@@ -394,8 +392,8 @@
 						"selection":
 						[
 							[
-								671,
-								671
+								790,
+								790
 							]
 						],
 						"settings":
