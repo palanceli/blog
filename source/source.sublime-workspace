@@ -108,8 +108,7 @@
 	"expanded_folders":
 	[
 		"/Users/palance/Documents/SubVersions/blog-dev/source",
-		"/Users/palance/Documents/SubVersions/blog-dev/source/_drafts",
-		"/Users/palance/Documents/SubVersions/blog-dev/source/_drafts/android-drivers"
+		"/Users/palance/Documents/SubVersions/blog-dev/source/_drafts"
 	],
 	"file_history":
 	[
@@ -392,16 +391,17 @@
 						"selection":
 						[
 							[
-								790,
-								790
+								755,
+								763
 							]
 						],
 						"settings":
 						{
+							"function_name_status_row": -1,
 							"syntax": "Packages/Markdown/Markdown.tmLanguage"
 						},
 						"translation.x": 0.0,
-						"translation.y": 54.0,
+						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 0,
@@ -497,12 +497,16 @@
 	},
 	"select_project":
 	{
-		"height": 0.0,
+		"height": 500.0,
 		"last_filter": "",
 		"selected_items":
 		[
+			[
+				"",
+				"/Volumes/android-6.0.1_r11g/sublime/android.sublime-project"
+			]
 		],
-		"width": 0.0
+		"width": 380.0
 	},
 	"select_symbol":
 	{
