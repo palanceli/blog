@@ -172,6 +172,9 @@ $ hexo server
 ```
 如果没做清除，直接生成页面，在我这里会出现路径错误的情况。
 
+## 视频
+插入优酷视频很简单，在优酷点击视频下面的“分享”按钮，复制`通用代码`，直接粘贴到md文件中即可。
+
 ## 文章目录
 
 参考[Maupassant作者对该主题的使用说明](https://www.haomwei.com/technology/maupassant-hexo.html)，只需要在文章的`front-matter`（即最头部写title、categories的部分）部分加入`toc: true`即可
