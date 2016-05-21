@@ -118,3 +118,101 @@ static int __init binder_init(void)
 ```
 第一行就被卡住了`create_singlethread_workqueue`是什么？
 >[Linux workqueue工作原理](http://blog.csdn.net/myarrow/article/details/8090504)
+
+# 先不要恋战，因为不会的东西太多，以后慢慢补，单刀直入我的问题。
+问题是什么？客户端为test()组织的请求数据是：
+![](http://palanceli.github.io/blog/2016/05/14/2016/0514BinderLearning8/img01.png)驱动程序是如何处理这个数据包的？
+为此，还需要先从应用层往下看，frameworks/native/libs/binder/IPCThreadState.cpp:548
+来看客户端组织test()请求数据时，调用到IPCThreadState::transact(...)
+``` c
+status_t IPCThreadState::transact(int32_t handle,
+                                  uint32_t code, const Parcel& data,
+                                  Parcel* reply, uint32_t flags)
+{   // code=TEST, flag=0
+
+    flags |= TF_ACCEPT_FDS;
+    ......
+    
+        err = writeTransactionData(BC_TRANSACTION, flags, handle, code, data, NULL);
+    
+        ......
+        if (reply) {
+            err = waitForResponse(reply);  // 这次重点看这里
+        } else {
+            Parcel fakeReply;
+            err = waitForResponse(&fakeReply);
+        }
+        ......
+    
+    return err;
+}
+```
+函数前面使用writeTransactionData(...)打包好数据后，接下来调用waitForResponse(...)把数据发出去。
+frameworks/native/libs/binder/IPCThreadState.cpp:712
+``` c
+status_t IPCThreadState::waitForResponse(Parcel *reply, status_t *acquireResult)
+{
+    uint32_t cmd;
+    int32_t err;
+
+    while (1) {
+        if ((err=talkWithDriver()) < NO_ERROR) break;
+        ......
+        }
+        ......
+    
+    return err;
+}
+```
+继续调用talkWithDriver()和驱动对话,frameworks/native/libs/binder/IPCThreadState.cpp:803
+``` c
+status_t IPCThreadState::talkWithDriver(bool doReceive)
+{
+    ......
+    binder_write_read bwr;
+    ......
+    const bool needRead = mIn.dataPosition() >= mIn.dataSize();
+    ......
+    const size_t outAvail = (!doReceive || needRead) ? mOut.dataSize() : 0;
+    
+    bwr.write_size = outAvail;
+    bwr.write_buffer = (uintptr_t)mOut.data();
+    ......
+    if (doReceive && needRead) {
+        bwr.read_size = mIn.dataCapacity();
+        bwr.read_buffer = (uintptr_t)mIn.data();
+    } else {
+        bwr.read_size = 0;
+        bwr.read_buffer = 0;
+    }
+    ......
+    bwr.write_consumed = 0;
+    bwr.read_consumed = 0;
+    status_t err;
+    do {
+        ......
+        if (ioctl(mProcess->mDriverFD, BINDER_WRITE_READ, &bwr) >= 0) // 重点在这
+            err = NO_ERROR;
+        else
+            err = -errno;
+        ......
+    } while (err == -EINTR);
+    ......
+    if (err >= NO_ERROR) {
+        if (bwr.write_consumed > 0) {
+            if (bwr.write_consumed < mOut.dataSize())
+                mOut.remove(0, bwr.write_consumed);
+            else
+                mOut.setDataSize(0);
+        }
+        if (bwr.read_consumed > 0) {
+            mIn.setDataSize(bwr.read_consumed);
+            mIn.setDataPosition(0);
+        }
+        ......
+        return NO_ERROR;
+    }
+    
+    return err;
+}
+```
