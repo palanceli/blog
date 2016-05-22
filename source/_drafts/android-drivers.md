@@ -167,13 +167,13 @@ status_t IPCThreadState::waitForResponse(Parcel *reply, status_t *acquireResult)
 继续调用talkWithDriver()和驱动对话,frameworks/native/libs/binder/IPCThreadState.cpp:803
 ``` c
 status_t IPCThreadState::talkWithDriver(bool doReceive)
-{
+{   // doReceive=true
     ......
     binder_write_read bwr;
     ......
-    const bool needRead = mIn.dataPosition() >= mIn.dataSize();
+    const bool needRead = mIn.dataPosition() >= mIn.dataSize();// 此时mIn内应该没有数据，因此size肯定大于dataPosition，因此needRead=false
     ......
-    const size_t outAvail = (!doReceive || needRead) ? mOut.dataSize() : 0;
+    const size_t outAvail = (!doReceive || needRead) ? mOut.dataSize() : 0; // outAvail=0
     
     bwr.write_size = outAvail;
     bwr.write_buffer = (uintptr_t)mOut.data();
@@ -216,3 +216,66 @@ status_t IPCThreadState::talkWithDriver(bool doReceive)
     return err;
 }
 ```
+doReceive取默认值为true，前文中刚刚往mOut内组织完要发送的数据，此时还没有发出去，也没有读取应答数据，因此mIn应该没有内容，所以needRead=false，outAvail=0。
+## 组织一个gdb确认mIn此时的内容：
+需要开启三个终端完成调试：
+1. Target1 在模拟器上启动server
+``` bash
+$ adb shell /data/local/tmp/testservice/TestServer
+```
+2. Target2 在模拟器上通过gdbserver启动客户端
+``` bash
+$ adb shell gdbserver :1234 /data/local/tmp/testservice/TestClient
+Process /data/local/tmp/testservice/TestClient created; pid = 1254
+Listening on port 1234
+Remote debugging from host 127.0.0.1
+```
+3. Host1 在宿主端启动gdb
+``` bash
+$ ./prebuilts/gcc/darwin-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androideabi-gdb out/debug/target/product/generic/obj/EXECUTABLES/TestClient_intermediates/LINKED/TestClient
+......
+(gdb) b main
+Breakpoint 1 at 0xb6f571fc: file external/testservice/TestClient.cpp, line 14.
+(gdb) c
+Continuing.
+......
+(gdb) set solib-absolute-prefix out/debug/target/product/generic/symbols/
+Reading symbols from ...... linker...done.
+......
+Loaded symbols for ......
+......
+(gdb) b IPCThreadState.cpp:846 # 在talkWithDriver(...)内下断点
+Breakpoint 2 at 0xb6eaf884: file frameworks/native/libs/binder/IPCThreadState.cpp, line 846.
+(gdb) c
+......
+# 然后就是若干轮的continue和backtrace，直到停在由test()调用触发的talkWithDriver(...)
+......
+
+Breakpoint 2, android::IPCThreadState::talkWithDriver (this=this@entry=0xb6c24000, doReceive=doReceive@entry=true) at frameworks/native/libs/binder/IPCThreadState.cpp:846
+846     if ((bwr.write_size == 0) && (bwr.read_size == 0)) return NO_ERROR;
+(gdb) bt
+#0  android::IPCThreadState::talkWithDriver (this=this@entry=0xb6c24000, doReceive=doReceive@entry=true) at frameworks/native/libs/binder/IPCThreadState.cpp:846
+#1  0xb6eafed2 in android::IPCThreadState::waitForResponse (this=0xb6c24000, reply=0xbeaa1ad4, acquireResult=0x0) at frameworks/native/libs/binder/IPCThreadState.cpp:718
+#2  0xb6eb0088 in android::IPCThreadState::transact (this=0xb6c24000, handle=1, code=code@entry=1, data=..., reply=reply@entry=0xbeaa1ad4, flags=16, flags@entry=0) at frameworks/native/libs/binder/IPCThreadState.cpp:604
+#3  0xb6eab08e in android::BpBinder::transact (this=0xb6c090c0, code=1, data=..., reply=0xbeaa1ad4, flags=0) at frameworks/native/libs/binder/BpBinder.cpp:165
+#4  0xb6f3e42e in android::BpTestService::test (this=<optimized out>) at external/testservice/TestClient.cpp:10
+#5  0xb6f3e23c in main () at external/testservice/TestClient.cpp:18
+(gdb) p mIn
+$1 = {mError = 0, mData = 0xb6c27000 "\fr", mDataSize = 48, mDataCapacity = 256, mDataPos = 48, mObjects = 0x0, mObjectsSize = 0, mObjectsCapacity = 0, mNextObjectHint = 0, mFdsKnown = true, mHasFds = false, mAllowFds = true, mOwner = 0x0, mOwnerCookie = 0x0,
+  mOpenAshmemSize = 0}
+(gdb) p needRead
+$2 = true
+# 和我猜测的不一致，mDataSize=48=mDataPos, mData里面是啥？
+(gdb) x /48c mIn.mData
+0xb6c27000: 12 '\f' 114 'r' 0 '\000'    0 '\000'    3 '\003'    114 'r' 40 '('  -128 '\200'
+0xb6c27008: 0 '\000'    0 '\000'    0 '\000'    0 '\000'    0 '\000'    0 '\000'    0 '\000'    0 '\000'
+0xb6c27010: 0 '\000'    0 '\000'    0 '\000'    0 '\000'    0 '\000'    0 '\000'    0 '\000'    0 '\000'
+0xb6c27018: 0 '\000'    0 '\000'    0 '\000'    0 '\000'
+```
+
+
+
+
+
+
+

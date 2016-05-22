@@ -7,6 +7,18 @@
 				"*.sublime-project", "*.png",
 			],
 			"path": "."
+		},
+		{
+			"name" : "root/_config", 
+			"file_include_patterns":["_config.yml",],
+			"folder_exclude_patterns":["*"],
+			"path": "../"
+		},
+		{
+			"name" : "themes/_config", 
+			"file_include_patterns":["_config.yml",],
+			"folder_exclude_patterns":["*"],
+			"path": "../themes/maupassant/"
 		}
 	]
 }
