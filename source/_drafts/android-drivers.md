@@ -267,17 +267,522 @@ $1 = {mError = 0, mData = 0xb6c27000 "\fr", mDataSize = 48, mDataCapacity = 256,
   mOpenAshmemSize = 0}
 (gdb) p needRead
 $2 = true
-# 和我猜测的不一致，mDataSize=48=mDataPos, mData里面是啥？
-(gdb) x /48c mIn.mData
-0xb6c27000: 12 '\f' 114 'r' 0 '\000'    0 '\000'    3 '\003'    114 'r' 40 '('  -128 '\200'
-0xb6c27008: 0 '\000'    0 '\000'    0 '\000'    0 '\000'    0 '\000'    0 '\000'    0 '\000'    0 '\000'
-0xb6c27010: 0 '\000'    0 '\000'    0 '\000'    0 '\000'    0 '\000'    0 '\000'    0 '\000'    0 '\000'
-0xb6c27018: 0 '\000'    0 '\000'    0 '\000'    0 '\000'
+# 结果和我猜测的一致
 ```
+综上所述，在`IPCThreadState::talkWithDriver(...)`中调用
+``` c
+ioctl(mProcess->mDriverFD, BINDER_WRITE_READ, &brw)
+```
+传入的数据bwr即为：
+![](img01.png)
+# 驱动层如何处理Test()请求
+binder驱动层对接ioctl的函数是binder_ioctl(...)，kernel/goldfish/drivers/staging/android/binder.c:2716
+``` c
+static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{   // cmd=BINDER_WRITE_READ
+    int ret;
+    struct binder_proc *proc = filp->private_data;
+    struct binder_thread *thread;
+    unsigned int size = _IOC_SIZE(cmd);
+    void __user *ubuf = (void __user *)arg;
 
+    /*printk(KERN_INFO "binder_ioctl: %d:%d %x %lx\n", proc->pid, current->pid, cmd, arg);*/
 
+    trace_binder_ioctl(cmd, arg);
 
+    ret = wait_event_interruptible(binder_user_error_wait, binder_stop_on_user_error < 2);
+    if (ret)
+        goto err_unlocked;
 
+    binder_lock(__func__);
+    thread = binder_get_thread(proc);
+    ......
 
+    switch (cmd) {
+    case BINDER_WRITE_READ: {
+        struct binder_write_read bwr;
+        ......
+        if (copy_from_user(&bwr, ubuf, sizeof(bwr))) {// 把上图总用户空间的bwr复制到内核
+            ......
+        }
+        ......
+        if (bwr.write_size > 0) {
+            // 重点在这里
+            ret = binder_thread_write(proc, thread, (void __user *)bwr.write_buffer, bwr.write_size, &bwr.write_consumed);
+            trace_binder_write_done(ret);
+            ......
+        }
+        if (bwr.read_size > 0) {
+            ret = binder_thread_read(proc, thread, (void __user *)bwr.read_buffer, bwr.read_size, &bwr.read_consumed, filp->f_flags & O_NONBLOCK);
+            trace_binder_read_done(ret);
+            ......
+        }
+        binder_debug(BINDER_DEBUG_READ_WRITE,
+                 "binder: %d:%d wrote %ld of %ld, read return %ld of %ld\n",
+                 proc->pid, thread->pid, bwr.write_consumed, bwr.write_size,
+                 bwr.read_consumed, bwr.read_size);
+        if (copy_to_user(ubuf, &bwr, sizeof(bwr))) {
+            ret = -EFAULT;
+            goto err;
+        }
+        break;
+    }
+    ......
+    }
+    ret = 0;
+err:
+    if (thread)
+        thread->looper &= ~BINDER_LOOPER_STATE_NEED_RETURN;
+    binder_unlock(__func__);
+    wait_event_interruptible(binder_user_error_wait, binder_stop_on_user_error < 2);
+    if (ret && ret != -ERESTARTSYS)
+        printk(KERN_INFO "binder: %d:%d ioctl %x %lx returned %d\n", proc->pid, current->pid, cmd, arg, ret);
+err_unlocked:
+    trace_binder_ioctl_done(ret);
+    return ret;
+}
+```
+来看重点调用
+``` c
+binder_thread_write(proc, thread, (void __user *)bwr.write_buffer,
+                            bwr.write_size, &bwr.write_consumed);
+```
+kernel/goldfish/drivers/staging/android/binder.c:1837
+``` c
+int binder_thread_write(struct binder_proc *proc, struct binder_thread *thread,
+            void __user *buffer, int size, signed long *consumed)
+{
+    uint32_t cmd;
+    void __user *ptr = buffer + *consumed;
+    void __user *end = buffer + size;
 
+    while (ptr < end && thread->return_error == BR_OK) {
+        if (get_user(cmd, (uint32_t __user *)ptr))
+            return -EFAULT;
+        ptr += sizeof(uint32_t);
+        trace_binder_command(cmd);
+        if (_IOC_NR(cmd) < ARRAY_SIZE(binder_stats.bc)) {
+            binder_stats.bc[_IOC_NR(cmd)]++;
+            proc->stats.bc[_IOC_NR(cmd)]++;
+            thread->stats.bc[_IOC_NR(cmd)]++;
+        }
+        switch (cmd) {
+        ......
+        case BC_TRANSACTION:
+        case BC_REPLY: {
+            struct binder_transaction_data tr;
+
+            if (copy_from_user(&tr, ptr, sizeof(tr)))
+                return -EFAULT;
+            ptr += sizeof(tr); // 对照前面的图逆向拆解
+            binder_transaction(proc, thread, &tr, cmd == BC_REPLY);
+            break;
+        }
+        ......
+        default:
+            printk(KERN_ERR "binder: %d:%d unknown command %d\n",
+                   proc->pid, thread->pid, cmd);
+            return -EINVAL;
+        }
+        *consumed = ptr - buffer;
+    }
+    return 0;
+}
+```
+这个cmd的值是BC_TRANSACTION，因此继续`binder_transaction(proc, thread, &tr, false)`, kernel/goldfish/drivers/staging/android/binder.c:1402
+``` c
+static void binder_transaction(struct binder_proc *proc,
+                   struct binder_thread *thread,
+                   struct binder_transaction_data *tr, int reply)
+{
+    struct binder_transaction *t;
+    struct binder_work *tcomplete;
+    size_t *offp, *off_end;
+    struct binder_proc *target_proc;
+    struct binder_thread *target_thread = NULL;
+    struct binder_node *target_node = NULL;
+    struct list_head *target_list;
+    wait_queue_head_t *target_wait;
+    struct binder_transaction *in_reply_to = NULL;
+    struct binder_transaction_log_entry *e;
+    uint32_t return_error;
+
+    e = binder_transaction_log_add(&binder_transaction_log);
+    e->call_type = reply ? 2 : !!(tr->flags & TF_ONE_WAY);
+    e->from_proc = proc->pid;
+    e->from_thread = thread->pid;
+    e->target_handle = tr->target.handle;
+    e->data_size = tr->data_size;
+    e->offsets_size = tr->offsets_size;
+
+    if (reply) {
+        ......
+    } else {
+        if (tr->target.handle) {
+            struct binder_ref *ref;
+            ref = binder_get_ref(proc, tr->target.handle);
+            if (ref == NULL) {
+                binder_user_error("binder: %d:%d got "
+                    "transaction to invalid handle\n",
+                    proc->pid, thread->pid);
+                return_error = BR_FAILED_REPLY;
+                goto err_invalid_target_handle;
+            }
+            target_node = ref->node;
+        } else {
+            target_node = binder_context_mgr_node;
+            if (target_node == NULL) {
+                return_error = BR_DEAD_REPLY;
+                goto err_no_context_mgr_node;
+            }
+        }
+        e->to_node = target_node->debug_id;
+        target_proc = target_node->proc;
+        if (target_proc == NULL) {
+            return_error = BR_DEAD_REPLY;
+            goto err_dead_binder;
+        }
+        if (security_binder_transaction(proc->tsk, target_proc->tsk) < 0) {
+            return_error = BR_FAILED_REPLY;
+            goto err_invalid_target_handle;
+        }
+        if (!(tr->flags & TF_ONE_WAY) && thread->transaction_stack) {
+            struct binder_transaction *tmp;
+            tmp = thread->transaction_stack;
+            if (tmp->to_thread != thread) {
+                binder_user_error("binder: %d:%d got new "
+                    "transaction with bad transaction stack"
+                    ", transaction %d has target %d:%d\n",
+                    proc->pid, thread->pid, tmp->debug_id,
+                    tmp->to_proc ? tmp->to_proc->pid : 0,
+                    tmp->to_thread ?
+                    tmp->to_thread->pid : 0);
+                return_error = BR_FAILED_REPLY;
+                goto err_bad_call_stack;
+            }
+            while (tmp) {
+                if (tmp->from && tmp->from->proc == target_proc)
+                    target_thread = tmp->from;
+                tmp = tmp->from_parent;
+            }
+        }
+    }
+    if (target_thread) {
+        e->to_thread = target_thread->pid;
+        target_list = &target_thread->todo;
+        target_wait = &target_thread->wait;
+    } else {
+        target_list = &target_proc->todo;
+        target_wait = &target_proc->wait;
+    }
+    e->to_proc = target_proc->pid;
+
+    /* TODO: reuse incoming transaction for reply */
+    t = kzalloc(sizeof(*t), GFP_KERNEL);
+    if (t == NULL) {
+        return_error = BR_FAILED_REPLY;
+        goto err_alloc_t_failed;
+    }
+    binder_stats_created(BINDER_STAT_TRANSACTION);
+
+    tcomplete = kzalloc(sizeof(*tcomplete), GFP_KERNEL);
+    if (tcomplete == NULL) {
+        return_error = BR_FAILED_REPLY;
+        goto err_alloc_tcomplete_failed;
+    }
+    binder_stats_created(BINDER_STAT_TRANSACTION_COMPLETE);
+
+    t->debug_id = ++binder_last_id;
+    e->debug_id = t->debug_id;
+
+    if (reply)
+        binder_debug(BINDER_DEBUG_TRANSACTION,
+                 "binder: %d:%d BC_REPLY %d -> %d:%d, "
+                 "data %p-%p size %zd-%zd\n",
+                 proc->pid, thread->pid, t->debug_id,
+                 target_proc->pid, target_thread->pid,
+                 tr->data.ptr.buffer, tr->data.ptr.offsets,
+                 tr->data_size, tr->offsets_size);
+    else
+        binder_debug(BINDER_DEBUG_TRANSACTION,
+                 "binder: %d:%d BC_TRANSACTION %d -> "
+                 "%d - node %d, data %p-%p size %zd-%zd\n",
+                 proc->pid, thread->pid, t->debug_id,
+                 target_proc->pid, target_node->debug_id,
+                 tr->data.ptr.buffer, tr->data.ptr.offsets,
+                 tr->data_size, tr->offsets_size);
+
+    if (!reply && !(tr->flags & TF_ONE_WAY))
+        t->from = thread;
+    else
+        t->from = NULL;
+    t->sender_euid = proc->tsk->cred->euid;
+    t->to_proc = target_proc;
+    t->to_thread = target_thread;
+    t->code = tr->code;
+    t->flags = tr->flags;
+    t->priority = task_nice(current);
+
+    trace_binder_transaction(reply, t, target_node);
+
+    t->buffer = binder_alloc_buf(target_proc, tr->data_size,
+        tr->offsets_size, !reply && (t->flags & TF_ONE_WAY));
+    if (t->buffer == NULL) {
+        return_error = BR_FAILED_REPLY;
+        goto err_binder_alloc_buf_failed;
+    }
+    t->buffer->allow_user_free = 0;
+    t->buffer->debug_id = t->debug_id;
+    t->buffer->transaction = t;
+    t->buffer->target_node = target_node;
+    trace_binder_transaction_alloc_buf(t->buffer);
+    if (target_node)
+        binder_inc_node(target_node, 1, 0, NULL);
+
+    offp = (size_t *)(t->buffer->data + ALIGN(tr->data_size, sizeof(void *)));
+
+    if (copy_from_user(t->buffer->data, tr->data.ptr.buffer, tr->data_size)) {
+        binder_user_error("binder: %d:%d got transaction with invalid "
+            "data ptr\n", proc->pid, thread->pid);
+        return_error = BR_FAILED_REPLY;
+        goto err_copy_data_failed;
+    }
+    if (copy_from_user(offp, tr->data.ptr.offsets, tr->offsets_size)) {
+        binder_user_error("binder: %d:%d got transaction with invalid "
+            "offsets ptr\n", proc->pid, thread->pid);
+        return_error = BR_FAILED_REPLY;
+        goto err_copy_data_failed;
+    }
+    if (!IS_ALIGNED(tr->offsets_size, sizeof(size_t))) {
+        binder_user_error("binder: %d:%d got transaction with "
+            "invalid offsets size, %zd\n",
+            proc->pid, thread->pid, tr->offsets_size);
+        return_error = BR_FAILED_REPLY;
+        goto err_bad_offset;
+    }
+    off_end = (void *)offp + tr->offsets_size;
+    for (; offp < off_end; offp++) {
+        struct flat_binder_object *fp;
+        if (*offp > t->buffer->data_size - sizeof(*fp) ||
+            t->buffer->data_size < sizeof(*fp) ||
+            !IS_ALIGNED(*offp, sizeof(void *))) {
+            binder_user_error("binder: %d:%d got transaction with "
+                "invalid offset, %zd\n",
+                proc->pid, thread->pid, *offp);
+            return_error = BR_FAILED_REPLY;
+            goto err_bad_offset;
+        }
+        fp = (struct flat_binder_object *)(t->buffer->data + *offp);
+        switch (fp->type) {
+        case BINDER_TYPE_BINDER:
+        case BINDER_TYPE_WEAK_BINDER: {
+            struct binder_ref *ref;
+            struct binder_node *node = binder_get_node(proc, fp->binder);
+            if (node == NULL) {
+                node = binder_new_node(proc, fp->binder, fp->cookie);
+                if (node == NULL) {
+                    return_error = BR_FAILED_REPLY;
+                    goto err_binder_new_node_failed;
+                }
+                node->min_priority = fp->flags & FLAT_BINDER_FLAG_PRIORITY_MASK;
+                node->accept_fds = !!(fp->flags & FLAT_BINDER_FLAG_ACCEPTS_FDS);
+            }
+            if (fp->cookie != node->cookie) {
+                binder_user_error("binder: %d:%d sending u%p "
+                    "node %d, cookie mismatch %p != %p\n",
+                    proc->pid, thread->pid,
+                    fp->binder, node->debug_id,
+                    fp->cookie, node->cookie);
+                goto err_binder_get_ref_for_node_failed;
+            }
+            if (security_binder_transfer_binder(proc->tsk, target_proc->tsk)) {
+                return_error = BR_FAILED_REPLY;
+                goto err_binder_get_ref_for_node_failed;
+            }
+            ref = binder_get_ref_for_node(target_proc, node);
+            if (ref == NULL) {
+                return_error = BR_FAILED_REPLY;
+                goto err_binder_get_ref_for_node_failed;
+            }
+            if (fp->type == BINDER_TYPE_BINDER)
+                fp->type = BINDER_TYPE_HANDLE;
+            else
+                fp->type = BINDER_TYPE_WEAK_HANDLE;
+            fp->handle = ref->desc;
+            binder_inc_ref(ref, fp->type == BINDER_TYPE_HANDLE,
+                       &thread->todo);
+
+            trace_binder_transaction_node_to_ref(t, node, ref);
+            binder_debug(BINDER_DEBUG_TRANSACTION,
+                     "        node %d u%p -> ref %d desc %d\n",
+                     node->debug_id, node->ptr, ref->debug_id,
+                     ref->desc);
+        } break;
+        case BINDER_TYPE_HANDLE:
+        case BINDER_TYPE_WEAK_HANDLE: {
+            struct binder_ref *ref = binder_get_ref(proc, fp->handle);
+            if (ref == NULL) {
+                binder_user_error("binder: %d:%d got "
+                    "transaction with invalid "
+                    "handle, %ld\n", proc->pid,
+                    thread->pid, fp->handle);
+                return_error = BR_FAILED_REPLY;
+                goto err_binder_get_ref_failed;
+            }
+            if (security_binder_transfer_binder(proc->tsk, target_proc->tsk)) {
+                return_error = BR_FAILED_REPLY;
+                goto err_binder_get_ref_failed;
+            }
+            if (ref->node->proc == target_proc) {
+                if (fp->type == BINDER_TYPE_HANDLE)
+                    fp->type = BINDER_TYPE_BINDER;
+                else
+                    fp->type = BINDER_TYPE_WEAK_BINDER;
+                fp->binder = ref->node->ptr;
+                fp->cookie = ref->node->cookie;
+                binder_inc_node(ref->node, fp->type == BINDER_TYPE_BINDER, 0, NULL);
+                trace_binder_transaction_ref_to_node(t, ref);
+                binder_debug(BINDER_DEBUG_TRANSACTION,
+                         "        ref %d desc %d -> node %d u%p\n",
+                         ref->debug_id, ref->desc, ref->node->debug_id,
+                         ref->node->ptr);
+            } else {
+                struct binder_ref *new_ref;
+                new_ref = binder_get_ref_for_node(target_proc, ref->node);
+                if (new_ref == NULL) {
+                    return_error = BR_FAILED_REPLY;
+                    goto err_binder_get_ref_for_node_failed;
+                }
+                fp->handle = new_ref->desc;
+                binder_inc_ref(new_ref, fp->type == BINDER_TYPE_HANDLE, NULL);
+                trace_binder_transaction_ref_to_ref(t, ref,
+                                    new_ref);
+                binder_debug(BINDER_DEBUG_TRANSACTION,
+                         "        ref %d desc %d -> ref %d desc %d (node %d)\n",
+                         ref->debug_id, ref->desc, new_ref->debug_id,
+                         new_ref->desc, ref->node->debug_id);
+            }
+        } break;
+
+        case BINDER_TYPE_FD: {
+            int target_fd;
+            struct file *file;
+
+            if (reply) {
+                if (!(in_reply_to->flags & TF_ACCEPT_FDS)) {
+                    binder_user_error("binder: %d:%d got reply with fd, %ld, but target does not allow fds\n",
+                        proc->pid, thread->pid, fp->handle);
+                    return_error = BR_FAILED_REPLY;
+                    goto err_fd_not_allowed;
+                }
+            } else if (!target_node->accept_fds) {
+                binder_user_error("binder: %d:%d got transaction with fd, %ld, but target does not allow fds\n",
+                    proc->pid, thread->pid, fp->handle);
+                return_error = BR_FAILED_REPLY;
+                goto err_fd_not_allowed;
+            }
+
+            file = fget(fp->handle);
+            if (file == NULL) {
+                binder_user_error("binder: %d:%d got transaction with invalid fd, %ld\n",
+                    proc->pid, thread->pid, fp->handle);
+                return_error = BR_FAILED_REPLY;
+                goto err_fget_failed;
+            }
+            if (security_binder_transfer_file(proc->tsk, target_proc->tsk, file) < 0) {
+                fput(file);
+                return_error = BR_FAILED_REPLY;
+                goto err_get_unused_fd_failed;
+            }
+            target_fd = task_get_unused_fd_flags(target_proc, O_CLOEXEC);
+            if (target_fd < 0) {
+                fput(file);
+                return_error = BR_FAILED_REPLY;
+                goto err_get_unused_fd_failed;
+            }
+            task_fd_install(target_proc, target_fd, file);
+            trace_binder_transaction_fd(t, fp->handle, target_fd);
+            binder_debug(BINDER_DEBUG_TRANSACTION,
+                     "        fd %ld -> %d\n", fp->handle, target_fd);
+            /* TODO: fput? */
+            fp->handle = target_fd;
+        } break;
+
+        default:
+            binder_user_error("binder: %d:%d got transactio"
+                "n with invalid object type, %lx\n",
+                proc->pid, thread->pid, fp->type);
+            return_error = BR_FAILED_REPLY;
+            goto err_bad_object_type;
+        }
+    }
+    if (reply) {
+        BUG_ON(t->buffer->async_transaction != 0);
+        binder_pop_transaction(target_thread, in_reply_to);
+    } else if (!(t->flags & TF_ONE_WAY)) {
+        BUG_ON(t->buffer->async_transaction != 0);
+        t->need_reply = 1;
+        t->from_parent = thread->transaction_stack;
+        thread->transaction_stack = t;
+    } else {
+        BUG_ON(target_node == NULL);
+        BUG_ON(t->buffer->async_transaction != 1);
+        if (target_node->has_async_transaction) {
+            target_list = &target_node->async_todo;
+            target_wait = NULL;
+        } else
+            target_node->has_async_transaction = 1;
+    }
+    t->work.type = BINDER_WORK_TRANSACTION;
+    list_add_tail(&t->work.entry, target_list);
+    tcomplete->type = BINDER_WORK_TRANSACTION_COMPLETE;
+    list_add_tail(&tcomplete->entry, &thread->todo);
+    if (target_wait)
+        wake_up_interruptible(target_wait);
+    return;
+
+err_get_unused_fd_failed:
+err_fget_failed:
+err_fd_not_allowed:
+err_binder_get_ref_for_node_failed:
+err_binder_get_ref_failed:
+err_binder_new_node_failed:
+err_bad_object_type:
+err_bad_offset:
+err_copy_data_failed:
+    trace_binder_transaction_failed_buffer_release(t->buffer);
+    binder_transaction_buffer_release(target_proc, t->buffer, offp);
+    t->buffer->transaction = NULL;
+    binder_free_buf(target_proc, t->buffer);
+err_binder_alloc_buf_failed:
+    kfree(tcomplete);
+    binder_stats_deleted(BINDER_STAT_TRANSACTION_COMPLETE);
+err_alloc_tcomplete_failed:
+    kfree(t);
+    binder_stats_deleted(BINDER_STAT_TRANSACTION);
+err_alloc_t_failed:
+err_bad_call_stack:
+err_empty_call_stack:
+err_dead_binder:
+err_invalid_target_handle:
+err_no_context_mgr_node:
+    binder_debug(BINDER_DEBUG_FAILED_TRANSACTION,
+             "binder: %d:%d transaction failed %d, size %zd-%zd\n",
+             proc->pid, thread->pid, return_error,
+             tr->data_size, tr->offsets_size);
+
+    {
+        struct binder_transaction_log_entry *fe;
+        fe = binder_transaction_log_add(&binder_transaction_log_failed);
+        *fe = *e;
+    }
+
+    BUG_ON(thread->return_error != BR_OK);
+    if (in_reply_to) {
+        thread->return_error = BR_TRANSACTION_COMPLETE;
+        binder_send_failed_reply(in_reply_to, return_error);
+    } else
+        thread->return_error = return_error;
+}
+```
 
