@@ -42,7 +42,9 @@ static initcall_t __initcall_binder_init6 __used
     --- Enable loadable module support
         [*]   Forced module loading
         [*]   Module unloading
-        [*]     Forced module unloading                                        [ ]   Module versioning support                                        [ ]   Source checksum for all modules
+        [*]     Forced module unloading
+        [ ]   Module versioning support
+        [ ]   Source checksum for all modules
 ......
 Device Drivers  --->
     ......
