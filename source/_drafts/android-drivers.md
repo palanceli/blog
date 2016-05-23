@@ -173,9 +173,9 @@ status_t IPCThreadState::talkWithDriver(bool doReceive)
     ......
     binder_write_read bwr;
     ......
-    const bool needRead = mIn.dataPosition() >= mIn.dataSize();// 此时mIn内应该没有数据，因此size肯定大于dataPosition，因此needRead=false
+    const bool needRead = mIn.dataPosition() >= mIn.dataSize();// mIn有上一轮IO中读出尚未解析的数据，因此needRead=true
     ......
-    const size_t outAvail = (!doReceive || needRead) ? mOut.dataSize() : 0; // outAvail=0
+    const size_t outAvail = (!doReceive || needRead) ? mOut.dataSize() : 0; // outAvail=mOut.dataSize()
     
     bwr.write_size = outAvail;
     bwr.write_buffer = (uintptr_t)mOut.data();
