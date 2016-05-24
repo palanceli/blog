@@ -225,7 +225,7 @@ err_no_vma:
 }
 ```
 binder_insert_free_buffer(...)，它将一个空闲的内核缓冲区加入到进程的空闲内核缓冲区红黑树中。binder_proc::free_buffers用来描述一个红黑树，他按照大小来组织进程中的空闲内核缓冲区。因此将内核缓冲区new_buffer加入到目标进程proc的空闲内核缓冲区红黑树之前，先调用binder_buffer_size(...)来计算它的大小。
->书签
+>书签 P172
 
 kernel/goldfish/drivers/staging/android/binder.c:545
 ``` c
