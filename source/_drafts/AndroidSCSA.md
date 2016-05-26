@@ -225,7 +225,6 @@ err_no_vma:
 }
 ```
 binder_insert_free_buffer(...)，它将一个空闲的内核缓冲区加入到进程的空闲内核缓冲区红黑树中。binder_proc::free_buffers用来描述一个红黑树，他按照大小来组织进程中的空闲内核缓冲区。因此将内核缓冲区new_buffer加入到目标进程proc的空闲内核缓冲区红黑树之前，先调用binder_buffer_size(...)来计算它的大小。
->书签 P172
 
 kernel/goldfish/drivers/staging/android/binder.c:545
 ``` c
@@ -262,3 +261,186 @@ static void binder_insert_free_buffer(struct binder_proc *proc,
     rb_insert_color(&new_buffer->rb_node, &proc->free_buffers);
 }
 ```
+# 分配内核缓冲区
+当进程使用命令协议BC_TRANSACTION或BC_REPLY向另一个进程传递数据时，Binder驱动程序需要将这些数据从用户空间拷贝到内核空间，然后再传递给目标进程。此时Binder驱动程序就需要在目标进程的内存池中分配出一小块内核缓冲区来保存这些数据，以便可以传递给它使用。此操作由binder_alloc_buf来实现。
+kernel/goldfish/drivers/staging/android/binder.c:732
+``` c
+static struct binder_buffer *binder_alloc_buf(struct binder_proc *proc,
+                          size_t data_size,
+                          size_t offsets_size, int is_async)
+{   // proc描述目标进程；data_size描述数据缓冲区大小；
+    // offsets_size描述偏移数组缓冲区大小；
+    // is_async描述所请求的内核缓冲区是用于同步事务还是异步事务
+    struct rb_node *n = proc->free_buffers.rb_node;
+    struct binder_buffer *buffer;
+    size_t buffer_size;
+    struct rb_node *best_fit = NULL;
+    void *has_page_addr;
+    void *end_page_addr;
+    size_t size;
+    ......
+    // 分别将data_size和offset_size对齐到一个void指针大小边界，
+    // 然后相加得到要分配的内核缓冲区大小
+    size = ALIGN(data_size, sizeof(void *)) +
+        ALIGN(offsets_size, sizeof(void *));
+    // 是否发生溢出
+    if (size < data_size || size < offsets_size) {
+        binder_user_error("binder: %d: got transaction with invalid "
+            "size %zd-%zd\n", proc->pid, data_size, offsets_size);
+        return NULL;
+    }
+    // 如果是异步事务 && 请求分配的内核缓冲区大小大于目标进程剩余可用于
+    // 异步事务的内核缓冲区大小，则出错返回
+    if (is_async &&
+        proc->free_async_space < size + sizeof(struct binder_buffer)) {
+        binder_debug(BINDER_DEBUG_BUFFER_ALLOC,
+                 "binder: %d: binder_alloc_buf size %zd"
+                 "failed, no async space left\n", proc->pid, size);
+        return NULL;
+    }
+    // 使用最佳适配算法在目标进程的空闲内核缓冲区红黑树中检查有没有最合适的内核缓冲区可用
+    // 如果有则保存在best_fit中
+    while (n) {
+        buffer = rb_entry(n, struct binder_buffer, rb_node);
+        BUG_ON(!buffer->free);
+        buffer_size = binder_buffer_size(proc, buffer);
+
+        if (size < buffer_size) {
+            best_fit = n;
+            n = n->rb_left;
+        } else if (size > buffer_size)
+            n = n->rb_right;
+        else {
+            best_fit = n;
+            break;
+        }
+    }
+    if (best_fit == NULL) { // 没有找到，则出错返回
+        printk(KERN_ERR "binder: %d: binder_alloc_buf size %zd failed, "
+               "no address space\n", proc->pid, size);
+        return NULL;
+    }
+    // 没有找到大小刚刚合适的，但找到一块较大的内核缓冲区，将实际大小保存在buffer_size中
+    if (n == NULL) { 
+        buffer = rb_entry(best_fit, struct binder_buffer, rb_node);
+        buffer_size = binder_buffer_size(proc, buffer);
+    }
+
+    binder_debug(BINDER_DEBUG_BUFFER_ALLOC,
+             "binder: %d: binder_alloc_buf size %zd got buff"
+             "er %p size %zd\n", proc->pid, size, buffer, buffer_size);
+    // 计算空闲内核缓冲区buffer的结束地址所在页面的起始地址
+    has_page_addr =
+        (void *)(((uintptr_t)buffer->data + buffer_size) & PAGE_MASK);
+    // 如果找到了一块较大的内核缓冲区，则裁剪
+    if (n == NULL) {
+        // 如果裁剪后剩下的小块小于等于4字节，就不裁减了
+        if (size + sizeof(struct binder_buffer) + 4 >= buffer_size)
+            buffer_size = size; /* no room for other buffers */
+        else
+            buffer_size = size + sizeof(struct binder_buffer);
+    }
+    // 得到最终要分配的内核缓冲区大小，并将其结束地址对齐到页面边界
+    end_page_addr =
+        (void *)PAGE_ALIGN((uintptr_t)buffer->data + buffer_size);
+    // 对齐后的end_page_addr可能大于原来的空闲内核缓冲区
+    // buffer结束地址所在的页面起始地址had_page_addr，此时需要修正end_page_addr
+    if (end_page_addr > has_page_addr)
+        end_page_addr = has_page_addr;
+    // 分配物理页面
+    if (binder_update_page_range(proc, 1,
+        (void *)PAGE_ALIGN((uintptr_t)buffer->data), end_page_addr, NULL))
+        return NULL;
+    // 将空闲内核缓冲区从目标进程的空闲内核缓冲区红黑树中删除
+    rb_erase(best_fit, &proc->free_buffers);
+    buffer->free = 0;
+    // 将前面分配的内核缓冲区加入到目标进程的已分配物理页面的内核缓冲区红黑树中
+    binder_insert_allocated_buffer(proc, buffer);
+    // 从原来的空闲内核缓冲区中分配出来一块新的内核缓冲区之后，是否还有剩余。
+    if (buffer_size != size) {  
+        // 如果有，将剩余的内核缓冲区封装成另外一个新的空闲内核缓冲区new_buffer，
+        // 并将它添加到目标进程的内核缓冲区列表，以及空闲内核缓冲区红黑树中
+        struct binder_buffer *new_buffer = (void *)buffer->data + size;
+        list_add(&new_buffer->entry, &buffer->entry);
+        new_buffer->free = 1;
+        binder_insert_free_buffer(proc, new_buffer);
+    }
+    binder_debug(BINDER_DEBUG_BUFFER_ALLOC,
+             "binder: %d: binder_alloc_buf size %zd got "
+             "%p\n", proc->pid, size, buffer);
+    // 对新分配的内核缓冲区执行初始化操作
+    buffer->data_size = data_size;          // 数据缓冲区大小
+    buffer->offsets_size = offsets_size;    // 偏移数组缓冲区大小
+    buffer->async_transaction = is_async;
+    if (is_async) {//如果用于异步事务，则减少目标进程proc可用于异步事务的内核缓冲区大小
+        proc->free_async_space -= size + sizeof(struct binder_buffer);
+        binder_debug(BINDER_DEBUG_BUFFER_ALLOC_ASYNC,
+                 "binder: %d: binder_alloc_buf size %zd "
+                 "async free %zd\n", proc->pid, size,
+                 proc->free_async_space);
+    }
+
+    return buffer;
+}
+```
+# 释放内核缓冲区
+当一个进程处理完成Binder驱动程序给它发送的返回协议BR_TRANSACTION或BR_REPLY之后，它就会使用命令协议BC_FREE_BUFFER来通知Binder驱动程序释放响应的内核缓冲区，以免浪费内存。
+``` c
+static void binder_free_buf(struct binder_proc *proc,
+                struct binder_buffer *buffer)
+{
+    size_t size, buffer_size;
+    // 计算要释放的内核缓冲区buffer的大小
+    buffer_size = binder_buffer_size(proc, buffer);
+    // 计算数据缓冲区以及偏移数组缓冲区的大小之和
+    size = ALIGN(buffer->data_size, sizeof(void *)) +
+        ALIGN(buffer->offsets_size, sizeof(void *));
+
+    binder_debug(BINDER_DEBUG_BUFFER_ALLOC,
+             "binder: %d: binder_free_buf %p size %zd buffer"
+             "_size %zd\n", proc->pid, buffer, size, buffer_size);
+
+    BUG_ON(buffer->free);
+    BUG_ON(size > buffer_size);
+    BUG_ON(buffer->transaction != NULL);
+    BUG_ON((void *)buffer < proc->buffer);
+    BUG_ON((void *)buffer > proc->buffer + proc->buffer_size);
+    // 如果用于异步事务，将它所占用的大小增加到目标进程proc可用于
+    // 异步事务的内核缓冲区大小free_async_space中
+    if (buffer->async_transaction) {
+        proc->free_async_space += size + sizeof(struct binder_buffer);
+
+        binder_debug(BINDER_DEBUG_BUFFER_ALLOC_ASYNC,
+                 "binder: %d: binder_free_buf size %zd "
+                 "async free %zd\n", proc->pid, size,
+                 proc->free_async_space);
+    }
+    // 释放内核缓冲区buffer用来保存数据的那一部分地址空间所占用的物理页面
+    binder_update_page_range(proc, 0,
+        (void *)PAGE_ALIGN((uintptr_t)buffer->data),
+        (void *)(((uintptr_t)buffer->data + buffer_size) & PAGE_MASK),
+        NULL);
+    // 从目标进程proc已分配物理页面的内核缓冲区红黑树中删除
+    rb_erase(&buffer->rb_node, &proc->allocated_buffers);
+    buffer->free = 1;
+    if (!list_is_last(&buffer->entry, &proc->buffers)) {
+        struct binder_buffer *next = list_entry(buffer->entry.next,
+                        struct binder_buffer, entry);
+        if (next->free) {
+            rb_erase(&next->rb_node, &proc->free_buffers);
+            binder_delete_free_buffer(proc, next);
+        }
+    }
+    if (proc->buffers.next != &buffer->entry) {
+        struct binder_buffer *prev = list_entry(buffer->entry.prev,
+                        struct binder_buffer, entry);
+        if (prev->free) {
+            binder_delete_free_buffer(proc, buffer);
+            rb_erase(&prev->rb_node, &proc->free_buffers);
+            buffer = prev;
+        }
+    }
+    binder_insert_free_buffer(proc, buffer);
+}
+```
+> 书签179
