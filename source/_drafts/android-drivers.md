@@ -407,13 +407,7 @@ static void binder_transaction(struct binder_proc *proc,
     struct binder_transaction_log_entry *e;
     uint32_t return_error;
 
-    e = binder_transaction_log_add(&binder_transaction_log);
-    e->call_type = reply ? 2 : !!(tr->flags & TF_ONE_WAY);
-    e->from_proc = proc->pid;
-    e->from_thread = thread->pid;
-    e->target_handle = tr->target.handle;
-    e->data_size = tr->data_size;
-    e->offsets_size = tr->offsets_size;
+    ......
 
     if (reply) {
         ......

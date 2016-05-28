@@ -423,6 +423,8 @@ static void binder_free_buf(struct binder_proc *proc,
     // 从目标进程proc已分配物理页面的内核缓冲区红黑树中删除
     rb_erase(&buffer->rb_node, &proc->allocated_buffers);
     buffer->free = 1;
+    // 如果要释放的内核缓冲区buffer不是目标进程proc的内核缓冲区列表中的最后一个元素，
+    // 并且它前后的内核缓冲区也是空闲的，那么就需要将它们合并成一个更大的空闲内核缓冲区
     if (!list_is_last(&buffer->entry, &proc->buffers)) {
         struct binder_buffer *next = list_entry(buffer->entry.next,
                         struct binder_buffer, entry);
@@ -440,7 +442,100 @@ static void binder_free_buf(struct binder_proc *proc,
             buffer = prev;
         }
     }
+    // 将回收的buffer添加到目标进程proc空闲内核缓冲区红黑树中
     binder_insert_free_buffer(proc, buffer);
 }
 ```
-> 书签179
+# 删除binder_buffer结构体的函数binder_delete_free_buffer
+调用该函数时，必须保证它指向的内核缓冲区不是目标进程proc的第一个内核缓冲区，
+并且该内核缓冲区以及它前面的内核缓冲区都是空闲的；否则，函数就会报错。
+kerne/goldfish/drivers/staging/android/binder.c:848
+``` c
+static void binder_delete_free_buffer(struct binder_proc *proc,
+                      struct binder_buffer *buffer)
+{
+    struct binder_buffer *prev, *next = NULL;
+    int free_page_end = 1;
+    int free_page_start = 1;
+
+    BUG_ON(proc->buffers.next == &buffer->entry);
+    prev = list_entry(buffer->entry.prev, struct binder_buffer, entry);
+    BUG_ON(!prev->free);
+    // 检查binder_buffer结构体buffer和prev的位置关系
+    // 如果binder_buffer结构体buffer的第一个虚拟地址页面和binder_buffer结构体
+    // prev的第二个虚拟地址页面是同一个页面
+    if (buffer_end_page(prev) == buffer_start_page(buffer)) {
+        // binder_buffer结构体buffer所在的第一个虚拟地址页面所对应的物理页面就不可以释放
+        free_page_start = 0; 
+        // 如果binder_buffer结构体buffer的第二个虚拟地址页面和binder_buffer
+        // 结构体prev的第二个虚拟地址页面也是同一个页面
+        if (buffer_end_page(prev) == buffer_end_page(buffer))
+            free_page_end = 0;  // 第二个虚拟地址页面所对应的物理页面也不可释放
+        binder_debug(BINDER_DEBUG_BUFFER_ALLOC,
+                 "binder: %d: merge free, buffer %p "
+                 "share page with %p\n", proc->pid, buffer, prev);
+    }
+
+    if (!list_is_last(&buffer->entry, &proc->buffers)) {
+        next = list_entry(buffer->entry.next,
+                  struct binder_buffer, entry);
+        // 检查binder_buffer结构体buffer和next的位置关系
+        // 如果 buffer第二个虚拟地址页面和next第一个虚拟地址页面是同一个页面
+        if (buffer_start_page(next) == buffer_end_page(buffer)) {
+            // buffer所在的第二个虚拟地址页面所对应的物理页面就不可以释放
+            free_page_end = 0;  
+            // 如果buffer第一个虚拟地址页面和next的第一个虚拟地址页面也是同一个页面
+            // 则buffer所在的第一个虚拟地址页面所对应的物理页面也不可释放
+            if (buffer_start_page(next) ==
+                buffer_start_page(buffer))
+                free_page_start = 0; 
+            binder_debug(BINDER_DEBUG_BUFFER_ALLOC,
+                     "binder: %d: merge free, buffer"
+                     " %p share page with %p\n", proc->pid,
+                     buffer, prev);
+        }
+    }
+    // 将buffer所描述的内核缓冲区从目标进程proc的内核缓冲区列表中删除
+    list_del(&buffer->entry);
+    if (free_page_start || free_page_end) { // 是否需要释放buffer所占用的物理页面
+        binder_debug(BINDER_DEBUG_BUFFER_ALLOC,
+                 "binder: %d: merge free, buffer %p do "
+                 "not share page%s%s with with %p or %p\n",
+                 proc->pid, buffer, free_page_start ? "" : " end",
+                 free_page_end ? "" : " start", prev, next);
+        // 释放它所在的虚拟地址页面所对应的物理页面
+        binder_update_page_range(proc, 0, free_page_start ?
+            buffer_start_page(buffer) : buffer_end_page(buffer),
+            (free_page_end ? buffer_end_page(buffer) :
+            buffer_start_page(buffer)) + PAGE_SIZE, NULL);
+    }
+}
+```
+# 函数Binder_buffer_lookup根据一个用户空间地址来查询一个内核缓冲区
+``` c
+static struct binder_buffer *binder_buffer_lookup(struct binder_proc *proc,
+                          void __user *user_ptr)
+{
+    struct rb_node *n = proc->allocated_buffers.rb_node;
+    struct binder_buffer *buffer;
+    struct binder_buffer *kern_ptr;
+    // 用户空间地址user_ptr所对应的binder_buffer结构体的内核空间地址
+    kern_ptr = user_ptr - proc->user_buffer_offset
+        - offsetof(struct binder_buffer, data);
+
+    // 在目标进程proc已分配内核缓冲区红黑树allocated_buffers中查找与
+    // 内核空间地址kern_ptr对应的节点
+    while (n) {
+        buffer = rb_entry(n, struct binder_buffer, rb_node);
+        BUG_ON(buffer->free);
+
+        if (kern_ptr < buffer)
+            n = n->rb_left;
+        else if (kern_ptr > buffer)
+            n = n->rb_right;
+        else
+            return buffer;  // 返回该节点所对应的一个binder_buffer结构体
+    }
+    return NULL;  // 找不到与用户空间地址user_ptr对应的内核缓冲区
+}
+```
