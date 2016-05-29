@@ -121,13 +121,16 @@ static int __init binder_init(void)
 第一行就被卡住了`create_singlethread_workqueue`是什么？
 >[Linux workqueue工作原理](http://blog.csdn.net/myarrow/article/details/8090504)
 
-# `binder_transaction(...)`
+# 从服务端addService触发的`binder_transaction(...)`
+从native层的调用过程同[binder学习笔记（十）—— 穿越到驱动层](http://palanceli.github.io/blog/2016/05/28/2016/0528BinderLearning10/)。
+传入的`binder_transaction_data`输入参见：![addService组织的请求数据](http://palanceli.github.io/blog/2016/05/11/2016/0514BinderLearning6/img02.png)
+
 kernel/goldfish/drivers/staging/android/binder.c:1402
 ``` c
 static void binder_transaction(struct binder_proc *proc,
                    struct binder_thread *thread,
                    struct binder_transaction_data *tr, int reply)
-{
+{   // reply=(cmd==BC_REPLY)即false
     struct binder_transaction *t;
     struct binder_work *tcomplete;
     size_t *offp, *off_end;
@@ -145,28 +148,16 @@ static void binder_transaction(struct binder_proc *proc,
     if (reply) {
         ......
     } else {
-        if (tr->target.handle) {  // addService时保存在服务器的handle
-            struct binder_ref *ref;  // 从红黑树中取出ref
-            ref = binder_get_ref(proc, tr->target.handle);
-            if (ref == NULL) {
-                binder_user_error("binder: %d:%d got "
-                    "transaction to invalid handle\n",
-                    proc->pid, thread->pid);
-                return_error = BR_FAILED_REPLY;
-                goto err_invalid_target_handle;
-            }
-            target_node = ref->node;
+        if (tr->target.handle) {  // tr->target.handle=0
+            ......
         } else {
-            target_node = binder_context_mgr_node;
+            target_node = binder_context_mgr_node; // service manager对应的节点
             ......
         }
-        e->to_node = target_node->debug_id;
-        target_proc = target_node->proc;
         ......
-        if (security_binder_transaction(proc->tsk, target_proc->tsk) < 0) {
-            return_error = BR_FAILED_REPLY;
-            goto err_invalid_target_handle;
-        }
+        target_proc = target_node->proc; // 得到目标进程的binder_proc
+        ......
+        // 得到目标线程
         if (!(tr->flags & TF_ONE_WAY) && thread->transaction_stack) {
             struct binder_transaction *tmp;
             tmp = thread->transaction_stack;
@@ -196,42 +187,18 @@ static void binder_transaction(struct binder_proc *proc,
         target_list = &target_proc->todo;
         target_wait = &target_proc->wait;
     }
-    e->to_proc = target_proc->pid;
-
-    /* TODO: reuse incoming transaction for reply */
+    ......
+    // 创建binder_transaction节点
     t = kzalloc(sizeof(*t), GFP_KERNEL);
-    if (t == NULL) {
-        return_error = BR_FAILED_REPLY;
-        goto err_alloc_t_failed;
-    }
+    ......
     binder_stats_created(BINDER_STAT_TRANSACTION);
 
     tcomplete = kzalloc(sizeof(*tcomplete), GFP_KERNEL);
-    if (tcomplete == NULL) {
-        return_error = BR_FAILED_REPLY;
-        goto err_alloc_tcomplete_failed;
-    }
+    ......
     binder_stats_created(BINDER_STAT_TRANSACTION_COMPLETE);
 
     t->debug_id = ++binder_last_id;
-    e->debug_id = t->debug_id;
-
-    if (reply)
-        binder_debug(BINDER_DEBUG_TRANSACTION,
-                 "binder: %d:%d BC_REPLY %d -> %d:%d, "
-                 "data %p-%p size %zd-%zd\n",
-                 proc->pid, thread->pid, t->debug_id,
-                 target_proc->pid, target_thread->pid,
-                 tr->data.ptr.buffer, tr->data.ptr.offsets,
-                 tr->data_size, tr->offsets_size);
-    else
-        binder_debug(BINDER_DEBUG_TRANSACTION,
-                 "binder: %d:%d BC_TRANSACTION %d -> "
-                 "%d - node %d, data %p-%p size %zd-%zd\n",
-                 proc->pid, thread->pid, t->debug_id,
-                 target_proc->pid, target_node->debug_id,
-                 tr->data.ptr.buffer, tr->data.ptr.offsets,
-                 tr->data_size, tr->offsets_size);
+    ......
 
     if (!reply && !(tr->flags & TF_ONE_WAY))
         t->from = thread;
@@ -259,29 +226,19 @@ static void binder_transaction(struct binder_proc *proc,
     trace_binder_transaction_alloc_buf(t->buffer);
     if (target_node)
         binder_inc_node(target_node, 1, 0, NULL);
-
+    // 分析所传数据中的所有binder对象，如果是binder实体，在红黑树中添加相应的节点。
+    // 首先，从用户态获取所传输的数据，以及数据里的binder对象偏移信息
     offp = (size_t *)(t->buffer->data + ALIGN(tr->data_size, sizeof(void *)));
 
     if (copy_from_user(t->buffer->data, tr->data.ptr.buffer, tr->data_size)) {
-        binder_user_error("binder: %d:%d got transaction with invalid "
-            "data ptr\n", proc->pid, thread->pid);
-        return_error = BR_FAILED_REPLY;
-        goto err_copy_data_failed;
+        ......
     }
     if (copy_from_user(offp, tr->data.ptr.offsets, tr->offsets_size)) {
-        binder_user_error("binder: %d:%d got transaction with invalid "
-            "offsets ptr\n", proc->pid, thread->pid);
-        return_error = BR_FAILED_REPLY;
-        goto err_copy_data_failed;
+        ......
     }
-    if (!IS_ALIGNED(tr->offsets_size, sizeof(size_t))) {
-        binder_user_error("binder: %d:%d got transaction with "
-            "invalid offsets size, %zd\n",
-            proc->pid, thread->pid, tr->offsets_size);
-        return_error = BR_FAILED_REPLY;
-        goto err_bad_offset;
-    }
+    ......
     off_end = (void *)offp + tr->offsets_size;
+    // 遍历每个flat_binder_object信息，创建必要的红黑树节点
     for (; offp < off_end; offp++) {
         struct flat_binder_object *fp;
         if (*offp > t->buffer->data_size - sizeof(*fp) ||
@@ -296,64 +253,38 @@ static void binder_transaction(struct binder_proc *proc,
         fp = (struct flat_binder_object *)(t->buffer->data + *offp);
         switch (fp->type) {
         case BINDER_TYPE_BINDER:
-        case BINDER_TYPE_WEAK_BINDER: {
+        case BINDER_TYPE_WEAK_BINDER: { // 如果是binder实体
             struct binder_ref *ref;
             struct binder_node *node = binder_get_node(proc, fp->binder);
-            if (node == NULL) {
+            if (node == NULL) { // 如果没有则创建新的binder_node节点
                 node = binder_new_node(proc, fp->binder, fp->cookie);
-                if (node == NULL) {
-                    return_error = BR_FAILED_REPLY;
-                    goto err_binder_new_node_failed;
-                }
+                ......
                 node->min_priority = fp->flags & FLAT_BINDER_FLAG_PRIORITY_MASK;
                 node->accept_fds = !!(fp->flags & FLAT_BINDER_FLAG_ACCEPTS_FDS);
             }
-            if (fp->cookie != node->cookie) {
-                binder_user_error("binder: %d:%d sending u%p "
-                    "node %d, cookie mismatch %p != %p\n",
-                    proc->pid, thread->pid,
-                    fp->binder, node->debug_id,
-                    fp->cookie, node->cookie);
-                goto err_binder_get_ref_for_node_failed;
-            }
-            if (security_binder_transfer_binder(proc->tsk, target_proc->tsk)) {
-                return_error = BR_FAILED_REPLY;
-                goto err_binder_get_ref_for_node_failed;
-            }
+            ......
+            // 必要时，会在目标进程的binder_proc中创建对应的binder_ref红黑树节点
             ref = binder_get_ref_for_node(target_proc, node);
-            if (ref == NULL) {
-                return_error = BR_FAILED_REPLY;
-                goto err_binder_get_ref_for_node_failed;
-            }
+            ......
             if (fp->type == BINDER_TYPE_BINDER)
                 fp->type = BINDER_TYPE_HANDLE;
             else
                 fp->type = BINDER_TYPE_WEAK_HANDLE;
+            // 修改所传数据中的flat_binder_object信息，因为远端的binder实体到
+            // 了目标端就变为binder代理了，所以要记录下binder句柄了。
             fp->handle = ref->desc;
             binder_inc_ref(ref, fp->type == BINDER_TYPE_HANDLE,
                        &thread->todo);
 
             trace_binder_transaction_node_to_ref(t, node, ref);
-            binder_debug(BINDER_DEBUG_TRANSACTION,
-                     "        node %d u%p -> ref %d desc %d\n",
-                     node->debug_id, node->ptr, ref->debug_id,
-                     ref->desc);
+            ......
         } break;
         case BINDER_TYPE_HANDLE:
-        case BINDER_TYPE_WEAK_HANDLE: {
+        case BINDER_TYPE_WEAK_HANDLE: { 
+            // 对flat_binder_object做必要的修改，比如将BINDER_TYPE_HANDLE改为
+            // BINDER_TYPE_BINDER
             struct binder_ref *ref = binder_get_ref(proc, fp->handle);
-            if (ref == NULL) {
-                binder_user_error("binder: %d:%d got "
-                    "transaction with invalid "
-                    "handle, %ld\n", proc->pid,
-                    thread->pid, fp->handle);
-                return_error = BR_FAILED_REPLY;
-                goto err_binder_get_ref_failed;
-            }
-            if (security_binder_transfer_binder(proc->tsk, target_proc->tsk)) {
-                return_error = BR_FAILED_REPLY;
-                goto err_binder_get_ref_failed;
-            }
+            ......
             if (ref->node->proc == target_proc) {
                 if (fp->type == BINDER_TYPE_HANDLE)
                     fp->type = BINDER_TYPE_BINDER;
@@ -438,16 +369,14 @@ static void binder_transaction(struct binder_proc *proc,
         }
     }
     if (reply) {
-        BUG_ON(t->buffer->async_transaction != 0);
-        binder_pop_transaction(target_thread, in_reply_to);
+        ......
     } else if (!(t->flags & TF_ONE_WAY)) {
         BUG_ON(t->buffer->async_transaction != 0);
         t->need_reply = 1;
         t->from_parent = thread->transaction_stack;
         thread->transaction_stack = t;
     } else {
-        BUG_ON(target_node == NULL);
-        BUG_ON(t->buffer->async_transaction != 1);
+        ......
         if (target_node->has_async_transaction) {
             target_list = &target_node->async_todo;
             target_wait = NULL;
@@ -455,10 +384,11 @@ static void binder_transaction(struct binder_proc *proc,
             target_node->has_async_transaction = 1;
     }
     t->work.type = BINDER_WORK_TRANSACTION;
+    // 把binder_transaction节点插入target_list（及目标todo队列）
     list_add_tail(&t->work.entry, target_list);
     tcomplete->type = BINDER_WORK_TRANSACTION_COMPLETE;
     list_add_tail(&tcomplete->entry, &thread->todo);
-    if (target_wait)
+    if (target_wait) // 传输动作完毕，现在可以唤醒系统中其它相关线程，wake up!
         wake_up_interruptible(target_wait);
     return;
 
