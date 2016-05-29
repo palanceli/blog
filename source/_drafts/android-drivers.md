@@ -145,8 +145,8 @@ static void binder_transaction(struct binder_proc *proc,
     if (reply) {
         ......
     } else {
-        if (tr->target.handle) {
-            struct binder_ref *ref;
+        if (tr->target.handle) {  // addService时保存在服务器的handle
+            struct binder_ref *ref;  // 从红黑树中取出ref
             ref = binder_get_ref(proc, tr->target.handle);
             if (ref == NULL) {
                 binder_user_error("binder: %d:%d got "
@@ -158,17 +158,11 @@ static void binder_transaction(struct binder_proc *proc,
             target_node = ref->node;
         } else {
             target_node = binder_context_mgr_node;
-            if (target_node == NULL) {
-                return_error = BR_DEAD_REPLY;
-                goto err_no_context_mgr_node;
-            }
+            ......
         }
         e->to_node = target_node->debug_id;
         target_proc = target_node->proc;
-        if (target_proc == NULL) {
-            return_error = BR_DEAD_REPLY;
-            goto err_dead_binder;
-        }
+        ......
         if (security_binder_transaction(proc->tsk, target_proc->tsk) < 0) {
             return_error = BR_FAILED_REPLY;
             goto err_invalid_target_handle;
