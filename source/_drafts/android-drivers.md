@@ -188,16 +188,10 @@ static void binder_transaction(struct binder_proc *proc,
         target_wait = &target_proc->wait;
     }
     ......
-    // 创建binder_transaction节点
-    t = kzalloc(sizeof(*t), GFP_KERNEL);
+    t = kzalloc(sizeof(*t), GFP_KERNEL);  // 创建binder_transaction节点
     ......
-    binder_stats_created(BINDER_STAT_TRANSACTION);
 
-    tcomplete = kzalloc(sizeof(*tcomplete), GFP_KERNEL);
-    ......
-    binder_stats_created(BINDER_STAT_TRANSACTION_COMPLETE);
-
-    t->debug_id = ++binder_last_id;
+    tcomplete = kzalloc(sizeof(*tcomplete), GFP_KERNEL);//创建一个binder_work节点
     ......
 
     if (!reply && !(tr->flags & TF_ONE_WAY))
