@@ -130,7 +130,7 @@ kernel/goldfish/drivers/staging/android/binder.c:1402
 static void binder_transaction(struct binder_proc *proc,
                    struct binder_thread *thread,
                    struct binder_transaction_data *tr, int reply)
-{   // reply=(cmd==BC_REPLY)即false
+{   // reply=(cmd==BC_REPLY)即false，flags=TF_ACCEPT_FDS
     struct binder_transaction *t;
     struct binder_work *tcomplete;
     size_t *offp, *off_end;
@@ -157,7 +157,8 @@ static void binder_transaction(struct binder_proc *proc,
         ......
         target_proc = target_node->proc; // 得到目标进程的binder_proc
         ......
-        // 得到目标线程
+        // 得到目标线程tr->flags=TF_ACCEPT_FDS
+        // thread未被操作过，骨transaction_stack为0
         if (!(tr->flags & TF_ONE_WAY) && thread->transaction_stack) {
             struct binder_transaction *tmp;
             tmp = thread->transaction_stack;
@@ -183,7 +184,7 @@ static void binder_transaction(struct binder_proc *proc,
         e->to_thread = target_thread->pid;
         target_list = &target_thread->todo;
         target_wait = &target_thread->wait;
-    } else {
+    } else { // 走这里
         target_list = &target_proc->todo;
         target_wait = &target_proc->wait;
     }
@@ -193,40 +194,39 @@ static void binder_transaction(struct binder_proc *proc,
 
     tcomplete = kzalloc(sizeof(*tcomplete), GFP_KERNEL);//创建一个binder_work节点
     ......
-
-    if (!reply && !(tr->flags & TF_ONE_WAY))
+    // 这里岂不是为真？thread来自binder_ioctl(...)中的binder_get_thread(proc)
+    // 返回proc的当前线程
+    if (!reply && !(tr->flags & TF_ONE_WAY)) 
         t->from = thread;
     else
         t->from = NULL;
-    t->sender_euid = proc->tsk->cred->euid;
-    t->to_proc = target_proc;
-    t->to_thread = target_thread;
-    t->code = tr->code;
-    t->flags = tr->flags;
-    t->priority = task_nice(current);
+    t->sender_euid = proc->tsk->cred->euid; // 源线程用户id
+    t->to_proc = target_proc;               // 负责处理该事务的进程，sm
+    t->to_thread = target_thread;           // 负责处理该事务的线程
+    t->code = tr->code;                     // ADD_SERVICE_TRANSACTION
+    t->flags = tr->flags;                   // TF_ACCEPT_FDS
+    t->priority = task_nice(current);       // 源线程优先级
 
     trace_binder_transaction(reply, t, target_node);
 
     t->buffer = binder_alloc_buf(target_proc, tr->data_size,
         tr->offsets_size, !reply && (t->flags & TF_ONE_WAY));
-    if (t->buffer == NULL) {
-        return_error = BR_FAILED_REPLY;
-        goto err_binder_alloc_buf_failed;
-    }
-    t->buffer->allow_user_free = 0;
+    ......
+    t->buffer->allow_user_free = 0;// Service处理完该事务后，驱动不会释放该内核缓冲区
     t->buffer->debug_id = t->debug_id;
-    t->buffer->transaction = t;
-    t->buffer->target_node = target_node;
+    t->buffer->transaction = t; // 缓冲区正交给哪个事务使用
+    t->buffer->target_node = target_node;   // 缓冲区正交给哪个Binder实体对象使用
     trace_binder_transaction_alloc_buf(t->buffer);
     if (target_node)
         binder_inc_node(target_node, 1, 0, NULL);
     // 分析所传数据中的所有binder对象，如果是binder实体，在红黑树中添加相应的节点。
     // 首先，从用户态获取所传输的数据，以及数据里的binder对象偏移信息
     offp = (size_t *)(t->buffer->data + ALIGN(tr->data_size, sizeof(void *)));
-
+    // 将服务端传来的Parcel的数据部分拷贝到内核空间
     if (copy_from_user(t->buffer->data, tr->data.ptr.buffer, tr->data_size)) {
         ......
     }
+    // 将服务端传来的Parcel的偏移数组拷贝到内核空间
     if (copy_from_user(offp, tr->data.ptr.offsets, tr->offsets_size)) {
         ......
     }
@@ -235,20 +235,14 @@ static void binder_transaction(struct binder_proc *proc,
     // 遍历每个flat_binder_object信息，创建必要的红黑树节点
     for (; offp < off_end; offp++) {
         struct flat_binder_object *fp;
-        if (*offp > t->buffer->data_size - sizeof(*fp) ||
-            t->buffer->data_size < sizeof(*fp) ||
-            !IS_ALIGNED(*offp, sizeof(void *))) {
-            binder_user_error("binder: %d:%d got transaction with "
-                "invalid offset, %zd\n",
-                proc->pid, thread->pid, *offp);
-            return_error = BR_FAILED_REPLY;
-            goto err_bad_offset;
-        }
+        ......
         fp = (struct flat_binder_object *)(t->buffer->data + *offp);
         switch (fp->type) {
         case BINDER_TYPE_BINDER:
         case BINDER_TYPE_WEAK_BINDER: { // 如果是binder实体
             struct binder_ref *ref;
+            // 这里得到的是个BnTestService::getWeakRefs()
+            // 这到底是个啥？为什么几乎当做指针用？
             struct binder_node *node = binder_get_node(proc, fp->binder);
             if (node == NULL) { // 如果没有则创建新的binder_node节点
                 node = binder_new_node(proc, fp->binder, fp->cookie);
