@@ -88,3 +88,140 @@ class LightRefBase
     }
 };
 ```
+## 情景分析
+Android智能指针的代码不多，且比较独立，我把它们抽取出来，再写一些测试用例，对这块代码的理解大有裨益。我在Anrdoid源码中每个函数头部都打了Log，标示函数名。代码可以到这里下载[androidex/host-smartptr](https://github.com/palanceli/androidex/tree/master/host-smartptr)。这里的Android源码取自android-6.0.1_r11。
+* StrongPointer.h
+来自`frameworks/rs/cpp/util/StrongPointer.h`
+* RefBase.h
+来自`frameworks/rs/cpp/util/RefBase.h`
+* RefBase.cpp
+来自`system/core/libutils/RefBase.cpp`
+* meyers.h
+来自《More Effective C++》条款29，是带有引用计数功能的智能指针的实现
+* testlightptr.cpp和testweightptr.cpp
+是对Android轻量级智能指针和强、弱智能指针的测试用例，
+* logger.h
+是一个log工具，
+* smartptr.cpp
+是主入口函数，该文件包含若干测试用例，函数名为tc01、tc02...
+
+该程序的使用方法为：
+``` bash
+smartptr <tcname>
+```
+例如：
+``` bash
+smartptr tc01  # 它执行例程函数tc01
+```
+一下是对轻量级指针的测试代码：
+``` c++
+#include <stdio.h>
+#include "RefBase.h"
+#include "logger.h"
+
+class LightClass : public LightRefBase <LightClass>
+{
+public:
+    LightClass(){}
+    ~LightClass(){}
+};
+
+int testlightptr(int argc, char const * argv[])
+{
+    // 初始lpLightClass的引用计数为0
+    LightClass * pLightClass = new LightClass();
+    // 调用sp的复制构造函数sp::sp(T* other)，使得pLightClass的引用计数为1。
+    sp<LightClass> lpOut = pLightClass;
+    Logging("Light Ref Count: %d.", pLightClass->getStrongCount());
+    {
+        // 调用sp的赋值构造函数sp::sp(const sp<T>& other)，
+        // 使得pLightClass的引用计数累加为2
+        sp<LightClass> lpInner = lpOut;
+        Logging("Light Ref Count: %d.", pLightClass->getStrongCount());
+        // lpInner析构，pLightClass的引用计数递减为1
+    }
+    Logging("Light Ref Count:%d.", pLightClass->getStrongCount());
+    return 0;
+    // lpOut析构，pLightClass引用计数递减为0，在decStrong(...)中delete pLightClass
+}
+```
+执行结果如下：
+``` bash
+$ ./smartptr tc01
+[StrongPointer.h:41] sp::sp(T*)
+[testlightptr.cpp:16] Light Ref Count: 1.
+[StrongPointer.h:47] sp::sp(const sp<T>&)
+[testlightptr.cpp:19] Light Ref Count: 2.
+[StrongPointer.h:53] sp::~sp()
+[testlightptr.cpp:21] Light Ref Count:1.
+[StrongPointer.h:53] sp::~sp()
+```
+# 强/弱智能指针
+强/弱指针把我折腾的七荤八素的，因为没有原型可参考了，我相信这个设计必有出处，只是自己没有找到，于是只好啃代码。强/弱智能指针的代码比轻量级智能指针复杂很多，静态代码研究很容易陷入“每句代码都明白，就是抓不住灵魂”的境地，我发现最好的应对方法是从需求出发，找到一两个使用场景代入走查一下。好在这块代码比较独立，前面我已经把他们抽取出来，情景分析是比较容易的。
+
+## 强/弱智能指针的目的
+轻量级智能指针可以完成对目标对象的引用计数的记录，并在没有没有任何指针指向目标对象的时候自动销毁对象，防止内存泄漏。但是当遇到循环引用的时候，该手段就失效了，如下图：
+![当智能指针遇上循环引用](img04.png)
+当p不再指向objectA，其引用计数由2变为1，相互指向的objectA和objectB就变成悬浮的两座孤岛，再也没有路径可以访问到它们，于是造成了内存泄漏。
+
+解决方案是给循环引用的双方定义主从关系，由主指向从的智能指针就称为强指针，由从指向主的指针就称为弱指针，强/弱指针仍然都是具备引用计数功能的智能指针，只是当一个对象没有强指针指向的时候就可以销毁掉了。如下图：
+![强弱指针解决循环引用的问题](img05.png)
+实线代表强指针，虚线代表弱指针。当p不再指向objectA，其强引用计数递减为0，于是objectA可以销毁，它指向objectB的强指针也被销毁，于是objectB的强引用计数递减为0，objectB也可以销毁。
+
+## 强/弱智能指针的使用
+强/弱智能指针的定义和使用形式如下：
+``` c++
+// 对象实体必须从RefBase派生，该类在`RefBase.h`和`RefBase.cpp`中声明和定义
+class MyClass : public RefBase
+{
+......
+};
+......
+sp<MyClass> pStrong(new MyClass);   // 定义强指针
+wp<MyClass> pWeak(new MyClass);     // 定义弱指针
+```
+我们来看看RefBase，frameworks/rs/cpp/util/RefBase.h
+``` c++
+class RefBase
+{
+........
+
+    class weakref_type
+    {
+        ........
+    };
+
+......
+
+    virtual                 ~RefBase();
+
+    enum {
+        OBJECT_LIFETIME_STRONG  = 0x0000,
+        OBJECT_LIFETIME_WEAK    = 0x0001,
+        OBJECT_LIFETIME_MASK    = 0x0001
+    };
+
+......
+
+private:
+    ......
+    class weakref_impl;
+        
+    weakref_impl* const mRefs;
+};
+```
+和LightRefBase相比有三个明显的差异：
+1. 没有模板参数，前文已经分析过LightRefBase使用模板参数是出于性能的考虑，省去一个虚表的开销，而RefBase定义了virtual的析构函数，可见继承关系可能是在所难免的，于是再用模板参数就没有任何意义了。
+2. RefBase没有像LightRefBase那样直接用成员变量记录引用计数，而是又定义了一个weakref_impl*类型的成员，由它来记录强/弱引用计数。这是为什么？从前面模型图上就能找到答案：
+![强弱指针解决循环引用的问题](img05.png)
+继续前面的推演，objectA被销毁后，objectB还有一个弱指针指向objectA的。objectA在销毁的时刻，只能处理由自己发出的指针，而无法知道都有谁指向了自己。于是objectA被销毁后，来自objectB的弱指针也就成了野指针。为了解决这个问题，可以让引用计数和对象实体分离，如下图：
+![引用计数与对象实体分离](img06.png)
+于是就有了weakref_impl* mRefs成员，该成员被称为他所记录的实体对象的影子对象，影子和本尊之间有指针指向对方，但影子的生存周期可能比本尊还要长。因为影子负责记录本尊的强/弱引用计数，当强引用计数为0时，本尊被销毁，影子继续记录其弱引用计数，直到两个引用计数分别为0，影子才被销毁掉。
+3. 枚举类型OBJECT_LIFETIME_xxx。这本不算和LightRefBase之间的差异，但在阅读RefBase代码时这三种类型左右着实体对象的生命周期策略。这也是最让我疑惑的地方：既然强引用计数决定实体的生命周期，为什么还要在reakref_impl中用一个成员变量mFlags来记录实体的生命周期受哪个引用计数控制呢？试想如下这种情况：
+![](img07.png)
+当p1不再指向objectA，它的强引用计数就为0了，于是可以被销毁。可此时还有p2指向objectB，两个实体对象并没有成为孤岛，还有可能要通过p2再访问objectA和objectB组成的循环链表，在objectA和objectB之间定义主从关系仅仅是为了避免孤岛导致的内存泄漏。所以尽管objectA此时的强引用计数已为0，只要弱引用计数还在，还是先留objectA一条小命，让它再苟延残喘一段时间，直到其弱引用计数也为0，说明彻底没用了，到那时候再真地干掉。这就是mFlags和这三个枚举类型的作用：
+ * 当mFlags为OBJECT_LIFETIME_STRONG，实体对象的生命周期遵循强/弱指针最初始的规则：强引用计数为0，就销毁；
+ * 当mFlags为OBJECT_LIFETIME_WEAK，如果强引用计数为0，实体对象暂时不要销毁，等到弱引用计数也为0时再销毁
+
+## 情景分析
+
