@@ -497,4 +497,121 @@ $ ./smartptr tc03
 苦苦追寻了一个礼拜，今晚终于可以睡个踏实觉啦。
 最后再沉淀几句鸡汤：读代码不要一头扎得太深，初期观其大略了解意图最重要，这也是说起来容易，如果代码量大一些，把“大略”装到肚子里也挺考验肺活量，尤其是上班累得像狗一样，只能每晚一两个小时来搞。把当天研究的内容记录下来，做有效的沉淀很重要，我用hexo的draft来暂存。最后，尽量扩展自己的视野，讲究的程序员是最懂得不重复造轮子的，一来成熟的东西稳定；二来模式降低了学习和交流沟通的成本。
 
+----
 
+今晚再添最后一笔，智能指针就齐活了！
+### wp::promote()弱指针升格为强指针
+在RefBase.h:
+``` c++
+template<typename T>
+sp<T> wp<T>::promote() const
+{
+    sp<T> result;
+    if (m_ptr && m_refs->attemptIncStrong(&result)) {
+        result.set_pointer(m_ptr);
+    }
+    return result;
+}
+```
+RefBase.cpp:
+``` c++
+bool RefBase::weakref_type::attemptIncStrong(const void* id)
+{
+    incWeak(id);  // 增加弱引用计数
+    
+    weakref_impl* const impl = static_cast<weakref_impl*>(this);
+    int32_t curCount = impl->mStrong;
+    // 当强引用计数已破处，且大于0：给impl->mStrong递加1，并将递加后的值赋给curCount
+    while (curCount > 0 && curCount != INITIAL_STRONG_VALUE) {
+        // we're in the easy/common case of promoting a weak-reference
+        // from an existing strong reference.
+        if (android_atomic_cmpxchg(curCount, curCount+1, &impl->mStrong) == 0) {
+            break;
+        }
+        // the strong count has changed on us, we need to re-assert our
+        // situation.
+        curCount = impl->mStrong;
+    }
+    // 当强引用计数未破处或被递减到0：
+    if (curCount <= 0 || curCount == INITIAL_STRONG_VALUE) {
+        // we're now in the harder case of either:
+        // - there never was a strong reference on us
+        // - or, all strong references have been released
+        // 一般逻辑
+        if ((impl->mFlags&OBJECT_LIFETIME_WEAK) == OBJECT_LIFETIME_STRONG) {
+            // this object has a "normal" life-time, i.e.: it gets destroyed
+            // when the last strong reference goes away
+            // 强引用计数已被递减到0，实体对象肯定已被销毁，无法升格，还原弱引用计数，返回
+            if (curCount <= 0) {
+                // the last strong-reference got released, the object cannot
+                // be revived.
+                decWeak(id);
+                return false;
+            }
+            // 强引用计数大于0，试图递加1，并将递加后的值赋给curCount
+            // here, curCount == INITIAL_STRONG_VALUE, which means
+            // there never was a strong-reference, so we can try to
+            // promote this object; we need to do that atomically.
+            while (curCount > 0) {
+                if (android_atomic_cmpxchg(curCount, curCount + 1,
+                        &impl->mStrong) == 0) {
+                    break;
+                }
+                // the strong count has changed on us, we need to re-assert our
+                // situation (e.g.: another thread has inc/decStrong'ed us)
+                curCount = impl->mStrong;
+            }
+            // 上一步中“试图递加”失败，被别的线程递减回0，实体对象肯定也没了，只能返回
+            if (curCount <= 0) {
+                // promote() failed, some other thread destroyed us in the
+                // meantime (i.e.: strong count reached zero).
+                decWeak(id);
+                return false;
+            }
+        } else {  // 暂存逻辑下，实体对象总是存在的
+            // this object has an "extended" life-time, i.e.: it can be
+            // revived from a weak-reference only.
+            // Ask the object's implementation if it agrees to be revived
+            如果实体对象不允许尝试递增强引用计数，则返回失败
+            if (!impl->mBase->onIncStrongAttempted(FIRST_INC_STRONG, id)) {
+                // it didn't so give-up.
+                decWeak(id);
+                return false;
+            }
+            // grab a strong-reference, which is always safe due to the
+            // extended life-time.
+            curCount = android_atomic_inc(&impl->mStrong);
+        }
+
+        // If the strong reference count has already been incremented by
+        // someone else, the implementor of onIncStrongAttempted() is holding
+        // an unneeded reference.  So call onLastStrongRef() here to remove it.
+        // (No, this is not pretty.)  Note that we MUST NOT do this if we
+        // are in fact acquiring the first reference.
+        if (curCount > 0 && curCount < INITIAL_STRONG_VALUE) {
+            impl->mBase->onLastStrongRef(id);
+        }
+    }
+    
+    impl->addStrongRef(id);  //忽略
+
+
+    // 如果前面的递加使强引用计数破处，则需要清理掉处女膜
+    // now we need to fix-up the count if it was INITIAL_STRONG_VALUE
+    // this must be done safely, i.e.: handle the case where several threads
+    // were here in attemptIncStrong().
+    curCount = impl->mStrong;
+    while (curCount >= INITIAL_STRONG_VALUE) {
+        if (android_atomic_cmpxchg(curCount, curCount-INITIAL_STRONG_VALUE,
+                &impl->mStrong) == 0) {
+            break;
+        }
+        // the strong-count changed on us, we need to re-assert the situation,
+        // for e.g.: it's possible the fix-up happened in another thread.
+        curCount = impl->mStrong;
+    }
+
+    return true;
+}
+```
+`RefBase::weakref_type::attemptIncStrong(const void* id)`的逻辑并不复杂，核心目标就是尝试给实体对象的强引用指针递加1。但有些情况下是注定不可能完成任务的，比如实体对象已经被销毁了；或者在执行此函数的时候实体对象还在，但在执行递加的过程中被销毁了；或者实体对象拒绝被升格。这些情况返回false。
