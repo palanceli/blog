@@ -1,5 +1,6 @@
 ---
 title: Binder学习笔记（十二）—— binder_transaction(...)都干了什么？
+date:   2016-06-14 00:20:23 +0800
 categories: Android
 tags:   binder
 toc: true
@@ -43,7 +44,7 @@ static void binder_transaction(struct binder_proc *proc,
         target_proc = target_node->proc; // 得到目标进程的binder_proc
         ......
         // 得到目标线程tr->flags=TF_ACCEPT_FDS
-        // thread未被操作过，骨transaction_stack为0
+        // thread未被操作过，故transaction_stack为0
         if (!(tr->flags & TF_ONE_WAY) && thread->transaction_stack) {
             struct binder_transaction *tmp;
             tmp = thread->transaction_stack;
@@ -126,8 +127,8 @@ static void binder_transaction(struct binder_proc *proc,
         case BINDER_TYPE_BINDER:
         case BINDER_TYPE_WEAK_BINDER: { // 如果是binder实体
             struct binder_ref *ref;
-            // 这里得到的是个BnTestService::getWeakRefs()
-            // 这到底是个啥？为什么几乎当做指针用？
+            // fp->binder是BnTestService::getWeakRefs()
+            // 是BnTestService的影子对象
             struct binder_node *node = binder_get_node(proc, fp->binder);
             if (node == NULL) { // 如果没有则创建新的binder_node节点
                 node = binder_new_node(proc, fp->binder, fp->cookie);
