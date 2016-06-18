@@ -106,7 +106,7 @@ static void binder_transaction(struct binder_proc *proc,
     if (target_node)
         binder_inc_node(target_node, 1, 0, NULL);
     // 分析所传数据中的所有binder对象，如果是binder实体，在红黑树中添加相应的节点。
-    // 首先，从用户态获取所传输的数据，以及数据里的binder对象偏移信息
+    // 首先，从用户态获取所传输的数据，以及数据里的binder对象偏移信息。
     offp = (size_t *)(t->buffer->data + ALIGN(tr->data_size, sizeof(void *)));
     // 将服务端传来的Parcel的数据部分拷贝到内核空间
     if (copy_from_user(t->buffer->data, tr->data.ptr.buffer, tr->data_size)) {
