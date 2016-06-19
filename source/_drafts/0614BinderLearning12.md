@@ -7,6 +7,190 @@ toc: true
 comments: true
 layout: post
 ---
+# binder_open(...)都干了什么？
+在回答binder_transaction(...)之前，还有一些技术设施要去探究，比如binder_open(...)，binder_mmap(...)，这些调用是在打开设备文件/dev/binder之后必须完成的程式化操作，而在它们内部需要做一些数据结构的准备。首先来看binder_open(...)
+kernel/drivers/staging/android/binder.c:2979
+``` c++
+static int binder_open(struct inode *nodp, struct file *filp)
+{
+    struct binder_proc *proc;
+    ......
+    proc = kzalloc(sizeof(*proc), GFP_KERNEL); // 创建binder_proc结构体
+    ......
+    get_task_struct(current);
+    proc->tsk = current;
+    INIT_LIST_HEAD(&proc->todo);  // 初始化链表头
+    init_waitqueue_head(&proc->wait);   
+    proc->default_priority = task_nice(current);
+
+    ......
+    // 将proc_node串入全局链表binder_procs中
+    hlist_add_head(&proc->proc_node, &binder_procs); 
+    proc->pid = current->group_leader->pid;
+    INIT_LIST_HEAD(&proc->delivered_death);
+    filp->private_data = proc;
+
+    ......
+    return 0;
+}
+```
+结构体binder_proc描述一个“正在使用Binder进程间通信机制”的进程，它的定义参见kernel/goldfish/drivers/staging/android/binder.c:286
+``` c++
+struct binder_proc {
+    struct hlist_node proc_node;
+    struct rb_root threads;
+    struct rb_root nodes;
+    struct rb_root refs_by_desc;
+    struct rb_root refs_by_node;
+    int pid;
+    struct vm_area_struct *vma;
+    struct mm_struct *vma_vm_mm;
+    struct task_struct *tsk;
+    struct files_struct *files;
+    struct hlist_node deferred_work_node;
+    int deferred_work;
+    void *buffer;
+    ptrdiff_t user_buffer_offset;
+
+    struct list_head buffers;
+    struct rb_root free_buffers;
+    struct rb_root allocated_buffers;
+    size_t free_async_space;
+
+    struct page **pages;
+    size_t buffer_size;
+    uint32_t buffer_free;
+    struct list_head todo;
+    wait_queue_head_t wait;
+    struct binder_stats stats;
+    struct list_head delivered_death;
+    int max_threads;
+    int requested_threads;
+    int requested_threads_started;
+    int ready_threads;
+    long default_priority;
+    struct dentry *debugfs_entry;
+};
+```
+在其内部有若干个list_head类型的字段，用来把binder_proc串到不同的链表中去。一般写链表的做法是在链表节点结构体中追加业务逻辑字段，顺着链表的prev、next指针到达指定节点，然后再访问业务逻辑字段：
+![一般的链表做法](img01.png)
+在Linux代码中则常常反过来，先定义业务逻辑的结构体，在其内部嵌入链表字段list_head，顺着该字段遍历链表，在每个节点上根据该字段与所在结构体的偏移量找到所在结构体，访问业务逻辑字段：
+![Linux中常用的链表做法](img02.png)
+这样做的好处是让业务逻辑和链表逻辑分离，Linux还定义了宏用于操作链表，以及根据链表字段找到所在结构体。如binder_proc结构体内部盛放多个list_head，表示把该结构体串入了不同的链表。
+具体技巧可参见《Linux内核设计与实现》第6章。
+
+回到binder_open(...)，除了直接字段赋值，需要解释的是几个链表字段的处理。
+`INIT_LIST_HEAD(&proc->todo)`用于将todo的next、prev指针指向自己，该宏的定义在kernel/goldfish/include/linux/lish.t:24
+``` c++
+static inline void INIT_LIST_HEAD(struct list_head *list)
+{
+    list->next = list;
+    list->prev = list;
+}
+```
+
+`init_waitqueue_head(...)`这个宏定义在kernel/goldfish/include/linux/wait.h:81
+``` c++
+#define init_waitqueue_head(q)              \
+    do {                        \
+        static struct lock_class_key __key; \
+                            \
+        __init_waitqueue_head((q), #q, &__key); \
+    } while (0)
+```
+`__init_waitqueue_head(...)`定义在kernel/goldfish/kernel/wait.c:13，主要完成了对task_list字段的初始化：
+``` c++
+void __init_waitqueue_head(wait_queue_head_t *q, const char *name, struct lock_class_key *key)
+{
+    spin_lock_init(&q->lock);
+    lockdep_set_class_and_name(&q->lock, key, name);
+    INIT_LIST_HEAD(&q->task_list);
+}
+```
+
+`hlist_add_head(&proc->proc_node, &binder_procs)`将proc->proc_node节点串到全局链表binder_procs的头部，其定义在kernel/goldfish/include/linux/list.h:610
+``` c++
+static inline void hlist_add_head(struct hlist_node *n, struct hlist_head *h)
+{
+    struct hlist_node *first = h->first;
+    n->next = first;
+    if (first)
+        first->pprev = &n->next;
+    h->first = n;
+    n->pprev = &h->first;
+}
+```
+综上所述，binder_open(...)组织的数据结构proc为：
+![binder_open(...)组织的proc数据结构图](img03.png)
+# binder_mmap(...)都干了什么？
+接下来就是binder_mmap(...)，当进程打开/dev/binder之后，必须调用mmap(...)函数把该文件映射到进程的地址空间。
+kernel/goldfish/drivers/staging/android/binder.c:2883
+``` c++
+static int binder_mmap(struct file *filp, struct vm_area_struct *vma)
+{
+    int ret;
+    struct vm_struct *area; // area描述内核地址空间；vma描述用户地址空间
+    struct binder_proc *proc = filp->private_data;
+    const char *failure_string;
+    struct binder_buffer *buffer;
+
+    ......
+    vma->vm_flags = (vma->vm_flags | VM_DONTCOPY) & ~VM_MAYWRITE;
+
+    ......
+    // 在内核地址空间分配
+    area = get_vm_area(vma->vm_end - vma->vm_start, VM_IOREMAP);
+    ......
+    proc->buffer = area->addr;
+    proc->user_buffer_offset = vma->vm_start - (uintptr_t)proc->buffer;
+    mutex_unlock(&binder_mmap_lock);
+......
+    // 创建物理页面结构体指针数组
+    proc->pages = kzalloc(sizeof(proc->pages[0]) * ((vma->vm_end - vma->vm_start) / PAGE_SIZE), GFP_KERNEL);
+    ......
+    proc->buffer_size = vma->vm_end - vma->vm_start;
+
+    vma->vm_ops = &binder_vm_ops;
+    vma->vm_private_data = proc;
+
+    if (binder_update_page_range(proc, 1, proc->buffer, proc->buffer + PAGE_SIZE, vma)) {
+        ret = -ENOMEM;
+        failure_string = "alloc small buf";
+        goto err_alloc_small_buf_failed;
+    }
+    buffer = proc->buffer;
+    INIT_LIST_HEAD(&proc->buffers);
+    list_add(&buffer->entry, &proc->buffers); // 把entry串到buffers链表中
+    buffer->free = 1;
+    binder_insert_free_buffer(proc, buffer);
+    proc->free_async_space = proc->buffer_size / 2;
+    barrier();
+    proc->files = get_files_struct(proc->tsk);
+    proc->vma = vma;
+    proc->vma_vm_mm = vma->vm_mm;
+
+    /*printk(KERN_INFO "binder_mmap: %d %lx-%lx maps %p\n",
+         proc->pid, vma->vm_start, vma->vm_end, proc->buffer);*/
+    return 0;
+
+err_alloc_small_buf_failed:
+    kfree(proc->pages);
+    proc->pages = NULL;
+err_alloc_pages_failed:
+    mutex_lock(&binder_mmap_lock);
+    vfree(proc->buffer);
+    proc->buffer = NULL;
+err_get_vm_area_failed:
+err_already_mapped:
+    mutex_unlock(&binder_mmap_lock);
+err_bad_arg:
+    printk(KERN_ERR "binder_mmap: %d %lx-%lx %s failed %d\n",
+           proc->pid, vma->vm_start, vma->vm_end, failure_string, ret);
+    return ret;
+}
+```
+`get_vm_area(...)`
+
 # 从服务端addService触发的`binder_transaction(...)`
 从native层的调用过程参见[binder学习笔记（十）—— 穿越到驱动层](http://palanceli.github.io/blog/2016/05/28/2016/0528BinderLearning10/)。
 传入的`binder_transaction_data`输入参数为：![addService组织的请求数据](http://palanceli.github.io/blog/2016/05/11/2016/0514BinderLearning6/img02.png)
