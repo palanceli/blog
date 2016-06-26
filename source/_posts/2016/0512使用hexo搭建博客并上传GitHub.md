@@ -123,7 +123,7 @@ theme: maupassant
 执行
 ```
 $ cd blog-dev
-$ npm install hexo-deployer-git
+$ npm install hexo-deployer-git --save
 ```
 以后每次执行完
 ```
