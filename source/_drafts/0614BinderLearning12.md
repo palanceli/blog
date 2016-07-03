@@ -8,7 +8,7 @@ comments: true
 layout: post
 ---
 # binder_open(...)都干了什么？
-在回答binder_transaction(...)之前，还有一些技术设施要去探究，比如binder_open(...)，binder_mmap(...)，这些调用是在打开设备文件/dev/binder之后必须完成的程式化操作，而在它们内部需要做一些数据结构的准备。首先来看binder_open(...)
+在回答binder_transaction(...)之前，还有一些基础设施要去探究，比如binder_open(...)，binder_mmap(...)，这些调用是在打开设备文件/dev/binder之后必须完成的程式化操作，而在它们内部需要做一些数据结构的准备。首先来看binder_open(...)
 kernel/drivers/staging/android/binder.c:2979
 ``` c++
 static int binder_open(struct inode *nodp, struct file *filp)
@@ -34,51 +34,94 @@ static int binder_open(struct inode *nodp, struct file *filp)
     return 0;
 }
 ```
-结构体binder_proc描述一个“正在使用Binder进程间通信机制”的进程，它的定义参见kernel/goldfish/drivers/staging/android/binder.c:286
+binder_open(...)生成并初始化binder_proc结构体如下：
+![binder_open(...)初始化的binder_proc结构体](img04.png)
+
+## struct binder_proc
+struct binder_proc描述一个“正在使用Binder进程间通信机制”的进程，它的定义参见kernel/goldfish/drivers/staging/android/binder.c:286
 ``` c++
 struct binder_proc {
+    // 进程打开设备文件/dev/binder时，Binder驱动会为它创建一个binder_proc结构体，并将它
+    // 保存在全局hash列表中，proc_node是该hash列表的节点。
     struct hlist_node proc_node;
-    struct rb_root threads;
-    struct rb_root nodes;
-    struct rb_root refs_by_desc;
-    struct rb_root refs_by_node;
-    int pid;
-    struct vm_area_struct *vma;
+
+    // 每个使用了Binder机制的进程都有一个Binder线程池，用来处理进程间通信请求。threads以
+    // 线程ID作为key来组织进程的Binder线程池。进程可以调用ioctl将线程注册到Binder驱动中
+    // 当没有足够的空闲线程处理进程间通信请求时，驱动可以要求进程注册更多的线程到Binder线程
+    // 池中
+    struct rb_root threads; 
+
+    struct rb_root nodes;           // 组织Binder实体对象，它以成员ptr作为key
+    struct rb_root refs_by_desc;    // 组织Binder引用对象，它以成员desc作为key
+    struct rb_root refs_by_node;    // 组织Binder引用对象，它以成员node作为key
+    int pid;                        // 指向进程组ID
+    struct vm_area_struct *vma;     // 内核缓冲区的用户空间地址，供应用程序使用
     struct mm_struct *vma_vm_mm;
-    struct task_struct *tsk;
-    struct files_struct *files;
+    struct task_struct *tsk;        // 指向进程任务控制块
+    struct files_struct *files;     // 指向进程打开文件结构体数组
+
+    // 一个hash表，保存进程可以延迟执行的工作项，这些延迟工作有三种类型
+    // BINDER_DEFERRED_PUT_FILES、BINDER_DEFERRED_FLUSH、BINDER_DEFERRED_RELEASE
+    // 驱动为进程分配内核缓冲区时，会为该缓冲区创建一个文件描述符，进程可以通过该描述符将该内
+    // 核缓冲区映射到自己的地址空间。当进程不再需要使用Binder机制时，就会通知驱动关闭该文件
+    // 描述符并释放之前所分配的内核缓冲区。由于这不是一个马上就要完成的操作，因此驱动会创建一
+    // 个BINDER_DEFERRED_PUT_FILES类型的工作来延迟执行；
+    // Binder线程池中的空闲Binder线程是睡眠在一个等待队列中的，进程可以通过调用函数flush
+    // 来唤醒这些线程，以便它们可以检查进程是否有新的工作项需要处理。此时驱动会创建一个
+    // BINDER_DEFERRED_FLUSH类型的工作项，以便延迟执行唤醒空闲Binder线程的操作；
+    // 当进程不再使用Binder机制时，会调用函数close关闭文件/dev/binder，此时驱动会释放之
+    // 前为它分配的资源，由于资源释放是个比较耗时的操作，驱动会创建一个
+    // BINDER_DEFERRED_RELEASE类型的事务来延迟执行
     struct hlist_node deferred_work_node;
-    int deferred_work;
-    void *buffer;
-    ptrdiff_t user_buffer_offset;
 
-    struct list_head buffers;
-    struct rb_root free_buffers;
-    struct rb_root allocated_buffers;
-    size_t free_async_space;
+    int deferred_work;              // 描述该延迟工作项的具体类型
+    void *buffer;                   // 内核缓冲区的内核空间地址，供驱动程序使用
+    ptrdiff_t user_buffer_offset;   // vma和buffer之间的差值
 
-    struct page **pages;
-    size_t buffer_size;
-    uint32_t buffer_free;
-    struct list_head todo;
-    wait_queue_head_t wait;
-    struct binder_stats stats;
-    struct list_head delivered_death;
-    int max_threads;
+    // buffer指向一块大的内核缓冲区，驱动程序为方便管理，将它划分成若干小块，这些小块的内核缓
+    // 冲区用binder_buffer描述保存在列表中，按地址从小到大排列。buffers指向该列表的头部。
+    struct list_head buffers; 
+
+    struct rb_root free_buffers;      // buffers中的小块有的正在使用，被保存在此红黑树
+    struct rb_root allocated_buffers;   // buffers中的空闲小块被保存在此红黑树
+    size_t free_async_space;            // 当前可用的保存异步事务数据的内核缓冲区的大小
+
+    struct page **pages;    // buffer和vma都是虚拟地址，它们对应的物理页面保存在pages
+                            // 中，这是一个数组，每个元素指向一个物理页面
+    size_t buffer_size;     // 进程调用mmap将它映射到进程地址空间，实际上是请求驱动为它
+                            // 分配一块内核缓冲区，缓冲区大小保存在该成员中
+    uint32_t buffer_free;   // 空闲内核缓冲区的大小
+    struct list_head todo;  // 当进程接收到一个进程间通信请求时，Binder驱动就将该请求封
+                            // 装成一个工作项，并且加入到进程的待处理工作向队列中，该队列
+                            // 使用成员变量todo来描述。
+    wait_queue_head_t wait; // 线程池中空闲Binder线程会睡眠在由该成员所描述的等待队列中
+                            // 当宿主进程的待处理工作项队列增加新工作项后，驱动会唤醒这
+                            // 些线程，以便处理新的工作项
+    struct binder_stats stats;  // 用来统计进程数据
+
+    // 当进程所引用的Service组件死亡时，驱动会向该进程发送一个死亡通知。这个正在发出的通知被
+    // 封装成一个类型为BINDER_WORK_DEAD_BINDER或BINDER_WORK_DEAD_BINDER_AND_CLEAR
+    // 的工作项，并保存在由该成员描述的队列中删除
+    struct list_head delivered_death;  
+
+    int max_threads;        // 驱动程序最多可以主动请求进程注册的线程数
     int requested_threads;
     int requested_threads_started;
-    int ready_threads;
-    long default_priority;
+    int ready_threads;      // 进程当前的空闲Binder线程数
+    long default_priority;  // 进程的优先级，当线程处理一个工作项时，线程优先级可能被
+                            // 设置为宿主进程的优先级
     struct dentry *debugfs_entry;
 };
 ```
-在其内部有若干个list_head类型的字段，用来把binder_proc串到不同的链表中去。一般写链表的做法是在链表节点结构体中追加业务逻辑字段，顺着链表的prev、next指针到达指定节点，然后再访问业务逻辑字段：
+## binder_proc中的链表
+在binder_proc内部有若干个list_head类型的字段，用来把binder_proc串到不同的链表中去。一般写链表的做法是在链表节点结构体中追加业务逻辑字段，顺着链表的prev、next指针到达指定节点，然后再访问业务逻辑字段：
 ![一般的链表做法](img01.png)
 在Linux代码中则常常反过来，先定义业务逻辑的结构体，在其内部嵌入链表字段list_head，顺着该字段遍历链表，在每个节点上根据该字段与所在结构体的偏移量找到所在结构体，访问业务逻辑字段：
 ![Linux中常用的链表做法](img02.png)
 这样做的好处是让业务逻辑和链表逻辑分离，Linux还定义了宏用于操作链表，以及根据链表字段找到所在结构体。如binder_proc结构体内部盛放多个list_head，表示把该结构体串入了不同的链表。
 具体技巧可参见《Linux内核设计与实现》第6章。
 
+## INIT_LIST_HEAD(&proc->todo)
 回到binder_open(...)，除了直接字段赋值，需要解释的是几个链表字段的处理。
 `INIT_LIST_HEAD(&proc->todo)`用于将todo的next、prev指针指向自己，该宏的定义在kernel/goldfish/include/linux/lish.t:24
 ``` c++
@@ -89,7 +132,8 @@ static inline void INIT_LIST_HEAD(struct list_head *list)
 }
 ```
 
-`init_waitqueue_head(...)`这个宏定义在kernel/goldfish/include/linux/wait.h:81
+## init_waitqueue_head(&proc->wait)
+`init_waitqueue_head(&proc->wait)`这个宏定义在kernel/goldfish/include/linux/wait.h:81
 ``` c++
 #define init_waitqueue_head(q)              \
     do {                        \
@@ -101,13 +145,30 @@ static inline void INIT_LIST_HEAD(struct list_head *list)
 `__init_waitqueue_head(...)`定义在kernel/goldfish/kernel/wait.c:13，主要完成了对task_list字段的初始化：
 ``` c++
 void __init_waitqueue_head(wait_queue_head_t *q, const char *name, struct lock_class_key *key)
+// q=(&proc->todo)
 {
     spin_lock_init(&q->lock);
     lockdep_set_class_and_name(&q->lock, key, name);
-    INIT_LIST_HEAD(&q->task_list);
+    INIT_LIST_HEAD(&q->task_list);  // 为什么使用符号->来提领task_list呢？
 }
 ```
-
+说到底还是初始化proc->wait->task_list字段。不过有点奇怪task_list是wait内的结构体，而不是结构体指针，为什么对task_list的提领使用符号`->`呢？
+``` c
+struct binder_proc {
+    ......
+    wait_queue_head_t wait;
+    ......
+};
+```
+kernel/goldfish/include/linux/wait.h:53
+``` c 
+struct __wait_queue_head {
+    spinlock_t lock;
+    struct list_head task_list;
+};
+typedef struct __wait_queue_head wait_queue_head_t;
+```
+## hlist_add_head(&proc->proc_node, &binder_procs)
 `hlist_add_head(&proc->proc_node, &binder_procs)`将proc->proc_node节点串到全局链表binder_procs的头部，其定义在kernel/goldfish/include/linux/list.h:610
 ``` c++
 static inline void hlist_add_head(struct hlist_node *n, struct hlist_head *h)
@@ -120,8 +181,22 @@ static inline void hlist_add_head(struct hlist_node *n, struct hlist_head *h)
     n->pprev = &h->first;
 }
 ```
+kernel/goldfish/include/linux/types.h:233
+``` c
+struct hlist_head {
+    struct hlist_node *first;
+};
+
+struct hlist_node {
+    struct hlist_node *next, **pprev;
+};
+```
+![将n插入到h](img05.png)
+
+![插入后的结果](img06.png)
 综上所述，binder_open(...)组织的数据结构proc为：
-![binder_open(...)组织的proc数据结构图](img03.png)
+![binder_open(...)组织的proc数据结构图](img04.png)
+
 # binder_mmap(...)都干了什么？
 接下来就是binder_mmap(...)，当进程打开/dev/binder之后，必须调用mmap(...)函数把该文件映射到进程的地址空间。
 kernel/goldfish/drivers/staging/android/binder.c:2883
@@ -153,6 +228,7 @@ static int binder_mmap(struct file *filp, struct vm_area_struct *vma)
     vma->vm_ops = &binder_vm_ops;
     vma->vm_private_data = proc;
 
+    // 分配物理页面，并将之同时映射到用户和内核地址空间
     if (binder_update_page_range(proc, 1, proc->buffer, proc->buffer + PAGE_SIZE, vma)) {
         ret = -ENOMEM;
         failure_string = "alloc small buf";
@@ -189,7 +265,148 @@ err_bad_arg:
     return ret;
 }
 ```
-`get_vm_area(...)`
+到第28行调用binder_update_page_range(...)之前，binder_mmap(...)在内核地址空间申请了`struct vm_struct area`，并完成部分成员的初始化，如下：
+![到28行为止binder_mmap(...)构造的数据结构](img07.png)
+
+## binder_update_page_range(...)做了什么
+kernel/goldfish/drivers/staging/android/binder.c:627
+``` c
+static int binder_update_page_range(struct binder_proc *proc, int allocate,
+                    void *start, void *end,
+                    struct vm_area_struct *vma)
+{
+    void *page_addr;
+    unsigned long user_page_addr;
+    struct vm_struct tmp_area;
+    struct page **page;
+    struct mm_struct *mm;
+
+    ... ...
+
+    if (vma)
+        mm = NULL;
+    else
+        mm = get_task_mm(proc->tsk);
+
+    if (mm) {
+        down_write(&mm->mmap_sem);
+        vma = proc->vma;
+        ... ...
+    }
+
+    if (allocate == 0) 
+        goto free_range;    // 执行释放逻辑
+
+    ... ...
+
+    // 遍历所有页面
+    for (page_addr = start; page_addr < end; page_addr += PAGE_SIZE) {
+        int ret;
+        struct page **page_array_ptr;
+        page = &proc->pages[(page_addr - proc->buffer) / PAGE_SIZE];
+
+        BUG_ON(*page);
+        *page = alloc_page(GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO);
+        ... ...
+        // 映射内核地址空间
+        tmp_area.addr = page_addr;
+        tmp_area.size = PAGE_SIZE + PAGE_SIZE /* guard page? */;
+        page_array_ptr = page;
+        ret = map_vm_area(&tmp_area, PAGE_KERNEL, &page_array_ptr);
+        ... ...
+
+        // 映射用户地址空间
+        user_page_addr =
+            (uintptr_t)page_addr + proc->user_buffer_offset;
+        ret = vm_insert_page(vma, user_page_addr, page[0]);
+        ... ...
+    }
+    if (mm) {
+        up_write(&mm->mmap_sem);
+        mmput(mm);
+    }
+    return 0;
+
+free_range:
+    for (page_addr = end - PAGE_SIZE; page_addr >= start;
+         page_addr -= PAGE_SIZE) {
+        page = &proc->pages[(page_addr - proc->buffer) / PAGE_SIZE];
+        // 解除物理页面在用户地址空间和内核地址空间的映射
+        if (vma)
+            zap_page_range(vma, (uintptr_t)page_addr +
+                proc->user_buffer_offset, PAGE_SIZE, NULL);
+err_vm_insert_page_failed:
+        unmap_kernel_range((unsigned long)page_addr, PAGE_SIZE);
+err_map_kernel_failed:
+        __free_page(*page);     // 释放物理页面
+        *page = NULL;
+err_alloc_page_failed:
+        ;
+    }
+err_no_vma:
+    if (mm) {
+        up_write(&mm->mmap_sem);
+        mmput(mm);
+    }
+    return -ENOMEM;
+}
+```
+
+## struct binder_buffer
+之后在binder_mmap(...)第34行，buffer的类型是`struct binder_buffer*`，该结构体用来描述一个内核缓冲区，该缓冲区用于在进程间传输数据。
+kernel/goldfish/drivers/staging/android/binder.c:263
+``` c
+struct binder_buffer {
+    // 每一个使用Binder机制的进程在Binder驱动中都有一个内核缓冲区列表，用来保存Binder驱动
+    // 程序为它分配的内核缓冲区，entry是该列表的一个节点
+    struct list_head entry; /* free and allocated entries by address */ 
+
+    // 进程使用两个红黑树分别保存使用中以及空闲的内核缓冲区。如果空闲，free=1，
+    //rb_node就是空闲内核缓冲区红黑树中的节点，否则是使用中内核缓冲区红黑树中的节点
+    struct rb_node rb_node; /* free entry by size or allocated entry */ 
+                         /* by address */                       
+
+    unsigned free:1;
+    // Service处理完成该事务后，若发现allow_user_free为1，会请求驱动程序释放该内核缓冲区
+    unsigned allow_user_free:1;         
+    unsigned async_transaction:1;           // 与该内核缓冲区关联的是一个异步事务
+    unsigned debug_id:29;
+
+    struct binder_transaction *transaction; // 内核缓冲区正交给哪个事务使用
+    struct binder_node *target_node;        // 内核缓冲区正交给哪个Binder实体对象使用
+    size_t data_size;
+    size_t offsets_size;
+
+    // 保存通信数据，分两种类型：普通数据、Binder对象。驱动程序不关心普通数据，但必须知道里面
+    // 的Binder对象，因为要根据它们来维护内核中Binder实体对象和Binder引用对象的生命周期。
+    uint8_t data[0];                        
+};
+```
+
+## list_add(&buffer->entry, &proc->buffers)
+初始化完proc->buffers之后，第36行执行一个list_add(...)，该函数定义见kernel/goldfish/include/linux/list.h:37~60
+``` c
+static inline void __list_add(struct list_head *new,
+                  struct list_head *prev,
+                  struct list_head *next)
+{
+    next->prev = new;
+    new->next = next;
+    new->prev = prev;
+    prev->next = new;
+}
+... ...
+static inline void list_add(struct list_head *new, struct list_head *head)
+{
+    __list_add(new, head, head->next);
+}
+```
+运算过程如下图：
+![list_add操作过程](img08.png)
+于是到`binder_mmap(...)`第37行为止，binder_mmap(...)构造的数据结构如下：
+![到37行为止binder_mmap(...)构造的数据结构](img09.png)
+
+## 函数binder_insert_free_buffer(...)
 
 # 从服务端addService触发的`binder_transaction(...)`
 从native层的调用过程参见[binder学习笔记（十）—— 穿越到驱动层](http://palanceli.github.io/blog/2016/05/28/2016/0528BinderLearning10/)。
