@@ -441,10 +441,10 @@ static void binder_insert_free_buffer(struct binder_proc *proc,
 ```
 
 于是到binder_mmap(...)结束，这个binder_proc结构体就被做成了这样：
-![binder_mmap(...)调用完成后够早的binder_proc结构体](img10.png)
+![binder_mmap(...)调用完成后构造的binder_proc结构体](img10.png)
 
 # 从服务端addService触发的`binder_transaction(...)`
-从native层的调用过程参见[binder学习笔记（十）—— 穿越到驱动层](http://palanceli.github.io/blog/2016/05/28/2016/0528BinderLearning10/)。
+从native层的调用过程参见[binder学习笔记（十）—— 穿越到驱动层](http://palanceli.github.io/blog/2016/05/28/2016/0528BinderLearning10/)。我们以addService为例深入到binder_transaction(...)内部，
 传入的`binder_transaction_data`输入参数为：![addService组织的请求数据](http://palanceli.github.io/blog/2016/05/11/2016/0514BinderLearning6/img02.png)
 
 kernel/goldfish/drivers/staging/android/binder.c:1402
@@ -484,17 +484,7 @@ static void binder_transaction(struct binder_proc *proc,
         if (!(tr->flags & TF_ONE_WAY) && thread->transaction_stack) {
             struct binder_transaction *tmp;
             tmp = thread->transaction_stack;
-            if (tmp->to_thread != thread) {
-                binder_user_error("binder: %d:%d got new "
-                    "transaction with bad transaction stack"
-                    ", transaction %d has target %d:%d\n",
-                    proc->pid, thread->pid, tmp->debug_id,
-                    tmp->to_proc ? tmp->to_proc->pid : 0,
-                    tmp->to_thread ?
-                    tmp->to_thread->pid : 0);
-                return_error = BR_FAILED_REPLY;
-                goto err_bad_call_stack;
-            }
+            ... ...
             while (tmp) {
                 if (tmp->from && tmp->from->proc == target_proc)
                     target_thread = tmp->from;
@@ -513,7 +503,6 @@ static void binder_transaction(struct binder_proc *proc,
     ......
     t = kzalloc(sizeof(*t), GFP_KERNEL);  // 创建binder_transaction节点
     ......
-
     tcomplete = kzalloc(sizeof(*tcomplete), GFP_KERNEL);//创建一个binder_work节点
     ......
     // 这里岂不是为真？thread来自binder_ioctl(...)中的binder_get_thread(proc)
@@ -528,9 +517,7 @@ static void binder_transaction(struct binder_proc *proc,
     t->code = tr->code;                     // ADD_SERVICE_TRANSACTION
     t->flags = tr->flags;                   // TF_ACCEPT_FDS
     t->priority = task_nice(current);       // 源线程优先级
-
-    trace_binder_transaction(reply, t, target_node);
-
+    ... ...
     t->buffer = binder_alloc_buf(target_proc, tr->data_size,
         tr->offsets_size, !reply && (t->flags & TF_ONE_WAY));
     ......
@@ -538,7 +525,7 @@ static void binder_transaction(struct binder_proc *proc,
     t->buffer->debug_id = t->debug_id;
     t->buffer->transaction = t; // 缓冲区正交给哪个事务使用
     t->buffer->target_node = target_node;   // 缓冲区正交给哪个Binder实体对象使用
-    trace_binder_transaction_alloc_buf(t->buffer);
+    ......
     if (target_node)
         binder_inc_node(target_node, 1, 0, NULL);
     // 分析所传数据中的所有binder对象，如果是binder实体，在红黑树中添加相应的节点。
@@ -746,3 +733,58 @@ err_no_context_mgr_node:
         thread->return_error = return_error;
 }
 ```
+## struct binder_transaction
+在函数binder_transaction(...)第53行创建了结构体binder_transaction，该结构体用来描述进程间通信过程，即事务。其定义在kernel/goldfish/drivers/staging/android/binder.c:346
+``` c
+struct binder_transaction {
+    int debug_id;
+
+    // 当驱动为目标进程或线程创建一个事务时，就会将该成员的type置为
+    // BINDER_WORK_TRANSACTION，并将它添加到目标进程或线程的todo队列，等待处理
+    struct binder_work work;
+
+    struct binder_thread *from;         // 发起事务的线程
+
+    // 事务所依赖的另外一个事务以及目标线程下一个要处理的事务
+    struct binder_transaction *from_parent; 
+
+    struct binder_proc *to_proc;        // 负责处理该事务的进程
+    struct binder_thread *to_thread;    // 负责处理该事务的线程
+    struct binder_transaction *to_parent;
+    unsigned need_reply:1;              // 同步事务为1需要等待对方回复；异步为0
+    /* unsigned is_dead:1; */   /* not used at the moment */
+
+    // 指向驱动为该事务分配的内核缓冲区，保存了进程间通信数据
+    struct binder_buffer *buffer;   
+
+    unsigned int    code;   // 直接从进程间通信数据中拷贝过来
+    unsigned int    flags;  // 直接从进程间通信数据中拷贝过来
+    long    priority;       // 源线程优先级
+
+    // 线程在处理事务时，驱动会修改它的优先级以满足源线程和目标Service组建的要求。在修改之
+    // 前，会将它原来的线程优先级保存在该成员中，以便线程处理完该事务后可以恢复原来的优先级
+    long    saved_priority; 
+    uid_t   sender_euid;    // 源线程用户ID
+};
+```
+
+## struct binder_work
+在binder_transaction(...)第55行创建了struct binder_work，该结构体用于描述待处理的工作项，其定义在kernel/goldfish/drivers/staging/android/binder.c:205
+``` c
+struct binder_work {        
+    struct list_head entry; // 用来将该结构体嵌入到一个宿主结构中
+    // 描述工作项的类型，根据取值，Binder驱动程序就可以判断出一个binder_work结构体嵌入到
+    // 什么类型的宿主结构中
+    enum {
+        BINDER_WORK_TRANSACTION = 1,
+        BINDER_WORK_TRANSACTION_COMPLETE,
+        BINDER_WORK_NODE,
+        BINDER_WORK_DEAD_BINDER,
+        BINDER_WORK_DEAD_BINDER_AND_CLEAR,
+        BINDER_WORK_CLEAR_DEATH_NOTIFICATION,
+    } type;             
+};
+```
+
+到binder_transaction(...)第92行为止，它构造的数据结构如下。此时用户控件的部分数据被拷贝到了内核空间，内核空间中binder_transaction的buffer是从proc->free_buffers中摘取下来的，为了避免图片过大，此处的细节暂不展现了。摘取下的buffer的数据部分用于暂存从用户空间拷贝来的数据。
+![到binder_transaction(...)第92行位置，构造的数据结构](img11.png)
