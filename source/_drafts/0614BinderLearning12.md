@@ -407,6 +407,41 @@ static inline void list_add(struct list_head *new, struct list_head *head)
 ![到37行为止binder_mmap(...)构造的数据结构](img09.png)
 
 ## 函数binder_insert_free_buffer(...)
+kernel/goldfish/drivers/statging/android/binder.c:545
+``` c
+static void binder_insert_free_buffer(struct binder_proc *proc,
+                      struct binder_buffer *new_buffer)
+{   // new_buffer就是之前分配的buffer，被转型成了binder_buffer
+    struct rb_node **p = &proc->free_buffers.rb_node;
+    struct rb_node *parent = NULL;
+    struct binder_buffer *buffer;
+    size_t buffer_size;
+    size_t new_buffer_size;
+    ... ...
+    // 计算binder_buffer中data部分的大小
+    new_buffer_size = binder_buffer_size(proc, new_buffer);
+
+    ... ...
+    // 根据new_buffer的大小，找到在proc->free_buffers红黑树中的正确位置，并插入
+    while (*p) {
+        parent = *p;
+        buffer = rb_entry(parent, struct binder_buffer, rb_node);
+        BUG_ON(!buffer->free);
+
+        buffer_size = binder_buffer_size(proc, buffer);
+
+        if (new_buffer_size < buffer_size)
+            p = &parent->rb_left;
+        else
+            p = &parent->rb_right;
+    }
+    rb_link_node(&new_buffer->rb_node, parent, p);
+    rb_insert_color(&new_buffer->rb_node, &proc->free_buffers);
+}
+```
+
+于是到binder_mmap(...)结束，这个binder_proc结构体就被做成了这样：
+![binder_mmap(...)调用完成后够早的binder_proc结构体](img10.png)
 
 # 从服务端addService触发的`binder_transaction(...)`
 从native层的调用过程参见[binder学习笔记（十）—— 穿越到驱动层](http://palanceli.github.io/blog/2016/05/28/2016/0528BinderLearning10/)。
