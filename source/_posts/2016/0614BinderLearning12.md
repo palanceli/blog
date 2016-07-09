@@ -955,7 +955,7 @@ static int binder_inc_ref(struct binder_ref *ref, int strong,
 接下来跳出case后还有对t的成员need_reply、from_parent、t->work.type的处理，并将t插入到target_list即target_proc或target_thread的todo队列中，尔后返回。此时的数据结构图为：
 ![binder_transaction(...)完成时的数据结构](img14.png)
 
-到此为止，终于完成了binder_transaction(...)的分析，知道怎么回事，但心里有很多个“为什么”。而且把前面的学习笔记串联起来，隐约觉得能感应道一些曙光了，本节的篇幅太长了，这些曙光留待下一节一起领略吧。
+到此为止，终于完成了binder_transaction(...)的分析，知道怎么回事，但心里有很多个“为什么”。而且把前面的学习笔记串联起来，隐约觉得能感应到一些曙光了，本节的篇幅太长了，这些曙光留待下一节一起领略吧。
 
 
 
