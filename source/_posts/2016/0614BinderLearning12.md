@@ -550,10 +550,11 @@ static void binder_transaction(struct binder_proc *proc,
         case BINDER_TYPE_BINDER:
         case BINDER_TYPE_WEAK_BINDER: { // 如果是binder实体
             struct binder_ref *ref;
-            // fp->binder是BnTestService::getWeakRefs()
-            // 是BnTestService的影子对象
+            // fp->binder是BnTestService::getWeakRefs()，BnTestService的影子对象
+            // binder_get_node(...)在proc->nodes.rb_node中找fp->binder，如果没有
+            // 找到，则在该红黑树中为fp->binder创建节点
             struct binder_node *node = binder_get_node(proc, fp->binder);
-            if (node == NULL) { // 如果没有则创建新的binder_node节点
+            if (node == NULL) {
                 node = binder_new_node(proc, fp->binder, fp->cookie);
                 ......
                 node->min_priority = fp->flags & FLAT_BINDER_FLAG_PRIORITY_MASK;
@@ -572,8 +573,6 @@ static void binder_transaction(struct binder_proc *proc,
             fp->handle = ref->desc;
             binder_inc_ref(ref, fp->type == BINDER_TYPE_HANDLE,
                        &thread->todo);
-
-            trace_binder_transaction_node_to_ref(t, node, ref);
             ......
         } break;
         case BINDER_TYPE_HANDLE:
@@ -591,10 +590,7 @@ static void binder_transaction(struct binder_proc *proc,
                 fp->cookie = ref->node->cookie;
                 binder_inc_node(ref->node, fp->type == BINDER_TYPE_BINDER, 0, NULL);
                 trace_binder_transaction_ref_to_node(t, ref);
-                binder_debug(BINDER_DEBUG_TRANSACTION,
-                         "        ref %d desc %d -> node %d u%p\n",
-                         ref->debug_id, ref->desc, ref->node->debug_id,
-                         ref->node->ptr);
+                ... ...
             } else {
                 struct binder_ref *new_ref;
                 new_ref = binder_get_ref_for_node(target_proc, ref->node);
@@ -606,49 +602,19 @@ static void binder_transaction(struct binder_proc *proc,
                 binder_inc_ref(new_ref, fp->type == BINDER_TYPE_HANDLE, NULL);
                 trace_binder_transaction_ref_to_ref(t, ref,
                                     new_ref);
-                binder_debug(BINDER_DEBUG_TRANSACTION,
-                         "        ref %d desc %d -> ref %d desc %d (node %d)\n",
-                         ref->debug_id, ref->desc, new_ref->debug_id,
-                         new_ref->desc, ref->node->debug_id);
+                ... ...
             }
         } break;
 
         case BINDER_TYPE_FD: {
             int target_fd;
             struct file *file;
-
-            if (reply) {
-                if (!(in_reply_to->flags & TF_ACCEPT_FDS)) {
-                    binder_user_error("binder: %d:%d got reply with fd, %ld, but target does not allow fds\n",
-                        proc->pid, thread->pid, fp->handle);
-                    return_error = BR_FAILED_REPLY;
-                    goto err_fd_not_allowed;
-                }
-            } else if (!target_node->accept_fds) {
-                binder_user_error("binder: %d:%d got transaction with fd, %ld, but target does not allow fds\n",
-                    proc->pid, thread->pid, fp->handle);
-                return_error = BR_FAILED_REPLY;
-                goto err_fd_not_allowed;
-            }
+            ... ...
 
             file = fget(fp->handle);
-            if (file == NULL) {
-                binder_user_error("binder: %d:%d got transaction with invalid fd, %ld\n",
-                    proc->pid, thread->pid, fp->handle);
-                return_error = BR_FAILED_REPLY;
-                goto err_fget_failed;
-            }
-            if (security_binder_transfer_file(proc->tsk, target_proc->tsk, file) < 0) {
-                fput(file);
-                return_error = BR_FAILED_REPLY;
-                goto err_get_unused_fd_failed;
-            }
+            ... ...
             target_fd = task_get_unused_fd_flags(target_proc, O_CLOEXEC);
-            if (target_fd < 0) {
-                fput(file);
-                return_error = BR_FAILED_REPLY;
-                goto err_get_unused_fd_failed;
-            }
+            ... ...
             task_fd_install(target_proc, target_fd, file);
             trace_binder_transaction_fd(t, fp->handle, target_fd);
             binder_debug(BINDER_DEBUG_TRANSACTION,
@@ -658,9 +624,7 @@ static void binder_transaction(struct binder_proc *proc,
         } break;
 
         default:
-            binder_user_error("binder: %d:%d got transactio"
-                "n with invalid object type, %lx\n",
-                proc->pid, thread->pid, fp->type);
+            ... ...
             return_error = BR_FAILED_REPLY;
             goto err_bad_object_type;
         }
@@ -668,7 +632,7 @@ static void binder_transaction(struct binder_proc *proc,
     if (reply) {
         ......
     } else if (!(t->flags & TF_ONE_WAY)) {
-        BUG_ON(t->buffer->async_transaction != 0);
+        ... ...
         t->need_reply = 1;
         t->from_parent = thread->transaction_stack;
         thread->transaction_stack = t;
@@ -681,7 +645,7 @@ static void binder_transaction(struct binder_proc *proc,
             target_node->has_async_transaction = 1;
     }
     t->work.type = BINDER_WORK_TRANSACTION;
-    // 把binder_transaction节点插入target_list（及目标todo队列）
+    // 把binder_transaction节点插入target_list（即目标todo队列）
     list_add_tail(&t->work.entry, target_list);
     tcomplete->type = BINDER_WORK_TRANSACTION_COMPLETE;
     list_add_tail(&tcomplete->entry, &thread->todo);
@@ -788,3 +752,210 @@ struct binder_work {
 
 到binder_transaction(...)第92行为止，它构造的数据结构如下。此时用户控件的部分数据被拷贝到了内核空间，内核空间中binder_transaction的buffer是从proc->free_buffers中摘取下来的，为了避免图片过大，此处的细节暂不展现了。摘取下的buffer的数据部分用于暂存从用户空间拷贝来的数据。
 ![到binder_transaction(...)第92行位置，构造的数据结构](img11.png)
+
+# struct binder_node
+从94行开始，逐个遍历t->buffer.data中的binder objects，在for循环中，fp指向当前的binder object。如果fp->type是BINDER_TYPE_BINDER或BINDER_TYPE_WEAK_BINDER，#104先从proc->nodes.rb_node中查找有没有fp->binder，如果没有则调用binder_new_node(...)在proc->nodes.rb_node中创建此节点。接下来先看看`struct binder_node`，kernel/goldfish/drivers/staging/android/binder.c:217，它用来描述一个Binder实体对象，每一个Service组件在驱动层都对应一个binder_node，用来描述在内核中的状态：
+``` c
+struct binder_node {            
+    int debug_id;               // 帮助调试用的
+
+    // 当Binder实体对象的引用计数由0变为1或由1变为0时，Binder驱动程序就会请求相应的
+    // Service组件增加或减少其引用计数。Binder驱动程序就会将“该引用计数修改”封装成一个类
+    // 型为一个类型为binder_node的工作项，即将成员work的值置为BINDER_WORK_NODE，并将
+    // 它添加到相应进程的todo队列中等待处理
+    struct binder_work work;
+
+    union {
+        struct rb_node rb_node;
+        struct hlist_node dead_node;
+    };
+
+    // 指向宿主进程，宿主进程使用一个红黑树来维护它内部所有Binder实体对象，而每一个
+    // Binder实体对象的成员变量rb_node就正好是这个红黑树的一个节点。如果Binder实体对象
+    // 的宿主进程已经死亡，那么该Binder实体对象就会通过它的成员变量dead_node保存在一个全
+    // 局的hash列表中。
+    struct binder_proc *proc;
+
+    // 一个Binder实体对象可能会同时被多个Client组件引用，因此Binder驱动使用结构体
+    // binder_ref来描述这些引用关系，并且将引用了同一个Binder实体对象的所有引用都保存在
+    // 一个hash列表中。这个hash列表通过Binder实体对象的refs成员来描述，而Binder驱动通
+    // 过refs就可以知道有哪些Client组件引用了同一个Binder实体对象
+    struct hlist_head refs;
+
+    int internal_strong_refs;       // 描述Bidner实体对象的强引用计数
+    int local_weak_refs;            // 描述Binder实体对象的弱引用计数
+    int local_strong_refs;          // 描述Bidner实体对象的强引用计数
+
+    void __user *ptr;       // 描述用户空间中的Service组件，指向Service的影子对象
+    void __user *cookie;    // 描述用户空间中的Service组件的地址，指向Service的地址
+
+     // 当Binder实体对象请求Service执行某个操作时，会增加该Service的强/弱引用计数，
+     // has_strong_ref和has_weak_ref被置1；
+     // 当Service完成Binder所请求的操作后，会递减该Service的强/弱引用计数，has_strong_ref和has_weak_ref被置0；
+     // Binder实体在请求Service增/减强/弱引用计数的过程中，会将
+     // pending_strong_ref或pending_weak_ref置1；
+     // 当Service完成增/减强/弱引用计数之后，会将这两个成员变量置为0。
+    unsigned has_strong_ref:1;     
+    unsigned pending_strong_ref:1;
+    unsigned has_weak_ref:1;
+    unsigned pending_weak_ref:1;
+
+    // 描述Binder对象是否正在处理一个异步事务。Binder驱动程序将一个事务保存在todo队列中
+    // 表示将由该线程来处理该事务。每个事务都关联着一个Binder实体对象，要求与该Binder实
+    // 体对象对应的Service组件在指定线程中处理该事务。然而，当Binder驱动发现一个事务是异
+    // 步事务时，就会将它保存在目标Binder实体对象的一个异步事务队列中，这个异步事务队列就
+    // 是由成员变量async_todo来描述的。异步事务的定义是那些单向的进程间通信请求，即不需
+    // 要等待应答的进程间通信请求，与此相对的是同步事务。因为不需要等待应答，Binder驱动就
+    // 认为异步事务优先级低于同步事务，具体表现为在同一时刻，一个Binder实体对象的所有异步
+    // 事务最多只有一个会得到处理，其余的都等待在异步事务队列中，而同步事务无此限制。
+    unsigned has_async_transaction:1;
+
+    // 描述Binder实体对象是否可以接收包含有文件描述符的进程间通信数据。1表示可以接收，0表
+    // 示禁止接收。当一个进程向另一个进程发送的数据中包含有文件描述符时，Binder驱动程序就
+    // 会自动在目标进程中打开一个相同的文件。基于安全性考虑，Binder程序就要通过该变量防止
+    // 源进程在目标进程中打开文件。
+    unsigned accept_fds:1;
+
+    // 表示Binder实体对象在处理来自Client进程的请求时，他所要求的处理线程（即Server进程
+    // 中的一个线程）应具备的最小线程优先级。
+    unsigned min_priority:8;       
+    struct list_head async_todo;
+};
+```
+接下来的binder_new_node(proc, fp->binder, fp->cookie)将申请一个`struct binder_node`，在初始化中，将该节点挂到proc->nodes.rb_node中，并初始化部分成员，数据结构图如下：
+![在case BINDER_TYPE_BINDER和case BINDER_TYPE_WEAK_BINDER中创建的struct binder_node](img12.png)
+## struct binder_ref
+struct binder_ref用来描述一个Binder引用对象，当客户端使用Binder实体时，在客户端保存的就是对该实体的引用，该结构体用来描述引用对象在内核中的状态。kernel/goldfish/drivers/staging/android/binder.c:246
+``` c
+struct binder_ref {
+    /* Lookups needed: */
+    /*   node + proc => ref (transaction) */
+    /*   desc + proc => ref (transaction, inc/dec ref) */
+    /*   node => refs + procs (proc exit) */
+    int debug_id;
+
+    // 宿主进程使用两个红黑树来保存它内部所有Binder引用对象，分别以句柄值和对应的Binder
+    // 实体对象地址来作为关键字保存这些引用对象，这两个rb_node_xxxx正是红黑树中的节点
+    struct rb_node rb_node_desc;    
+    struct rb_node rb_node_node;
+
+    // 每个Binder实体对象都有一个hash表保存引用了它的Binder引用对象，这些引用对象的成员
+    // node_entry就是该hash表的节点
+    struct hlist_node node_entry;   
+    struct binder_proc *proc;   // 宿主进程
+    struct binder_node *node;   // 描述Binder引用对象所引用的Binder实体对象
+
+    // 描述Binder引用对象的句柄值，驱动通过该句柄找到对应的Binder引用对象，然后再根据该
+    // Binder引用对象的成员node找到对应的Binder实体对象，然后就可以通过该实体对象找到要
+    // 访问的Service组件了。一个Binder引用对象的句柄值仅在进程范围内唯一，因此在两个不同
+    // 进程中，同一个句柄可能代表不同的Service组件
+    uint32_t desc;
+
+    int strong;                 // 描述Binder引用对象的强/弱引用计数
+    int weak;
+
+    // 指向一个Service组件的死亡接收通知。当Client进程向Binder驱动程序注册一个它所引用
+    // 的Service组件死亡接收通知时，Binder驱动程序会创建一个binder_ref_death结构体，然
+    // 后保存在该成员变量death中
+    struct binder_ref_death *death; 
+};
+```
+接下来看binder_get_ref_for_node(target_proc, node)。需要注意，前面创建binder_node的时候，是为proc创建的，proc是在调用binder_open(...)时创建，用来描述“使用（打开）该binder的进程”，proc就藏在binder文件的文件描述符的私有数据中；而此处（第150行）参数使用的是target_proc，它表示当前的binder请求发向的目标进程，在本上下文中就是handle为0的service manager，即binder_context_mgr_node。
+kernel/goldfish/drivers/staging/android/binder.c:1107
+``` c
+static struct binder_ref *binder_get_ref_for_node(struct binder_proc *proc,
+                          struct binder_node *node)
+{
+    struct rb_node *n;
+    struct rb_node **p = &proc->refs_by_node.rb_node;
+    struct rb_node *parent = NULL;
+    struct binder_ref *ref, *new_ref;
+    // 在target_proc中查找node，如果找不到就创建
+    while (*p) {
+        parent = *p;
+        ref = rb_entry(parent, struct binder_ref, rb_node_node);
+
+        if (node < ref->node)
+            p = &(*p)->rb_left;
+        else if (node > ref->node)
+            p = &(*p)->rb_right;
+        else
+            return ref;
+    }
+    new_ref = kzalloc(sizeof(*ref), GFP_KERNEL);
+    ... ...
+    binder_stats_created(BINDER_STAT_REF);
+    new_ref->debug_id = ++binder_last_id;
+    new_ref->proc = proc;
+    new_ref->node = node;
+    rb_link_node(&new_ref->rb_node_node, parent, p);
+    rb_insert_color(&new_ref->rb_node_node, &proc->refs_by_node);
+
+    // 遍历target_proc的binder_ref，找到最大的desc，加1后赋给new_ref->desc
+    new_ref->desc = (node == binder_context_mgr_node) ? 0 : 1;
+    for (n = rb_first(&proc->refs_by_desc); n != NULL; n = rb_next(n)) {
+        ref = rb_entry(n, struct binder_ref, rb_node_desc);
+        if (ref->desc > new_ref->desc)
+            break;
+        new_ref->desc = ref->desc + 1;
+    }
+
+    // 将new_ref插入到target_proc->refs_by_desc.rb_node中
+    p = &proc->refs_by_desc.rb_node;
+    while (*p) {
+        parent = *p;
+        ref = rb_entry(parent, struct binder_ref, rb_node_desc);
+
+        if (new_ref->desc < ref->desc)
+            p = &(*p)->rb_left;
+        else if (new_ref->desc > ref->desc)
+            p = &(*p)->rb_right;
+        else
+            BUG();
+    }
+    rb_link_node(&new_ref->rb_node_desc, parent, p);
+    rb_insert_color(&new_ref->rb_node_desc, &proc->refs_by_desc);
+    if (node) {
+        hlist_add_head(&new_ref->node_entry, &node->refs);
+        ... ...
+    } 
+    ... ...
+    return new_ref;
+}
+```
+于是，在binder_transaction(...)函数第114行完成调用`binder_get_ref_for_node(target_proc, node)`之后，数据结构图为：
+![在binder_transaction(...)函数中为target_proc创建完binder_ref之后的数据结构](img13.png)
+
+接下来在函数binder_transaction(...)中还有几个关键操作，见第116行，如果fp->type为BINDER_TYPE_BINDER，就改为BINDER_TYPE_HANDLE，然后把fp->handle改为ref->desc，接下来的binder_ref_ref(ref, fp->type==BINDER_TYPE_HANDLE, &thread->todo)定义在kernel/goldfish/drivers/staging/android/binder.c:1200
+``` c
+static int binder_inc_ref(struct binder_ref *ref, int strong,
+              struct list_head *target_list)
+{   // strong = (fp->type==BINDER_TYPE_HANDLE)即为1
+    // target_list = &thread->todo
+    int ret;
+    if (strong) {
+        if (ref->strong == 0) {
+            // ref->node->internal_strong_ref++，成功返回0
+            ret = binder_inc_node(ref->node, 1, 1, target_list);
+            if (ret)
+                return ret;
+        }
+        ref->strong++;
+    } else {
+        if (ref->weak == 0) {
+            ret = binder_inc_node(ref->node, 0, 1, target_list);
+            if (ret)
+                return ret;
+        }
+        ref->weak++;
+    }
+    return 0;
+}
+```
+接下来跳出case后还有对t的成员need_reply、from_parent、t->work.type的处理，并将t插入到target_list即target_proc或target_thread的todo队列中，尔后返回。此时的数据结构图为：
+![binder_transaction(...)完成时的数据结构](img14.png)
+
+到此为止，终于完成了binder_transaction(...)的分析，知道怎么回事，但心里有很多个“为什么”。而且把前面的学习笔记串联起来，隐约觉得能感应道一些曙光了，本节的篇幅太长了，这些曙光留待下一节一起领略吧。
+
+
+

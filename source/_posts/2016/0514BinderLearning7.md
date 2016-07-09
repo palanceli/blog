@@ -112,12 +112,13 @@ uint32_t bio_get_ref(struct binder_io *bio)
     if (!obj)
         return 0;
 
-    if (obj->type == BINDER_TYPE_HANDLE)
+    if (obj->type == BINDER_TYPE_HANDLE)  // 如果为BINDER_TYPE_BINDER呢？都返回0？
         return obj->handle;
 
     return 0;
 }
 ```
+这里有一个很大的疑团：<font color="red">根据前面的数据结构图， obj->type应该就是service.type，它等于BINDER_TYPE_BINDER，可是在bio_get_ref(...)中仅对obj->type为BINDER_TYPE_HANDLE的情况返回obj->handle，其余情况都返回0。这不符合常识啊，难道所有的BINDER_TYPE_BINDER类型的handle都共用0？</font>
 frameworks/native/cmds/servicemanager/binder.c:611
 ``` c++
 static struct flat_binder_object *_bio_get_obj(struct binder_io *bio)
@@ -181,5 +182,5 @@ int do_add_service(struct binder_state *bs,
     return 0;
 }
 ```
-到这就结束了，最终的落地代码出乎意料的简单：它只是保存服务的name和binder，并把它们串到链表上去。等待客户端checkService则返回handle。总感觉谜团还是没解决，这个handle也就是服务端组织的flat_binder_object数据究竟怎么做到的连接客户端与服务端？ServiceManager的角色应该让C/S关联起来，接下来C、S之间就可以直接通过binder通信了，可是flat_binder_object里面只是保存了服务端的几个指针，客户端怎么凭着这坨binder数据链接到服务端的呢？看来还得研究一条具体的服务请求及响应才能找到最终的答案。
+到这就结束了，最终的落地代码出乎意料的简单：它只是保存服务的name和binder，并把它们串到链表上去。等待客户端checkService则返回handle。总感觉谜团还是没解决，do_add_service(...)函数中handle参数存疑，我断定它应该是service的handle字段，可是按照代码走查的结果，却在service_manager中被改成了0，为什么？这个handle究竟怎么做到的连接客户端与服务端？ServiceManager的角色应该让C/S关联起来，接下来C、S之间就可以直接通过binder通信了，可是flat_binder_object里面只是保存了服务端的几个指针，客户端怎么凭着这坨binder数据链接到服务端的呢？看来还得研究一条具体的服务请求及响应才能找到最终的答案。
 
