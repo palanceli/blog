@@ -46,5 +46,56 @@ addService会执行`binder_transaction`，为addService事务创建`struct binde
 生成的数据结构如下图：
 ![addService组织的数据结构](img01.png)
 
+根据[Binder学习笔记（七）—— ServiceManager如何响应addService请求 ？](http://localhost:4000/blog/2016/05/12/2016/0514BinderLearning7/)可知：ServiceManager会把Service的name和handle保存下来，串到链表svclist中。
+
+# 再看ServiceManager是如何响应checkService请求的
+当Client请求Service的时候，ServiceManager是怎么根据前面保存的handle关联到Service的，Client又是怎么据此调用到Service的函数？回答了这两个问题，binder的通道就算打通啦:)
+
+回顾[Binder学习笔记（四）—— ServiceManager如何响应checkService请求](http://localhost:4000/blog/2016/05/09/2016/0514BinderLearning4/)，来看这幅图：
+![ServiceManager响应checkService请求组织的数据结构](http://localhost:4000/blog/2016/05/09/2016/0514BinderLearning4/img05.png)
+
+客户端请求Service时带的是Service的name，在ServiceManager根据name在svclist中查找到handle，然后组织成rdata数据返回。看！它的type是BINDER_TYPE_HANDLE，驱动层是不是要做点什么？来看看binder_transaction(...)的case BINDER_TYPE_HANDLE和case BINDER_TYPE_WEAK_HANDLE部分：
+``` c
+        case BINDER_TYPE_HANDLE:
+        case BINDER_TYPE_WEAK_HANDLE: {
+            struct binder_ref *ref = binder_get_ref(proc, fp->handle);
+            ... ...
+            if (ref->node->proc == target_proc) {
+                if (fp->type == BINDER_TYPE_HANDLE)
+                    fp->type = BINDER_TYPE_BINDER;
+                else
+                    fp->type = BINDER_TYPE_WEAK_BINDER;
+                fp->binder = ref->node->ptr;
+                fp->cookie = ref->node->cookie;
+                binder_inc_node(ref->node, fp->type == BINDER_TYPE_BINDER, 0, NULL);
+                ... ...
+            } else {
+                struct binder_ref *new_ref;
+                new_ref = binder_get_ref_for_node(target_proc, ref->node);
+                ... ...
+                fp->handle = new_ref->desc;
+                binder_inc_ref(new_ref, fp->type == BINDER_TYPE_HANDLE, NULL);
+                ... ...
+            }
+        } break;
+```
+这段代码由ServiceManager执行，发送给Client，因此其中的proc属于ServiceManager，target_proc属于Client。
+
+上一节分析过，当Server端调用addService后，驱动会在ServiceManager的refs_by_desc红黑树中挂上Service的binder_ref节点；在Server的nodes红黑树中挂上Service的binder_node节点。
+因此，在上面代码#3这一行，在ServiceManager的refs_by_desc红黑树上可以找到到handle对应的binder_ref节点。#5行中，ref->node是binder的实体，该实体是由Server创建的，因此ref->node->proc属于Server，而target_proc属于Client，因此#5非真。
+
+接下来在Client的proc中为Service的binder_node创建binder_ref，其desc在Client内唯一，把handle改为此desc。修改之后的数据结构图如下，我把被驱动层修改的内容标绿了：
+![ServiceManager响应checkService的数据结构被驱动修改后的样子](img02.png)
+
+下图是驱动层为Client创建的binder_ref以及它与binder_node之间的关系，我用绿色表示新增加的这部分关系，虚线表示并非直接指针指过来，而是通过红黑树串入的节点：
+![驱动层为Client创建的binder_ref](img03.png)
+
+呵呵，好复杂的三角关系！乱么？至少在我内心里已经无比清晰，我先把它们记录下来，之后我还会再来梳理，让每一次迭代都能比之前更清晰，更简洁。互联网思维的节奏~
+
+# 再看客户端是如何组织Test()请求的
+[Binder学习笔记（八）—— 客户端如何组织Test()请求 ？](http://localhost:4000/blog/2016/05/14/2016/0514BinderLearning8/)这一篇中分析了应用层组织的数据，看最后那张图：
+![客户端为test()组织的请求数据](http://localhost:4000/blog/2016/05/14/2016/0514BinderLearning8/img01.png)
+其中handle就是驱动在Client端创建的binder_ref的desc，该数据到了驱动层又要由binder_transaction(...)来处理，只是这一次跟之前又有不同：t的buffer中没有flat_binder_object数据！因此也就不必走case。
+
 
 
