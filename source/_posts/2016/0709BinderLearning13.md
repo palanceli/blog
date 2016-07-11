@@ -90,12 +90,10 @@ addService会执行`binder_transaction`，为addService事务创建`struct binde
 下图是驱动层为Client创建的binder_ref以及它与binder_node之间的关系，我用绿色表示新增加的这部分关系，虚线表示并非直接指针指过来，而是通过红黑树串入的节点：
 ![驱动层为Client创建的binder_ref](img03.png)
 
-呵呵，好复杂的三角关系！乱么？至少在我内心里已经无比清晰，我先把它们记录下来，之后我还会再来梳理，让每一次迭代都能比之前更清晰，更简洁。互联网思维的节奏~
+呵呵，好复杂的三角关系！乱么？正当我以为在我内心里已经无比清晰，正要势如破竹乘胜追击，甚至要提前祝贺攻下binder的时候，我被接下来的问题整懵了。接下来的主题应该是“再看客户端是如何组织Test()请求的”，可是当我分析[Binder学习笔记（八）—— 客户端如何组织Test()请求 ？](http://palanceli.github.io/blog/2016/05/14/2016/0514BinderLearning8/)这一篇中的最后那张图：
+![客户端为test()组织的请求数据](http://palanceli.github.io/blog/2016/05/14/2016/0514BinderLearning8/img01.png)
+才发现data的部分根本没有flat_binder_object，根据binder_transaction(...)，也就不走什么case语句了，生成了binder_transaction就完了？谁来负责把这个事务交到Server端继续执行呢？原来我还有一半的路程要走，当初穿越驱动层的时候只分析到`binder_ioctl(...)`调用`binder_thread_write(...)`，后面还有一半是`binder_thread_read(...)`。看来小结做得还为时过早，后面还有峰回路转，后半部分留待以后的章节再搞吧。
 
-# 再看客户端是如何组织Test()请求的
-[Binder学习笔记（八）—— 客户端如何组织Test()请求 ？](http://localhost:4000/blog/2016/05/14/2016/0514BinderLearning8/)这一篇中分析了应用层组织的数据，看最后那张图：
-![客户端为test()组织的请求数据](http://localhost:4000/blog/2016/05/14/2016/0514BinderLearning8/img01.png)
-其中handle就是驱动在Client端创建的binder_ref的desc，该数据到了驱动层又要由binder_transaction(...)来处理，只是这一次跟之前又有不同：t的buffer中没有flat_binder_object数据！因此也就不必走case。
 
 
 
