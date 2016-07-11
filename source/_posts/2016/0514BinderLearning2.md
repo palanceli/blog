@@ -103,30 +103,11 @@ sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
     handle_entry* e = lookupHandleLocked(handle);  //正常情况下总会返回一个非空实例
 
     if (e != NULL) {
-        // We need to create a new BpBinder if there isn't currently one, OR we
-        // are unable to acquire a weak reference on this current one.  See comment
-        // in getWeakProxyForHandle() for more info about this.
+        ... ...
         IBinder* b = e->binder;
         if (b == NULL || !e->refs->attemptIncWeak(this)) {
             if (handle == 0) {  // 首次创建b为NULL，handle为0
-                // Special case for context manager...
-                // The context manager is the only object for which we create
-                // a BpBinder proxy without already holding a reference.
-                // Perform a dummy transaction to ensure the context manager
-                // is registered before we create the first local reference
-                // to it (which will occur when creating the BpBinder).
-                // If a local reference is created for the BpBinder when the
-                // context manager is not present, the driver will fail to
-                // provide a reference to the context manager, but the
-                // driver API does not return status.
-                //
-                // Note that this is not race-free if the context manager
-                // dies while this code runs.
-                //
-                // TODO: add a driver API to wait for context manager, or
-                // stop special casing handle 0 for context manager and add
-                // a driver API to get a handle to the context manager with
-                // proper reference counting.
+                ... ...
 
                 Parcel data;
                 status_t status = IPCThreadState::self()->transact(
@@ -140,9 +121,7 @@ sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
             if (b) e->refs = b->getWeakRefs();
             result = b;  // 返回的是BpBinder(0)
         } else {
-            // This little bit of nastyness is to allow us to add a primary
-            // reference to the remote proxy when this team doesn't have one
-            // but another team is sending the handle to us.
+            ... ...
             result.force_set(b);
             e->refs->decWeak(this);
         }
