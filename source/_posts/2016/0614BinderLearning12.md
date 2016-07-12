@@ -753,7 +753,7 @@ struct binder_work {
 到binder_transaction(...)第92行为止，它构造的数据结构如下。此时用户控件的部分数据被拷贝到了内核空间，内核空间中binder_transaction的buffer是从proc->free_buffers中摘取下来的，为了避免图片过大，此处的细节暂不展现了。摘取下的buffer的数据部分用于暂存从用户空间拷贝来的数据。
 ![到binder_transaction(...)第92行位置，构造的数据结构](img11.png)
 
-# struct binder_node
+## struct binder_node
 从94行开始，逐个遍历t->buffer.data中的binder objects，在for循环中，fp指向当前的binder object。如果fp->type是BINDER_TYPE_BINDER或BINDER_TYPE_WEAK_BINDER，#104先从proc->nodes.rb_node中查找有没有fp->binder，如果没有则调用binder_new_node(...)在proc->nodes.rb_node中创建此节点。接下来先看看`struct binder_node`，kernel/goldfish/drivers/staging/android/binder.c:217，它用来描述一个Binder实体对象，每一个Service组件在驱动层都对应一个binder_node，用来描述在内核中的状态：
 ``` c
 struct binder_node {            
