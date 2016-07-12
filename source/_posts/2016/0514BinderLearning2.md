@@ -17,28 +17,26 @@ defaultServiceManager()都干了什么，它返回的是什么实例呢？
 sp<IServiceManager> defaultServiceManager()
 {
     if (gDefaultServiceManager != NULL) return gDefaultServiceManager;
-    
-    {
-        AutoMutex _l(gDefaultServiceManagerLock);
-        while (gDefaultServiceManager == NULL) {
+   
+        ... ...
             gDefaultServiceManager = interface_cast<IServiceManager>(
-                ProcessState::self()->getContextObject(NULL));  // 这里才是关键步骤
-            if (gDefaultServiceManager == NULL)
-                sleep(1);
-        }
-    }
+                ProcessState::self()->getContextObject(NULL));  
+        ... ...
     
     return gDefaultServiceManager;
 }
 ```
-关键步骤可以分解为几步：1、ProcessState::self()，2、ProcessState::getContextObject(…)，3、interface_cast<IserviceManager>(…)
+关键步骤可以分解为几步：
+1、ProcessState::self()
+2、ProcessState::getContextObject(NULL)
+3、interface_cast&lt;IserviceManager&gt;(ProcessState::self()->getContextObject(NULL))
 
 # ProcessState::self()
 frameworks/native/libs/binder/ProcessState.cpp:70 
 ``` c++
-sp<ProcessState> ProcessState::self()  // 这又是一个进程单体
+sp<ProcessState> ProcessState::self()  // 又是一个进程单体
 {
-    Mutex::Autolock _l(gProcessMutex);
+    ... ...
     if (gProcess != NULL) {
         return gProcess;
     }
@@ -61,31 +59,19 @@ ProcessState::ProcessState()
     , mThreadPoolStarted(false)
     , mThreadPoolSeq(1)
 {
-    if (mDriverFD >= 0) {
-        // XXX Ideally, there should be a specific define for whether we
-        // have mmap (or whether we could possibly have the kernel module
-        // availabla).
-#if !defined(HAVE_WIN32_IPC)
-        // mmap the binder, providing a chunk of virtual address space to receive transactions.
+    ... ...
         mVMStart = mmap(0, BINDER_VM_SIZE, PROT_READ, MAP_PRIVATE | MAP_NORESERVE, mDriverFD, 0);
-        if (mVMStart == MAP_FAILED) {
-            // *sigh*
-            ALOGE("Using /dev/binder failed: unable to mmap transaction memory.\n");
-            close(mDriverFD);
-            mDriverFD = -1;
-        }
-#else
-        mDriverFD = -1;
-#endif
-    }
-
-    LOG_ALWAYS_FATAL_IF(mDriverFD < 0, "Binder driver could not be opened.  Terminating.");
+    ... ...
 }
 ```
-ProcessState的构造函数主要完成两件事：1、初始化列表里调用opern_driver()，打开了文件/dev/binder；2、将文件映射到内存。ProcessState::self()返回单体实例。
+ProcessState的构造函数主要完成两件事：
+1、初始化列表里调用opern_driver()，打开了文件/dev/binder；
+2、将文件映射到内存。
 
-# ProcessState::getContextObject(…)
-该函数定义在frameworks/native/libs/binder/ProcessState.cpp:85
+ProcessState::self()返回单体实例。
+
+# ProcessState::getContextObject(NULL)
+接下来是defaultServiceManager()的第二步调用，该函数定义在frameworks/native/libs/binder/ProcessState.cpp:85
 ``` c++
 sp<IBinder> ProcessState::getContextObject(const sp<IBinder>& /*caller*/)
 {
@@ -95,39 +81,15 @@ sp<IBinder> ProcessState::getContextObject(const sp<IBinder>& /*caller*/)
 继续深入，frameworks/native/libs/binder/ProcessState/cpp:179
 ``` c++
 sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
-{
+{   // handle = NULL
     sp<IBinder> result;
-
-    AutoMutex _l(mLock);
-
+    ... ...
     handle_entry* e = lookupHandleLocked(handle);  //正常情况下总会返回一个非空实例
-
-    if (e != NULL) {
-        // We need to create a new BpBinder if there isn't currently one, OR we
-        // are unable to acquire a weak reference on this current one.  See comment
-        // in getWeakProxyForHandle() for more info about this.
+        ... ...
         IBinder* b = e->binder;
-        if (b == NULL || !e->refs->attemptIncWeak(this)) {
+        ... ...
             if (handle == 0) {  // 首次创建b为NULL，handle为0
-                // Special case for context manager...
-                // The context manager is the only object for which we create
-                // a BpBinder proxy without already holding a reference.
-                // Perform a dummy transaction to ensure the context manager
-                // is registered before we create the first local reference
-                // to it (which will occur when creating the BpBinder).
-                // If a local reference is created for the BpBinder when the
-                // context manager is not present, the driver will fail to
-                // provide a reference to the context manager, but the
-                // driver API does not return status.
-                //
-                // Note that this is not race-free if the context manager
-                // dies while this code runs.
-                //
-                // TODO: add a driver API to wait for context manager, or
-                // stop special casing handle 0 for context manager and add
-                // a driver API to get a handle to the context manager with
-                // proper reference counting.
-
+                ... ...
                 Parcel data;
                 status_t status = IPCThreadState::self()->transact(
                         0, IBinder::PING_TRANSACTION, data, NULL, 0);
@@ -139,19 +101,12 @@ sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
             e->binder = b;
             if (b) e->refs = b->getWeakRefs();
             result = b;  // 返回的是BpBinder(0)
-        } else {
-            // This little bit of nastyness is to allow us to add a primary
-            // reference to the remote proxy when this team doesn't have one
-            // but another team is sending the handle to us.
-            result.force_set(b);
-            e->refs->decWeak(this);
-        }
-    }
+        ... ...
 
     return result;
 }
 ```
-因此getStrongProxyForHandle(0)返回的就是new BpBinder(0)。有几处细节可以再回头关注一下：
+因此getStrongProxyForHandle(0)返回的就是new BpBinder(0)。有几处细节可以再回头来关注一下：
 ## ProcessState::lookupHandleLocked(int32_t handle)
 该函数定义在frameworks/native/libs/binder/ProcessState.cpp:166
 ``` c++
@@ -168,17 +123,20 @@ ProcessState::handle_entry* ProcessState::lookupHandleLocked(int32_t handle)
     return &mHandleToObject.editItemAt(handle);
 }
 ```
-成员变量mHandleToObject是一个数组
+成员变量mHandleToObject是一个数组：
 ``` c++
-Vector<handle_entry>mHandleToObject;
+Vector<handle_entry>    mHandleToObject;
 ```
-该函数遍历数组查找handle，如果没找到则会向该数组中插入一个新元素，handle是数组下标。新元素的binder、refs成员默认均为NULL，在getStrongProxyForHandle(…)中会被赋值。
-# interface_cast<IserviceManager>(…)
-interface_cast(…)函数在binder体系中非常常用，后面还会不断遇见。该函数定义在frameworks/native/include/binder/IInterface.h:41
+该数组以handle为索引下标，这个handle是驱动层为每一个进程分配的进程内唯一的整形数，用来标识一个binder的引用，这在后面还会讲到。
+该函数遍历数组查找handle，如果没找到则会向该数组中插入一个新元素。新元素的binder、refs成员默认均为NULL，在getStrongProxyForHandle(…)中会被赋值。
+
+# interface_cast&lt;IserviceManager&gt;(ProcessState::self()->getContextObject(NULL))
+defaultServiceManager()函数最终返回的是这一大坨，函数interface_cast(…)在binder体系中非常常用，后面还会不断遇见。该函数定义在frameworks/native/include/binder/IInterface.h:41
 ``` c++
 template<typename INTERFACE>
 inline sp<INTERFACE> interface_cast(const sp<IBinder>& obj)
-{
+{   // obj=ProcessState::self()->getContextObject(NULL)，即
+    // new BpBinder(0)
     return INTERFACE::asInterface(obj);
 }
 ```
@@ -194,7 +152,7 @@ IMPLEMENT_META_INTERFACE(ServiceManager, "android.os.IServiceManager");
 ``` c++
 android::sp< IServiceManager > IServiceManager::asInterface(
             const android::sp<android::IBinder>& obj)
-    {
+    {   // obj=new BpBinder(0)
         android::sp< IServiceManager > intr;
         if (obj != NULL) {
             intr = static_cast< IServiceManager *>( 
@@ -207,7 +165,9 @@ android::sp< IServiceManager > IServiceManager::asInterface(
     }
 ```
 因此它返回的就是new BpServiceManager(new BpBinder(0))。
-> 经过层层抽丝剥茧之后，defaultServiceManager()的返回值即为new BpServiceManager(new BpBinder(0))。
+> 经过层层抽丝剥茧之后，defaultServiceManager()的返回值即为：
+> new BpServiceManager(new BpBinder(0))。
+> 它表示handle为0的binder引用，即对ServiceManager的引用。
 > 
 
 我们再顺道看一下BpServiceManager的继承关系以及构造函数，frameworks/native/libs/binder/IServiceManager.cpp:126
