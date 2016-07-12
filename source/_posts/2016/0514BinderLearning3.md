@@ -429,3 +429,14 @@ $16 = {mError = 0, mData = 0xb6ce7000 "\fr", mDataSize = 48, mDataCapacity = 256
 0xb6ce7020: 0x00000000  0x00000000  0xb6bc2028  0xb6bc2028
 
 ```
+在我的模拟器中经常出现`Program received signal SIGILL, Illegal instruction.`错误，所以调试常常要做好多遍，可以把调试命令写成脚本，我放在了external-testservice/debug.gdb中，第三个终端的调试在执行完：
+``` bash
+$ adb forward tcp:1234 tcp:1234    # forward端口
+$ ./prebuilts/gcc/darwin-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androideabi-gdb out/debug/target/product/generic/obj/EXECUTABLES/TestClient_intermediates/LINKED/TestClient
+(gdb) source ../androidex/external-testservice/debug.gdb
+(gdb) common        # 初始化
+... ...
+(gdb) binder03a     # 设置断点
+... ...
+
+```
