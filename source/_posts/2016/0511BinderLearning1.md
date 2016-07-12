@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "Binder学习笔记（一）"
+title:  "Binder学习笔记（一）引子"
 date:   2016-04-25 01:18:48 +0800
 categories: Android
 tags:   binder
@@ -30,149 +30,23 @@ bindService(intent, connection, Service.BIND_AUTO_CREATE);  // 创建Servic
 更神奇的是，Service和Client可以是两个不同的进程，而且即使跨进程，Client仍然可以把来自Service的binder当做本地对象来使用。Binder对函数调用做了封装，把函数和参数组装成数据包发给Service，再由Service调用和执行实际的服务接口，并把执行结果也组装成数据包返回给客户端。
 
 Java层的代码会向下进入native层，通过该层的c++代码调用frameworks以及更底层的驱动来完成消息的流转。为了尽快触摸到Binder的本质，我们现在就潜入到native层，用c++代码完成Service的编写和Client端的调用，并以此为起点进入到Binder的实现层。至于从Java到native的桥接，可以留待本质问题水落石出之后再去探究，那只是末枝上的小细节了。
-##binder的使用（C++代码）
-``` c++
-// Test.h  
-#ifndef __TEST_H__  
-#define __TEST_H__  
-#include <stdio.h>  
-#include <binder/IInterface.h>  
-#include <binder/Parcel.h>  
-#include <binder/IBinder.h>  
-#include <binder/Binder.h>  
-#include <binder/ProcessState.h>  
-#include <binder/IPCThreadState.h>  
-#include <binder/IServiceManager.h>  
-using namespace android;  
-namespace android  
-{  
-    class ITestService : public IInterface  
-    {  
-     public:  
-        DECLARE_META_INTERFACE(TestService); // declare macro  
-        virtual void test()=0;  
-    };  
-   
-    enum  
-    {  
-        TEST = IBinder::FIRST_CALL_TRANSACTION,  
-    };  
-  
-    class BpTestService: public BpInterface<ITestService> {  
-    public:  
-        BpTestService(const sp<IBinder>& impl);  
-        virtual void test();  
-    };  
-}  
-endif  
-```
 
-``` c++
-// ITestService.cpp
-#include "Test.h"  
-namespace android  
-{  
-    IMPLEMENT_META_INTERFACE(TestService, "android.TestServer.ITestService");  
-} 
-```
-``` c++
-// TestClient.cpp  
-#include "Test.h"  
-namespace android {  
-BpTestService::BpTestService(const sp<IBinder>& impl) :  
-        BpInterface<ITestService>(impl) {  
-}  
-void BpTestService::test() {  
-    printf("BpTestService::test()\n");  
-    Parcel data, reply;  
-    data.writeInterfaceToken(ITestService::getInterfaceDescriptor());  
-    remote()->transact(TEST, data, &reply);  
-    printf("reply: %d\n", reply.readInt32());  
-}  
-}  
-int main() {  
-    sp < IServiceManager > sm = defaultServiceManager();  
-    sp < IBinder > binder = sm->getService(String16("service.testservice"));  
-    sp<ITestService> cs = interface_cast < ITestService > (binder);  
-    cs->test();  
-    return 0;  
-}  
-```
-``` c++
-// TestServer.cpp
-#include "Test.h"
-namespace android 
-{
-  class BnTestService: public BnInterface<ITestService> 
-{
-public: 
-   virtual status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags = 0); 
-   virtual void test() { printf("BnTestService::test()\n"); }};
-   status_t BnTestService::onTransact(uint_t code, const Parcel& data, Parcel* reply, uint32_t flags) 
-   { 
-   switch (code) { 
-	   case TEST: { 
-		 printf("BnTestService::onTransact, code: TEST\n"); 
-		 CHECK_INTERFACE(ITest, data, reply); 
-		 test(); reply->writeInt32(100); 
-		 return NO_ERROR; 
-	   } 
-	   break; 
- 
-	   default: 
-	   break; 
-	 } 
-	 return NO_ERROR;
-   }
-}
-
-int main() 
-{ 
-  sp < ProcessState > proc(ProcessState::self()); 
-  sp < IServiceManager > sm = defaultServiceManager(); 
-  sm->addService(String16("service.testservice"), new BnTestService()); 
-  ProcessState::self()->startThreadPool(); 
-  IPCThreadState::self()->joinThreadPool(); 
-  return 0;
-}
-```
-
+我把测试代码放在这里：[palanceli/androidex/external-testservice](https://github.com/palanceli/androidex/tree/master/external-testservice)
+可以下载完整的项目：[palanceli/androidex](https://github.com/palanceli/androidex/tree/master)，把它放到和android-6.0.1_r11平行的目录下，执行：
 ``` bash
-#Android.mk
-LOCAL_PATH := $(call my-dir)  
-  
-#生成binder service的服务端  
-include $(CLEAR_VARS)  
-LOCAL_SHARED_LIBRARIES := \  
-    libcutils \  
-    libutils \  
-    libbinder   
-LOCAL_MODULE    := TestServer  
-LOCAL_SRC_FILES := \  
-    TestServer.cpp \  
-    ITestService.cpp  
-LOCAL_MODULE_TAGS := optional  
-include $(BUILD_EXECUTABLE)  
-   
-#生成binder service的测试client端  
-include $(CLEAR_VARS)  
-LOCAL_SHARED_LIBRARIES := \  
-    libcutils \  
-    libutils \  
-    libbinder   
-LOCAL_MODULE    := TestClient  
-LOCAL_SRC_FILES := \  
-    TestClient.cpp \  
-    ITestService.cpp  
-LOCAL_MODULE_TAGS := optional  
-include $(BUILD_EXECUTABLE)  
+$ cd androidex
+$ sh setup.sh
 ```
-
-在Android源码external目录下创建文件夹testservice，并将以上五个文件放到该文件夹下。
+即可创建软链`android-6.0.1_r11/external/testservice`指向`androidex/external-testservice`
+我这么做是希望归拢自己的代码，每次不必深入到Android源码内去修改自己的代码，同时又可以在编译Android源码的时候又能把自己的代码编译进去。
+代码不在此罗列，它包含了binder的Server端和Client端。
 
 执行如下命令，完成编译：
 
-`$ mmm external/testservice`
+``` bash
+$ cd android-6.0.1_r11
+$ mmm external/testservice
+```
 
 我把Android源码的build/envsetup.sh内的TARGET_BUILD_TYPE默认值全改成了debug，这样确保执行以上mmm命令的时候，总会生成debug版。
 编译完成后，执行如下命令：
