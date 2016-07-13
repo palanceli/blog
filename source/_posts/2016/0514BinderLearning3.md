@@ -170,7 +170,7 @@ status_t IPCThreadState::waitForResponse(Parcel *reply, status_t *acquireResult)
 
         switch (cmd) {
         case BR_TRANSACTION_COMPLETE:
-            if (!reply && !acquireResult) goto finish;
+            if (!reply && !acquireResult) goto finish; // 显然这里永远不可能finish
             break;
         
         case BR_DEAD_REPLY:
@@ -185,7 +185,7 @@ status_t IPCThreadState::waitForResponse(Parcel *reply, status_t *acquireResult)
             {
                 ALOG_ASSERT(acquireResult != NULL, "Unexpected brACQUIRE_RESULT");
                 const int32_t result = mIn.readInt32();
-                if (!acquireResult) continue;
+                if (!acquireResult) continue;   // 这也不可能finish
                 *acquireResult = result ? NO_ERROR : INVALID_OPERATION;
             }
             goto finish;
@@ -241,63 +241,9 @@ finish:
     return err;
 }
 ```
-在#7行，调用了talkWithDriver()，定义在frameworks/native/libs/binder/IPCThreadState.cpp:803
-``` c
-status_t IPCThreadState::talkWithDriver(bool doReceive)
-{   // doReceive=true
-    ... ...
-    
-    binder_write_read bwr;
-    ... ...
-    const bool needRead = mIn.dataPosition() >= mIn.dataSize();
-    ... ...
-    const size_t outAvail = (!doReceive || needRead) ? mOut.dataSize() : 0;
-    
-    bwr.write_size = outAvail;
-    bwr.write_buffer = (uintptr_t)mOut.data();
+调试的结果在#46行的位置断过三次，可是我并没有把每次断到这里的数据解析明白，在这里徘徊了两天，每天脑子里就在想这块代码，好难受！Android的C++源码编译的时候应该有优化选项，导致调试的行号和执行位置不能精确吻合，tr的成员如何解释又是依赖数据的，而数据是从Server端发过来的，从客户端代码正向追查是查不到的。前进的道路似乎走不通了，那就走另一条路吧，从Server端出发，看看当Server端收到checkService的请求后如何响应，再根据响应数据来分析Client端的处理逻辑。
 
-    // This is what we'll read.
-    if (doReceive && needRead) {
-        bwr.read_size = mIn.dataCapacity();
-        bwr.read_buffer = (uintptr_t)mIn.data();
-    } else {
-        bwr.read_size = 0;
-        bwr.read_buffer = 0;
-    }
-    ... ...
-    // Return immediately if there is nothing to do.
-    if ((bwr.write_size == 0) && (bwr.read_size == 0)) return NO_ERROR;
 
-    bwr.write_consumed = 0;
-    bwr.read_consumed = 0;
-    status_t err;
-    do {
-        ... ...
-        if (ioctl(mProcess->mDriverFD, BINDER_WRITE_READ, &bwr) >= 0)
-            err = NO_ERROR;
-        else
-            err = -errno;
-        ... ...
-    } while (err == -EINTR);
-    ... ...
-    if (err >= NO_ERROR) {
-        if (bwr.write_consumed > 0) {
-            if (bwr.write_consumed < mOut.dataSize())
-                mOut.remove(0, bwr.write_consumed);
-            else
-                mOut.setDataSize(0);
-        }
-        if (bwr.read_consumed > 0) {
-            mIn.setDataSize(bwr.read_consumed);
-            mIn.setDataPosition(0);
-        }
-        ... ...
-        return NO_ERROR;
-    }
-    
-    return err;
-}
-```
 ------
 ## 调试应答数据
 <a name="anchor1"></a>
@@ -352,91 +298,66 @@ Breakpoint 2, android::IPCThreadState::waitForResponse (this=this@entry=0xb6c240
 730         switch (cmd) {
 (gdb) p cmd                         # 打印cmd的值
 $1 = <optimized out>                # 被优化掉了
-# 只好采用笨办法，在每个case处都加断点
-(gdb) b IPCThreadState.cpp:732
-Breakpoint 3 at 0xb6f6ef1c: file frameworks/native/libs/binder/IPCThreadState.cpp, line 732.
-(gdb) b IPCThreadState.cpp:736
-Breakpoint 4 at 0xb6f6efba: file frameworks/native/libs/binder/IPCThreadState.cpp, line 736.
-(gdb) b IPCThreadState.cpp:740
-Breakpoint 5 at 0xb6f6ef18: file frameworks/native/libs/binder/IPCThreadState.cpp, line 740.
-(gdb) b IPCThreadState.cpp:745
-Breakpoint 6 at 0xb6f6ef28: file frameworks/native/libs/binder/IPCThreadState.cpp, line 745.
-(gdb) b IPCThreadState.cpp:754
-Breakpoint 7 at 0xb6f6ef46: file frameworks/native/libs/binder/IPCThreadState.cpp, line 754.
-(gdb) b IPCThreadState.cpp:787
-Breakpoint 8 at 0xb6f6efac: file frameworks/native/libs/binder/IPCThreadState.cpp, line 787.
-(gdb) b IPCThreadState.cpp:794
-Breakpoint 9 at 0xb6f6ef3e: file frameworks/native/libs/binder/IPCThreadState.cpp, line 794.
-(gdb) c
-Continuing.
-
-Breakpoint 8, android::IPCThreadState::waitForResponse (this=this@entry=0xb6ce4000, reply=reply@entry=0xbed19a24, acquireResult=acquireResult@entry=0x0) at frameworks/native/libs/binder/IPCThreadState.cpp:787
-787             err = executeCommand(cmd);  # 不认识的cmd
-(gdb) c                                     # 继续
-Continuing.
-
-Breakpoint 3, android::IPCThreadState::waitForResponse (this=this@entry=0xb6ce4000, reply=reply@entry=0xbed19a24, acquireResult=acquireResult@entry=0x0) at frameworks/native/libs/binder/IPCThreadState.cpp:732
-732             if (!reply && !acquireResult) goto finish;
-(gdb) p mIn                                 # 看看mIn的内容
-$6 = {mError = 0, mData = 0xb6ce7000 "\fr", mDataSize = 8, mDataCapacity = 256, mDataPos = 8, mObjects = 0x0, mObjectsSize = 0, mObjectsCapacity = 0, mNextObjectHint = 0, mFdsKnown = true, mHasFds = false, mAllowFds = true, mOwner = 0x0, mOwnerCookie = 0x0,
-  mOpenAshmemSize = 0}
-
-# mData指向的内存地址是0bB6CE7000，去看看吧：
-(gdb) x /8u 0xb6ce7000
-0xb6ce7000: 29196   29190   0   0
-0xb6ce7010: 0   0   0   0
-
-# 这两个数的十六进制呢：
-(gdb) p /x 29190
-$8 = 0x7206
-(gdb) p /x 29196
-$9 = 0x720c
-
-# 再看看case对应的几个常量的值：
-(gdb) p /x BR_TRANSACTION_COMPLETE
+(gdb) p /x BR_TRANSACTION_COMPLETE  # 可以打印这些常量
 $7 = 0x7206
-(gdb) p /x BR_DEAD_REPLY
-$10 = 0x7205
-(gdb) p /x BR_FAILED_REPLY
-$11 = 0x7211
-(gdb) p /x BR_ACQUIRE_RESULT
-$12 = 0x80047204
-(gdb) p /x BR_REPLY
-$13 = 0x80287203
-
-# 这也印证了代码会执行到case BR_TRANSACTION_COMPLETE，但是reply非空，所以不会goto finish，继续：
-(gdb) c
-Continuing.
-
-Breakpoint 8, android::IPCThreadState::waitForResponse (this=this@entry=0xb6ce4000, reply=reply@entry=0xbed19a24, acquireResult=acquireResult@entry=0x0) at frameworks/native/libs/binder/IPCThreadState.cpp:787
-787             err = executeCommand(cmd);
-(gdb) p cmd
-$15 = 29196         # 不认识的命令
-(gdb) c             # 继续
-Continuing.
-
-Breakpoint 7, android::IPCThreadState::waitForResponse (this=this@entry=0xb6ce4000, reply=reply@entry=0xbed19a24, acquireResult=acquireResult@entry=0x0) at frameworks/native/libs/binder/IPCThreadState.cpp:755
-755                 err = mIn.read(&tr, sizeof(tr));
-(gdb) p cmd
-$17 = 2150134275    # BR_REPLY
-(gdb) p mIn
-$16 = {mError = 0, mData = 0xb6ce7000 "\fr", mDataSize = 48, mDataCapacity = 256, mDataPos = 8, mObjects = 0x0, mObjectsSize = 0, mObjectsCapacity = 0, mNextObjectHint = 0, mFdsKnown = true, mHasFds = false, mAllowFds = true, mOwner = 0x0, mOwnerCookie = 0x0,
-  mOpenAshmemSize = 0}
-# 再看看mData里的内容：
-(gdb) x /12uwx 0xb6ce7000
-0xb6ce7000: 0x0000720c  0x80287203  0x00000000  0x00000000
-0xb6ce7010: 0x00000000  0x00000000  0x00000000  0x000003e8
-0xb6ce7020: 0x00000000  0x00000000  0xb6bc2028  0xb6bc2028
-
 ```
-在我的模拟器中经常出现`Program received signal SIGILL, Illegal instruction.`错误，所以调试常常要做好多遍，可以把调试命令写成脚本，我放在了external-testservice/debug.gdb中，第三个终端的调试在执行完：
+cmd的值被优化掉了，只好采用笨办法，在关键的逻辑分支上多加一些断点，而且我发现把断点往后打，cmd就能打印出来了。再次正式调试之前，先用`p /x BR_xxx`把这些常量的值打出来：
+
+常量|值
+---|----
+BR_OK|0x7201
+BR_DEAD_REPLY|0x7205
+BR_TRANSACTION_COMPLETE|0x7206
+BR_NOOP|0x720c
+BR_SPAWN_LOOPER|0x720d
+BR_FINISHED|0x720e
+BR_FAILED_REPLY|0x7211
+BR_ERROR|0x80047200
+BR_TRANSACTION|0x80287202
+BR_REPLY|0x80287203
+BR_ACQUIRE_RESULT|0x80047204
+BR_INCREFS|0x80087207
+BR_ACQUIRE|0x80087208
+BR_RELEASE|0x80087209
+BR_DECREFS|0x8008720a
+BR_ATTEMPT_ACQUIRE|0x800c720b
+BR_DEAD_BINDER|0x8004720f
+BR_CLEAR_DEATH_NOTIFICATION_DONE|0x80047210
+
+我把通用的调试命令写成脚本，放在了external-testservice/debug.gdb中，继续第三个终端的调试过程：
 ``` bash
 $ adb forward tcp:1234 tcp:1234    # forward端口
 $ ./prebuilts/gcc/darwin-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androideabi-gdb out/debug/target/product/generic/obj/EXECUTABLES/TestClient_intermediates/LINKED/TestClient
 (gdb) source ../androidex/external-testservice/debug.gdb
 (gdb) common        # 初始化
 ... ...
-(gdb) binder03a     # 设置断点
-... ...
+(gdb) binder03a     # 在761、768处设置断点
 
+(gdb) c
+Continuing.
+
+Breakpoint 2, android::IPCThreadState::waitForResponse (this=this@entry=0xb6be4000, reply=reply@entry=0xbe84fa24, acquireResult=acquireResult@entry=0x0) at frameworks/native/libs/binder/IPCThreadState.cpp:766
+766                             freeBuffer, this);
+(gdb) p tr
+$1 = {target = {handle = 0, ptr = 0}, cookie = 0, code = 0, flags = 0, sender_pid = 0, sender_euid = 1000, data_size = 0, offsets_size = 0, data = {ptr = {buffer = 3064733736, offsets = 3064733736}, buf = "( \254\266( \254\266"}}
+(gdb) c
+Continuing.
+
+Breakpoint 2, android::IPCThreadState::waitForResponse (this=0xb6be4000, reply=0xbe84fa9c, acquireResult=0x0) at frameworks/native/libs/binder/IPCThreadState.cpp:766
+766                             freeBuffer, this);
+(gdb) p tr
+$2 = {target = {handle = 0, ptr = 0}, cookie = 0, code = 0, flags = 0, sender_pid = 0, sender_euid = 1000, data_size = 16, offsets_size = 4, data = {ptr = {buffer = 3064733736, offsets = 3064733752}, buf = "( \254\266\070 \254\266"}}
+(gdb) x /3uwx 3064733736
+0xb6ac2028: 0x73682a85  0x0000017f  0x00000001
+(gdb) c
+Continuing.
+
+Breakpoint 2, android::IPCThreadState::waitForResponse (this=0xb6be4000, reply=0xbe84fad4, acquireResult=0x0) at frameworks/native/libs/binder/IPCThreadState.cpp:766
+766                             freeBuffer, this);
+(gdb) p tr
+$3 = {target = {handle = 0, ptr = 0}, cookie = 0, code = 0, flags = 0, sender_pid = 0, sender_euid = 0, data_size = 4, offsets_size = 0, data = {ptr = {buffer = 3064733736, offsets = 3064733740}, buf = "( \254\266, \254\266"}}
+(gdb) c
+Continuing.
+[Inferior 1 (process 1293) exited normally]
 ```
+实际上是在761初命中3次。但是对其中的数据含义，目前还没有梳理清楚。
