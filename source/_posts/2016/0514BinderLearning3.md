@@ -241,11 +241,53 @@ finish:
     return err;
 }
 ```
-调试的结果在#46行的位置断过三次，可是我并没有把每次断到这里的数据解析明白，在这里徘徊了两天，每天脑子里就在想这块代码，好难受！Android的C++源码编译的时候应该有优化选项，导致调试的行号和执行位置不能精确吻合，tr的成员如何解释又是依赖数据的，而数据是从Server端发过来的，从客户端代码正向追查是查不到的。前进的道路似乎走不通了，那就走另一条路吧，从Server端出发，看看当Server端收到checkService的请求后如何响应，再根据响应数据来分析Client端的处理逻辑。
+`调试的结果在#46行的位置断过三次，可是我并没有把每次断到这里的数据解析明白，在这里徘徊了两天，每天脑子里就在想这块代码，好难受！Android的C++源码编译的时候应该有优化选项，导致调试的行号和执行位置不能精确吻合，tr的成员如何解释又是依赖数据的，而数据是从Server端发过来的，从客户端代码正向追查是查不到的。前进的道路似乎走不通了，那就走另一条路吧，从Server端出发，看看当Server端收到checkService的请求后如何响应，再根据响应数据来分析Client端的处理逻辑。`
 
+# waitForResponse最终交出了什么样的reply
+![getService(...)的调用关系](img02.png)
+第二天想想不死心，尽管`waitForResponse()`内部的分析遇到障碍了，暂且搁置。但可以把`waitForResponse()`最终交出了什么样的reply分析出来。因为在函数`checkService()`中，在执行完`remote()->transact(...)`之后会从reply提取出StrongBinder，这说明`waitForResponse()`的成果就是reply。
+
+调试的过程详见[调试waitForResponse组装的reply](#anchor2)
+
+具体的函数调用是在frameworks/native/libs/binder/IServiceManager.cpp:152
+``` c
+   virtual sp<IBinder> checkService( const String16& name) const
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IServiceManager::getInterfaceDescriptor());
+        data.writeString16(name);
+        remote()->transact(CHECK_SERVICE_TRANSACTION, data, &reply);
+        return reply.readStrongBinder();
+    }
+```
+调用关系如下：
+![Parcel::readStrongBinder()的调用关系](img03.png)
+从调试结果来看，flat->type为BINDER_TYPE_HANDLE，
+frameworks/native/libs/binder/Parcel.cpp:293
+``` c
+status_t unflatten_binder(const sp<ProcessState>& proc,
+    const Parcel& in, sp<IBinder>* out)
+{
+    const flat_binder_object* flat = in.readObject(false);
+
+    if (flat) {
+        switch (flat->type) {
+            case BINDER_TYPE_BINDER:
+                *out = reinterpret_cast<IBinder*>(flat->cookie);
+                return finish_unflatten_binder(NULL, *flat, in);
+            case BINDER_TYPE_HANDLE:    // 于是走这里
+                *out = proc->getStrongProxyForHandle(flat->handle);
+                return finish_unflatten_binder(
+                    static_cast<BpBinder*>(out->get()), *flat, in);
+        }
+    }
+    return BAD_TYPE;
+}
+```
+于是又回到了`ProcessState::getStrongProxyForHandle(...)`，本质上返回的是`new BpBinder(handle)`
 
 ------
-## 调试应答数据
+# 调试应答数据
 <a name="anchor1"></a>
 初始化环境、编译、拷贝文件等：
 ``` bash
@@ -265,15 +307,15 @@ $ adb push out/debug/target/product/generic/obj/EXECUTABLES/TestClient_intermedi
 $ adb shell chmod 755 /data/local/tmp/testservice/* # 赋予可执行权限 
 ```
 接下来需要启动三个终端：1、在模拟器上运行Server；2、在模拟器上通过gdbserver运行客户端；3、在调试机上运行gdb
-### 在模拟器上运行Server
+## 在模拟器上运行Server
 ``` bash
 $ adb shell /data/local/tmp/testservice/TestServer
 ```
-### 在模拟器上通过gdbserver运行客户端
+## 在模拟器上通过gdbserver运行客户端
 ``` bash
 $ adb shell gdbserver :1234 /data/local/tmp/testservice/TestClient
 ```
-### 在调试机上运行gdb
+## 在调试机上运行gdb
 ``` bash
 $ adb forward tcp:1234 tcp:1234    # forward端口
 $ ./prebuilts/gcc/darwin-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androideabi-gdb out/debug/target/product/generic/obj/EXECUTABLES/TestClient_intermediates/LINKED/TestClient
@@ -361,3 +403,45 @@ Continuing.
 [Inferior 1 (process 1293) exited normally]
 ```
 实际上是在761初命中3次。但是对其中的数据含义，目前还没有梳理清楚。
+
+# 调试waitForResponse组装的reply
+<a name="anchor2"></a>
+``` bash
+$ ./prebuilts/gcc/darwin-x86/arm/arm-linux-androideabi-4.9/bin/arm-linux-androideabi-gdb out/debug/target/product/generic/obj/EXECUTABLES/TestClient_intermediates/LINKED/TestClient
+(gdb) source ../androidex/external-testservice/debug.gdb
+(gdb) common
+... ...
+
+Breakpoint 1, main () at external/testservice/TestClient.cpp:14
+14  int main() {
+(gdb) b IServiceManager.cpp:152     # 断在reply.readStrongBinder()
+Breakpoint 2 at 0xb6e7fe0c: file frameworks/native/libs/binder/IServiceManager.cpp, line 152.
+(gdb) c
+Continuing.
+
+Breakpoint 2, android::BpServiceManager::checkService (this=<optimized out>, name=...) at frameworks/native/libs/binder/IServiceManager.cpp:152
+152         return reply.readStrongBinder();
+(gdb) b Parcel.cpp:296  # 断在unflatten_binder(...)开头
+Breakpoint 3 at 0xb6e82104: file frameworks/native/libs/binder/Parcel.cpp, line 296.
+(gdb) c
+Continuing.
+
+Breakpoint 3, android::unflatten_binder (proc=..., in=..., out=out@entry=0xbe9a9ae8) at frameworks/native/libs/binder/Parcel.cpp:296
+296     const flat_binder_object* flat = in.readObject(false);
+(gdb) n
+295 {
+(gdb) n
+296     const flat_binder_object* flat = in.readObject(false);
+(gdb) n
+298     if (flat) {
+(gdb) p *flat       # 查看从reply中读出的flat_binder_object
+$3 = {type = 1936206469, flags = 383, {binder = 1, handle = 1}, cookie = 0}
+(gdb) p BINDER_TYPE_BINDER
+$4 = BINDER_TYPE_BINDER
+(gdb) p /x BINDER_TYPE_BINDER
+$5 = 0x73622a85
+(gdb) p /x BINDER_TYPE_HANDLE
+$6 = 0x73682a85
+(gdb) p /x 1936206469   # 所以这个flat_binder_object类型就是BINDER_TYPE_HANDLE
+$7 = 0x73682a85
+```
