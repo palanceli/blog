@@ -160,6 +160,8 @@ status_t IPCThreadState::waitForResponse(Parcel *reply, status_t *acquireResult)
     int32_t err;
 
     while (1) {
+        // talkWithDriver()只有在发生错误的时候才会退出，收到的响应数据长度为0不是错误，
+        // 因此正常的逻辑是收到BR_REPLY才退出循环
         if ((err=talkWithDriver()) < NO_ERROR) break;
         err = mIn.errorCheck();
         if (err < NO_ERROR) break;
@@ -262,7 +264,7 @@ finish:
 ```
 调用关系如下：
 ![Parcel::readStrongBinder()的调用关系](0514BinderLearning3/img03.png)
-从调试结果来看，flat->type为BINDER_TYPE_HANDLE，
+从调试结果来看，flat->type为BINDER_TYPE_HANDLE，handle=1
 frameworks/native/libs/binder/Parcel.cpp:293
 ``` c
 status_t unflatten_binder(const sp<ProcessState>& proc,

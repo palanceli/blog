@@ -222,3 +222,5 @@ int binder_thread_write(struct binder_proc *proc, struct binder_thread *thread,
 }
 ```
 这个cmd的值是BC_TRANSACTION，因此应该继续`binder_transaction(proc, thread, &tr, false)`。这个函数实在太长了，后面再花一节的篇幅深入该函数。
+
+不过很清晰的一点：该函数仅在出错的时候才返回小于零的整数，如果一切正常就返回0。函数`binder_ioctl(...)在case BINDER_WRITE_READ`这一枝上，如果没有发生错误，则返回`binder_thread_write(...)`。也就是说：如果一切正常，`binder_ioctl(...)`会返回0，不管io的数据有多大。
