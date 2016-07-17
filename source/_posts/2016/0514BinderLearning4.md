@@ -182,9 +182,9 @@ int binder_parse(struct binder_state *bs, struct binder_io *bio,
 }
 ```
 重点在case BR_TRANSACTION里，它接收到的txn正是客户端发出的tr。首先初始化好reply数据结构
-![](img01.png)
+![](0514BinderLearning4/img01.png)
 然后初始化msg，其中蓝色部分是客户端组织的数据，红色部分是ServiceManager端组织的数据：
-![](img02.png)
+![](0514BinderLearning4/img02.png)
 接下来执行func(…)，这是一个函数指针，通过参数传进来，向上追溯binder_loop(…) – main(…)找到该函数指针的实参是svcmgr_handler
 ``` c++
 frameworks/native/cmds/servicemanager/service_manager.c:244
@@ -370,7 +370,7 @@ void bio_put_ref(struct binder_io *bio, uint32_t handle)
 }
 ```
 还记得reply吧？上文在干活之前给它初始化成这样:
-![](img03.png)
+![](0514BinderLearning4/img03.png)
 接下来进入bio_alloc_obj(…)，frameworks/native/cmds/servicemanager/binder.c:468
 ``` c++
 static struct flat_binder_object *bio_alloc_obj(struct binder_io *bio)
@@ -407,7 +407,7 @@ static void *bio_alloc(struct binder_io *bio, size_t size)
 }
 ```
 到bio_put_ref(…)函数返回时，他组织成的数据结构如下，我把被修改过的成员标橙色了：
-![](img04.png)
+![](0514BinderLearning4/img04.png)
 binder_io只是一个数据索引，具体的数据是放在rdata中的，rdata又分两个区域：1、object指针索引区；2、数据区。数据区存放有基本数据类型，如int、string；也有抽象数据类型，如flat_binder_object。object指针索引区记录数据区中每一个抽象数据类型的偏移量。binder_io则记录rdata区域每个部分的起始位置、当前栈顶位置和所剩空间。
 svcmgr_handle(…)调用bio_put_ref(…)组织完reply数据之后就返回到binder_parser(…)，然后调用binder_sendbinder_parse_raply(…)
 frameworks/native/cmds/servicemanager/binder.c:245
@@ -453,4 +453,4 @@ void binder_send_reply(struct binder_state *bs,
 }
 ```
 这是在组织完整的响应数据。把完整的数据描绘出来如下，真是一盘大棋！客户端组织的数据用蓝色标出，ServiceManager组织的数据用红色标出。从图上可以清晰地看出原来reply并没有打到响应数据包里，只是作中间缓存之用。
-![](img05.png)
+![](0514BinderLearning4/img05.png)

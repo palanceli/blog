@@ -95,8 +95,8 @@ BpBinder* IBinder::remoteBinder()
 }
 ```
 flat_binder_object这个数据结构在《Binder学习笔记（四）—— ServiceManager如何响应checkService请求》研究ServiceManager如何组织reply数据时遇到过，它定义在external/kernel-headers/original/uapi/linux/binder.h:57。对于不同的binder封装成的数据示意图如下：
-![](img01.png)
-![](img02.png)
+![](0514BinderLearning5/img01.png)
+![](0514BinderLearning5/img02.png)
 然后flatten_binder(…)调用finish_flatten_binder(…)，frameworks/native/libs/binder/Parcel.cpp:199
 ``` c++
 inline static status_t finish_flatten_binder(
@@ -130,4 +130,4 @@ restart_write:
 ```
 > 总结一下：Parcel的数据区域分两个部分：mData和mObjects，所有的数据不管是基础数据类型还是对象实体，全都追加到mData里，mObjects是一个偏移量数组，记录所有存放在mData中的flat_binder_object实体的偏移量。Parcel的数据模型如下：
 
-![](img03.png)
+![](0514BinderLearning5/img03.png)

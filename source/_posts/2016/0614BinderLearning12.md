@@ -35,7 +35,7 @@ static int binder_open(struct inode *nodp, struct file *filp)
 }
 ```
 binder_open(...)生成并初始化binder_proc结构体如下：
-![binder_open(...)初始化的binder_proc结构体](img04.png)
+![binder_open(...)初始化的binder_proc结构体](0614BinderLearning12/img04.png)
 
 ## struct binder_proc
 struct binder_proc描述一个“正在使用Binder进程间通信机制”的进程，它的定义参见kernel/goldfish/drivers/staging/android/binder.c:286
@@ -115,9 +115,9 @@ struct binder_proc {
 ```
 ## binder_proc中的链表
 在binder_proc内部有若干个list_head类型的字段，用来把binder_proc串到不同的链表中去。一般写链表的做法是在链表节点结构体中追加业务逻辑字段，顺着链表的prev、next指针到达指定节点，然后再访问业务逻辑字段：
-![一般的链表做法](img01.png)
+![一般的链表做法](0614BinderLearning12/img01.png)
 在Linux代码中则常常反过来，先定义业务逻辑的结构体，在其内部嵌入链表字段list_head，顺着该字段遍历链表，在每个节点上根据该字段与所在结构体的偏移量找到所在结构体，访问业务逻辑字段：
-![Linux中常用的链表做法](img02.png)
+![Linux中常用的链表做法](0614BinderLearning12/img02.png)
 这样做的好处是让业务逻辑和链表逻辑分离，Linux还定义了宏用于操作链表，以及根据链表字段找到所在结构体。如binder_proc结构体内部盛放多个list_head，表示把该结构体串入了不同的链表。
 具体技巧可参见《Linux内核设计与实现》第6章。
 
@@ -191,11 +191,11 @@ struct hlist_node {
     struct hlist_node *next, **pprev;
 };
 ```
-![将n插入到h](img05.png)
+![将n插入到h](0614BinderLearning12/img05.png)
 
-![插入后的结果](img06.png)
+![插入后的结果](0614BinderLearning12/img06.png)
 综上所述，binder_open(...)组织的数据结构proc为：
-![binder_open(...)组织的proc数据结构图](img04.png)
+![binder_open(...)组织的proc数据结构图](0614BinderLearning12/img04.png)
 
 # binder_mmap(...)都干了什么？
 接下来就是binder_mmap(...)，当进程打开/dev/binder之后，必须调用mmap(...)函数把该文件映射到进程的地址空间。
@@ -266,7 +266,7 @@ err_bad_arg:
 }
 ```
 到第28行调用binder_update_page_range(...)之前，binder_mmap(...)在内核地址空间申请了`struct vm_struct area`，并完成部分成员的初始化，如下：
-![到28行为止binder_mmap(...)构造的数据结构](img07.png)
+![到28行为止binder_mmap(...)构造的数据结构](0614BinderLearning12/img07.png)
 
 ## binder_update_page_range(...)做了什么
 kernel/goldfish/drivers/staging/android/binder.c:627
@@ -402,9 +402,9 @@ static inline void list_add(struct list_head *new, struct list_head *head)
 }
 ```
 运算过程如下图：
-![list_add操作过程](img08.png)
+![list_add操作过程](0614BinderLearning12/img08.png)
 于是到`binder_mmap(...)`第37行为止，binder_mmap(...)构造的数据结构如下：
-![到37行为止binder_mmap(...)构造的数据结构](img09.png)
+![到37行为止binder_mmap(...)构造的数据结构](0614BinderLearning12/img09.png)
 
 ## 函数binder_insert_free_buffer(...)
 kernel/goldfish/drivers/statging/android/binder.c:545
@@ -441,7 +441,7 @@ static void binder_insert_free_buffer(struct binder_proc *proc,
 ```
 
 于是到binder_mmap(...)结束，这个binder_proc结构体就被做成了这样：
-![binder_mmap(...)调用完成后构造的binder_proc结构体](img10.png)
+![binder_mmap(...)调用完成后构造的binder_proc结构体](0614BinderLearning12/img10.png)
 
 # 从服务端addService触发的`binder_transaction(...)`
 从native层的调用过程参见[binder学习笔记（十）—— 穿越到驱动层](http://palanceli.github.io/blog/2016/05/28/2016/0528BinderLearning10/)。我们以addService为例深入到binder_transaction(...)内部，
@@ -751,7 +751,7 @@ struct binder_work {
 ```
 
 到binder_transaction(...)第92行为止，它构造的数据结构如下。此时用户控件的部分数据被拷贝到了内核空间，内核空间中binder_transaction的buffer是从proc->free_buffers中摘取下来的，为了避免图片过大，此处的细节暂不展现了。摘取下的buffer的数据部分用于暂存从用户空间拷贝来的数据。
-![到binder_transaction(...)第92行位置，构造的数据结构](img11.png)
+![到binder_transaction(...)第92行位置，构造的数据结构](0614BinderLearning12/img11.png)
 
 ## struct binder_node
 从94行开始，逐个遍历t->buffer.data中的binder objects，在for循环中，fp指向当前的binder object。如果fp->type是BINDER_TYPE_BINDER或BINDER_TYPE_WEAK_BINDER，#104先从proc->nodes.rb_node中查找有没有fp->binder，如果没有则调用binder_new_node(...)在proc->nodes.rb_node中创建此节点。接下来先看看`struct binder_node`，kernel/goldfish/drivers/staging/android/binder.c:217，它用来描述一个Binder实体对象，每一个Service组件在驱动层都对应一个binder_node，用来描述在内核中的状态：
@@ -823,7 +823,7 @@ struct binder_node {
 };
 ```
 接下来的binder_new_node(proc, fp->binder, fp->cookie)将申请一个`struct binder_node`，在初始化中，将该节点挂到proc->nodes.rb_node中，并初始化部分成员，数据结构图如下：
-![在case BINDER_TYPE_BINDER和case BINDER_TYPE_WEAK_BINDER中创建的struct binder_node](img12.png)
+![在case BINDER_TYPE_BINDER和case BINDER_TYPE_WEAK_BINDER中创建的struct binder_node](0614BinderLearning12/img12.png)
 ## struct binder_ref
 struct binder_ref用来描述一个Binder引用对象，当客户端使用Binder实体时，在客户端保存的就是对该实体的引用，该结构体用来描述引用对象在内核中的状态。kernel/goldfish/drivers/staging/android/binder.c:246
 ``` c
@@ -924,7 +924,7 @@ static struct binder_ref *binder_get_ref_for_node(struct binder_proc *proc,
 }
 ```
 于是，在binder_transaction(...)函数第114行完成调用`binder_get_ref_for_node(target_proc, node)`之后，数据结构图为：
-![在binder_transaction(...)函数中为target_proc创建完binder_ref之后的数据结构](img13.png)
+![在binder_transaction(...)函数中为target_proc创建完binder_ref之后的数据结构](0614BinderLearning12/img13.png)
 
 接下来在函数binder_transaction(...)中还有几个关键操作，见第116行，如果fp->type为BINDER_TYPE_BINDER，就改为BINDER_TYPE_HANDLE，然后把fp->handle改为ref->desc，接下来的binder_ref_ref(ref, fp->type==BINDER_TYPE_HANDLE, &thread->todo)定义在kernel/goldfish/drivers/staging/android/binder.c:1200
 ``` c
@@ -953,7 +953,7 @@ static int binder_inc_ref(struct binder_ref *ref, int strong,
 }
 ```
 接下来跳出case后还有对t的成员need_reply、from_parent、t->work.type的处理，并将t插入到target_list即target_proc或target_thread的todo队列中，尔后返回。此时的数据结构图为：
-![binder_transaction(...)完成时的数据结构](img14.png)
+![binder_transaction(...)完成时的数据结构](0614BinderLearning12/img14.png)
 
 到此为止，终于完成了binder_transaction(...)的分析，知道怎么回事，但心里有很多个“为什么”。而且把前面的学习笔记串联起来，隐约觉得能感应到一些曙光了，本节的篇幅太长了，这些曙光留待下一节一起领略吧。
 

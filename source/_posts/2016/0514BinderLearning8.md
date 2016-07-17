@@ -252,7 +252,7 @@ status_t IPCThreadState::writeTransactionData(int32_t cmd, uint32_t binderFlags,
 }
 ```
 又是一个`binder_transaction_data`数据包，不过这块数据很简单，内容如下：
-![](img01.png)
+![](0514BinderLearning8/img01.png)
 TEST定义在Test.h中：
 ``` c++
     enum

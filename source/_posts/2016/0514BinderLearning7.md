@@ -60,7 +60,7 @@ int binder_parse(struct binder_state *bs, struct binder_io *bio,
 }
 ```
 此时的内存数据结构为：
-![](img01.png)
+![](0514BinderLearning7/img01.png)
 frameworks/native/cmds/servicemanager/service_manager.c:244
 ``` c++
 int svcmgr_handler(struct binder_state *bs,
@@ -138,7 +138,7 @@ static struct flat_binder_object *_bio_get_obj(struct binder_io *bio)
 }
 ```
 经过前面几条bio_get_xxx，msg的data指针已经挪到了flat_binder_object实体处，如下图所示，橙色箭头表示msg初始化后到执行bio_get_ref(msg)之前，data指针的挪动情况。_bio_get_obj(…)负责将此flat_binder_object实体返回。
-![](img02.png)
+![](0514BinderLearning7/img02.png)
 frameworks/native/cmds/servicemanager/service_manager.c:194
 ``` c++
 int do_add_service(struct binder_state *bs,

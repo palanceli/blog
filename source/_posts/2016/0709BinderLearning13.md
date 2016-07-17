@@ -44,7 +44,7 @@ int main() {
 addService会执行`binder_transaction`，为addService事务创建`struct binder_transaction`对象t，并将t挂到ServiceManager的binder_buffer::t下，将来自用户空间的数据拷贝到ServiceManager的binder_buffer中；再为Server创建binder_node，挂到Server的proc->nodes.rb_node中，为ServiceManager创建binder_ref，挂到ServiceManager的proc->refs_by_desc.rb_node中。由于binder_node和binder_ref表示的是同一个binder，因此binder_ref::node与binder_node::first完成互指。
 
 生成的数据结构如下图：
-![addService组织的数据结构](img01.png)
+![addService组织的数据结构](0709BinderLearning13/img01.png)
 
 根据[Binder学习笔记（七）—— ServiceManager如何响应addService请求 ？](http://localhost:4000/blog/2016/05/12/2016/0514BinderLearning7/)可知：ServiceManager会把Service的name和handle保存下来，串到链表svclist中。
 
@@ -85,10 +85,10 @@ addService会执行`binder_transaction`，为addService事务创建`struct binde
 因此，在上面代码#3这一行，在ServiceManager的refs_by_desc红黑树上可以找到到handle对应的binder_ref节点。#5行中，ref->node是binder的实体，该实体是由Server创建的，因此ref->node->proc属于Server，而target_proc属于Client，因此#5非真。
 
 接下来在Client的proc中为Service的binder_node创建binder_ref，其desc在Client内唯一，把handle改为此desc。修改之后的数据结构图如下，我把被驱动层修改的内容标绿了：
-![ServiceManager响应checkService的数据结构被驱动修改后的样子](img02.png)
+![ServiceManager响应checkService的数据结构被驱动修改后的样子](0709BinderLearning13/img02.png)
 
 下图是驱动层为Client创建的binder_ref以及它与binder_node之间的关系，我用绿色表示新增加的这部分关系，虚线表示并非直接指针指过来，而是通过红黑树串入的节点：
-![驱动层为Client创建的binder_ref](img03.png)
+![驱动层为Client创建的binder_ref](0709BinderLearning13/img03.png)
 
 呵呵，好复杂的三角关系！乱么？正当我以为在我内心里已经无比清晰，正要势如破竹乘胜追击，甚至要提前祝贺攻下binder的时候，我被接下来的问题整懵了。接下来的主题应该是“再看客户端是如何组织Test()请求的”，可是当我分析[Binder学习笔记（八）—— 客户端如何组织Test()请求 ？](http://palanceli.github.io/blog/2016/05/14/2016/0514BinderLearning8/)这一篇中的最后那张图：
 ![客户端为test()组织的请求数据](http://palanceli.github.io/blog/2016/05/14/2016/0514BinderLearning8/img01.png)

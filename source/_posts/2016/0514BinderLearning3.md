@@ -113,7 +113,7 @@ status_t IPCThreadState::writeTransactionData(int32_t cmd, uint32_t binderFlags,
 }
 ```
 该函数就是把一堆参数组装进binder_transaction_data结构体，并写进mOut。其中data是在checkService(…)中组装的Parcel数据：
-![客户端请求checkService时发送出去的数据](img01.png)
+![客户端请求checkService时发送出去的数据](0514BinderLearning3/img01.png)
 data.ipcObjectsCount()*sizeof(binder_size_t)以及data.ipcObjects()分别是什么呢？从命名上来看，他应该是指保存在data中的抽象数据类型的数据，显然在组织checkService时的Parcel数据中是没有抽象数据类型的，可以先不深究它。
 
 ## struct binder_transaction_data
@@ -244,7 +244,7 @@ finish:
 `调试的结果在#46行的位置断过三次，可是我并没有把每次断到这里的数据解析明白，在这里徘徊了两天，每天脑子里就在想这块代码，好难受！Android的C++源码编译的时候应该有优化选项，导致调试的行号和执行位置不能精确吻合，tr的成员如何解释又是依赖数据的，而数据是从Server端发过来的，从客户端代码正向追查是查不到的。前进的道路似乎走不通了，那就走另一条路吧，从Server端出发，看看当Server端收到checkService的请求后如何响应，再根据响应数据来分析Client端的处理逻辑。`
 
 # waitForResponse最终交出了什么样的reply
-![getService(...)的调用关系](img02.png)
+![getService(...)的调用关系](0514BinderLearning3/img02.png)
 第二天想想不死心，尽管`waitForResponse()`内部的分析遇到障碍了，暂且搁置。但可以把`waitForResponse()`最终交出了什么样的reply分析出来。因为在函数`checkService()`中，在执行完`remote()->transact(...)`之后会从reply提取出StrongBinder，这说明`waitForResponse()`的成果就是reply。
 
 调试的过程详见[调试waitForResponse组装的reply](#anchor2)
@@ -261,7 +261,7 @@ finish:
     }
 ```
 调用关系如下：
-![Parcel::readStrongBinder()的调用关系](img03.png)
+![Parcel::readStrongBinder()的调用关系](0514BinderLearning3/img03.png)
 从调试结果来看，flat->type为BINDER_TYPE_HANDLE，
 frameworks/native/libs/binder/Parcel.cpp:293
 ``` c

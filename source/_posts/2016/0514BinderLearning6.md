@@ -35,7 +35,7 @@ int main() {
     }
 ```
 Parcel的数据组织规则参见《Parcel是怎么打包的？》。这里打包的service是由main函数传入的new BnTestService()，它的类型是remote还是local呢？从命名上来看我猜是local（BpXXX代表proxy，BnXXX代表native）。来看看BnTestService的继承关系：BnTestService继承自BnInterface<ITestService>，BnInterface继承自BBinder，BBinder覆盖了虚函数localBinder(){return this;}在Binder.cpp:191。因此这个Parcel data的示意图为：
-![](img01.png)
+![](0514BinderLearning6/img01.png)
 binder->localBinder()返回binder的this指针，因此就是传入的service参数，即new BnTestService()。
 接下来在BpServiceManager::addService(…)函数中调用remote()->transact(…)组织数据的过程在《binder客户端是如何组织checkService数据》中已经分析过了，不再详细解释，只列出关键节点：
 frameworks/native/libs/binder/IServiceManager.cpp:155
@@ -104,4 +104,4 @@ status_t IPCThreadState::writeTransactionData(int32_t cmd, uint32_t binderFlags,
 }
 ```
 它组织成最终的请求数据为：
-![](img02.png)
+![](0514BinderLearning6/img02.png)

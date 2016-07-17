@@ -139,7 +139,7 @@ $2 = true
 ioctl(mProcess->mDriverFD, BINDER_WRITE_READ, &brw)
 ```
 传入的数据bwr即为：
-![](img01.png)
+![](0528BinderLearning10/img01.png)
 # 进入驱动层
 终于可以有此穿越到驱动层了！binder驱动层对接ioctl的函数是binder_ioctl(...)。kernel/goldfish/drivers/staging/android/binder.c:2716
 ``` c
