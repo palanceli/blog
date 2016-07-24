@@ -164,10 +164,18 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         }
         ......
         if (bwr.write_size > 0) {
-            // 重点在这里
             ret = binder_thread_write(proc, thread, (void __user *)bwr.write_buffer, bwr.write_size, &bwr.write_consumed);
             trace_binder_write_done(ret);
             ......
+        }
+        // bwr.read_size来自IPCThreadState::talkWithDriver，当读缓冲区为空，会将
+        // mIn缓冲区交给它，bwr.read_size=mIn.dataCapacity()
+        if (bwr.read_size > 0) {
+            ret = binder_thread_read(proc, thread, (void __user *)bwr.read_buffer, bwr.read_size, &bwr.read_consumed, filp->f_flags & O_NONBLOCK);
+            trace_binder_read_done(ret);
+            if (!list_empty(&proc->todo))
+                wake_up_interruptible(&proc->wait);
+            ... ...
         }
         ......
     }

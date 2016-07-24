@@ -53,7 +53,9 @@ int main(int argc, char **argv)
     return 0;
 }
 ```
-接下来遇到se_xxx相关的数据结构和函数，未来我们还会遇到。他们是Android系统提供的安全机制，负责管理对资源的安全访问控制，通常只是回答某个资源是否有权限访问，而不会干涉业务逻辑，因此我们可以完全忽略。重点在binder_loop(…)，如下：
+接下来遇到se_xxx相关的数据结构和函数，未来我们还会遇到。他们是Android系统提供的安全机制，负责管理对资源的安全访问控制，通常只是回答某个资源是否有权限访问，而不会干涉业务逻辑，因此我们可以完全忽略。重点在binder_loop(…)。
+# binder_loop(bs, svcmgr_handler)
+如下：
 frameworks/native/cmds/servicemanager/binder.c:372
 ``` c++
 void binder_loop(struct binder_state *bs, binder_handler func)

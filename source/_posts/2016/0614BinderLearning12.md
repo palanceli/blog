@@ -453,6 +453,7 @@ static void binder_transaction(struct binder_proc *proc,
                    struct binder_thread *thread,
                    struct binder_transaction_data *tr, int reply)
 {   // reply=(cmd==BC_REPLY)即false，flags=TF_ACCEPT_FDS
+    // proc和thread表示当前进程对应的数据结构
     struct binder_transaction *t;
     struct binder_work *tcomplete;
     size_t *offp, *off_end;
@@ -470,10 +471,12 @@ static void binder_transaction(struct binder_proc *proc,
     if (reply) {
         ......
     } else {
-        if (tr->target.handle) {  // tr->target.handle=0
+        if (tr->target.handle) {  // tr->target.handle!=0
             ......
         } else {
-            target_node = binder_context_mgr_node; // service manager对应的节点
+            // target_node表示binder请求要发送到的节点，此处即
+            // service manager对应的节点
+            target_node = binder_context_mgr_node; 
             ......
         }
         ......

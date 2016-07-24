@@ -18,7 +18,7 @@ int main() {
     return 0;
 }
 ```
-前文已经分析过sm是new BpServiceManager(new BpBinder(0))，于是sm->getService(…)的行为应该找BpServiceManager::getService(…)，frameworks/native/libs/binder/IserviceManager.cpp:134
+前文已经分析过sm是new BpServiceManager(new BpBinder(0))，于是sm->getService(…)的行为应该找BpServiceManager::getService(…)，frameworks/native/libs/binder/IServiceManager.cpp:134
 ``` c++
     virtual sp<IBinder> getService(const String16& name) const
     {
@@ -113,7 +113,9 @@ status_t IPCThreadState::writeTransactionData(int32_t cmd, uint32_t binderFlags,
 }
 ```
 该函数就是把一堆参数组装进binder_transaction_data结构体，并写进mOut。其中data是在checkService(…)中组装的Parcel数据：
-![客户端请求checkService时发送出去的数据](0514BinderLearning3/img01.png)
+![客户端请求checkService时发送出去的数据，由ioctl(mProcess->mDriverFD, BINDER_WRITE_READ, &bwr)
+发出](0514BinderLearning3/img01.png)
+
 data.ipcObjectsCount()*sizeof(binder_size_t)以及data.ipcObjects()分别是什么呢？从命名上来看，他应该是指保存在data中的抽象数据类型的数据，显然在组织checkService时的Parcel数据中是没有抽象数据类型的，可以先不深究它。
 
 ## struct binder_transaction_data
@@ -245,8 +247,76 @@ finish:
 ```
 `调试的结果在#46行的位置断过三次，可是我并没有把每次断到这里的数据解析明白，在这里徘徊了两天，每天脑子里就在想这块代码，好难受！Android的C++源码编译的时候应该有优化选项，导致调试的行号和执行位置不能精确吻合，tr的成员如何解释又是依赖数据的，而数据是从Server端发过来的，从客户端代码正向追查是查不到的。前进的道路似乎走不通了，那就走另一条路吧，从Server端出发，看看当Server端收到checkService的请求后如何响应，再根据响应数据来分析Client端的处理逻辑。`
 
+## IPCThreadState::talkWithDriver(bool doReceive)
+在`IPCThreadState::waitForResponse(...)`中首先调用了该函数，其声明在frameworks/native/include/binder/IPCThreadState.h:98:
+`status_t            talkWithDriver(bool doReceive=true);`
+再看其定义frameworks/native/include/binder/IPCThreadState.cpp:803
+``` c
+status_t IPCThreadState::talkWithDriver(bool doReceive)
+{   // doReceive = true
+    ... ...
+    binder_write_read bwr;
+    
+    // Is the read buffer empty?
+    // 游标位置大于等于数据大小，说明读入的数据都已经被消化了
+    const bool needRead = mIn.dataPosition() >= mIn.dataSize();
+    
+    // We don't want to write anything if we are still reading
+    // from data left in the input buffer and the caller
+    // has requested to read the next data.
+    const size_t outAvail = (!doReceive || needRead) ? mOut.dataSize() : 0;
+    
+    bwr.write_size = outAvail;
+    bwr.write_buffer = (uintptr_t)mOut.data();
+
+    // This is what we'll read.
+    if (doReceive && needRead) {
+        bwr.read_size = mIn.dataCapacity();
+        bwr.read_buffer = (uintptr_t)mIn.data();
+    } else {
+        bwr.read_size = 0;
+        bwr.read_buffer = 0;
+    }
+    ... ...
+    
+    // Return immediately if there is nothing to do.
+    if ((bwr.write_size == 0) && (bwr.read_size == 0)) return NO_ERROR;
+
+    bwr.write_consumed = 0;
+    bwr.read_consumed = 0;
+    status_t err;
+    do {
+        ... ...
+        if (ioctl(mProcess->mDriverFD, BINDER_WRITE_READ, &bwr) >= 0)
+            err = NO_ERROR;
+        else
+            err = -errno;
+        ... ...
+    } while (err == -EINTR);
+
+    ... ...
+
+    if (err >= NO_ERROR) {
+        if (bwr.write_consumed > 0) {
+            if (bwr.write_consumed < mOut.dataSize())
+                mOut.remove(0, bwr.write_consumed);
+            else
+                mOut.setDataSize(0);
+        }
+        if (bwr.read_consumed > 0) {
+            mIn.setDataSize(bwr.read_consumed);
+            mIn.setDataPosition(0);
+        }
+        ... ...
+        return NO_ERROR;
+    }
+    
+    return err;
+}
+```
+
 # waitForResponse最终交出了什么样的reply
-![getService(...)的调用关系](0514BinderLearning3/img02.png)
+![getService(...)的调用关系（蓝色表示函数定义位置，绿色表示函数被调用的位置）](0514BinderLearning3/img02.png)
 第二天想想不死心，尽管`waitForResponse()`内部的分析遇到障碍了，暂且搁置。但可以把`waitForResponse()`最终交出了什么样的reply分析出来。因为在函数`checkService()`中，在执行完`remote()->transact(...)`之后会从reply提取出StrongBinder，这说明`waitForResponse()`的成果就是reply。
 
 调试的过程详见[调试waitForResponse组装的reply](#anchor2)
