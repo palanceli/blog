@@ -12,7 +12,7 @@ comments: true
 sp < IServiceManager > sm = defaultServiceManager();
 ```
 defaultServiceManager()都干了什么，它返回的是什么实例呢？
-该函数定义在frameworks/native/libs/binder/IserviceManager.cpp:33
+该函数定义在frameworks/native/libs/binder/IServiceManager.cpp:33
 ``` c++
 sp<IServiceManager> defaultServiceManager()
 {
@@ -78,7 +78,7 @@ sp<IBinder> ProcessState::getContextObject(const sp<IBinder>& /*caller*/)
     return getStrongProxyForHandle(0);
 }
 ```
-继续深入，frameworks/native/libs/binder/ProcessState/cpp:179
+继续深入，frameworks/native/libs/binder/ProcessState.cpp:179
 ``` c++
 sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
 {   // handle = NULL
