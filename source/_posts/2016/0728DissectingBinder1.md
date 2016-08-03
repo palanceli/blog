@@ -294,9 +294,154 @@ public:
 该类封装了ServiceManager的逻辑，其实很少，主要就是`addService(...)`和`addService(...)`两个函数，它们分别封装了ServiceManager注册服务和查找服务的数据包，然后使用“普通火车”`remote()`把数据包发出去。
 > sm就是给BpBinder(0)加了薄薄一层封装成为BpServiceManager。
 
-<font color="red">未完待续...</font>
 ## addService(...)添加服务
+### Server端把addService(...)的调用封装成一个数据包
+对于Server端，添加服务的调用简单明了，传入服务的名字以及提供服务的对象；客户端查找服务时只需提供服务名字，即可获得服务的（代理）对象。添加服务的代码在TestService.cpp:30
+`sm->addService(String16("service.testservice"), new BnTestService());`
+上一节已经分析过sm是`BpServiceManager`的实例，其`mRemote`成员即`BpBinder(0)`。
+`BpServiceManager::addService(...)`定义如下：
+``` c++
+// frameworks/native/libs/binder/IServiceManager.cpp
+// #155
+virtual status_t addService(const String16& name, const sp<IBinder>& service,
+        bool allowIsolated)
+{   // name="service.testservice", service=new BnTestService()
+    // allowIsolated 默认值为 false，定义在IserviceManager.h:49
+    Parcel data, reply;
+    data.writeInterfaceToken(IServiceManager::getInterfaceDescriptor());
+    data.writeString16(name);
+    data.writeStrongBinder(service);
+    data.writeInt32(allowIsolated ? 1 : 0);
+    status_t err = remote()->transact(ADD_SERVICE_TRANSACTION, data, &reply);
+    return err == NO_ERROR ? reply.readExceptionCode() : err;
+}
+```
+Parcel的封装细节可参见[《Binder学习笔记（五）—— Parcel是怎么打包的？》](http://palanceli.github.io/blog/2016/05/10/2016/0514BinderLearning5/)。data中携带的重要数据还是服务名称以及服务对象。remote()返回的是BpBinder(0)，因此来看`BpBinder::transact(...)`
+``` c++
+// frameworks/native/libs/binder/BpBinder.cpp:159
+status_t BpBinder::transact(
+    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
+{   // code = ADD_SERVICE_TRANSACTION
+    // data 携带服务名称和服务对象
+    // reply 一个清白的Parcel
+    // flags 默认为0，定义在Binder.h:37
+    ... ...
+    status_t status = IPCThreadState::self()->transact(
+            mHandle, code, data, reply, flags);  // mHandle=0
+    ... ...
+}
 
+// frameworks/native/libs/binder/IPCThreadState.cpp:548
+status_t IPCThreadState::transact(int32_t handle,
+                                  uint32_t code, const Parcel& data,
+                                  Parcel* reply, uint32_t flags)
+{   // handle   0
+    // code     ADD_SERVICE_TRANSACTION
+    // data     携带服务名称和服务对象
+    // reply    指向一个清白的Parcel
+    // flags    0
+    ... ...
+    flags |= TF_ACCEPT_FDS;     // flags = TF_ACCEPT_FDS
+    ... ...
+    err = writeTransactionData(BC_TRANSACTION, flags, handle, code, data, NULL);
+    ... ...
+    if ((flags & TF_ONE_WAY) == 0) {  // 为真
+        ... ...
+        if (reply) {    // 非空
+            err = waitForResponse(reply);
+        } 
+        ... ...
+    } 
+    ... ...
+    return err;
+}
+
+// frameworks/native/libs/binder/IPCThreadState.cpp:904
+status_t IPCThreadState::writeTransactionData(int32_t cmd, uint32_t binderFlags,
+    int32_t handle, uint32_t code, const Parcel& data, status_t* statusBuffer)
+{   // cmd          BC_TRANSACTION
+    // binderFlags  TF_ACCEPT_FDS
+    // handle       0
+    // code         ADD_SERVICE_TRANSACTION
+    // data         携带服务名称和服务对象
+    // statusBuffer NULL
+    binder_transaction_data tr;
+
+    tr.target.ptr = 0; 
+    tr.target.handle = handle;  // 0
+    tr.code = code;             // ADD_SERVICE_TRANSACTION
+    tr.flags = binderFlags;     // TF_ACCEPT_FDS
+    tr.cookie = 0;
+    tr.sender_pid = 0;
+    tr.sender_euid = 0;
+    ... ...
+        tr.data_size = data.ipcDataSize();
+        tr.data.ptr.buffer = data.ipcData();
+        tr.offsets_size = data.ipcObjectsCount()*sizeof(binder_size_t);
+        tr.data.ptr.offsets = data.ipcObjects();
+    ... ...
+    
+    mOut.writeInt32(cmd);
+    mOut.write(&tr, sizeof(tr));
+    
+    return NO_ERROR;
+}
+```
+![Server端为addService组织的请求数据](http://palanceli.github.io/blog/2016/05/11/2016/0514BinderLearning6/img02.png)
+这个数据结构很重要，它表达了Server端本次请求的具体内容，即把addService(...)封装成的数据包。其中tr记录定长的控制信息，data记录变长的数据信息。本次的控制信息的核心内容就是ADD_SERVICE_TRANSACTION，数据信息的核心内容是服务名称和服务实体。
+
+组织完数据接下来显然要发出去，
+![Server端addService的调用关系](0728DissectingBinder1/img01.png)
+沿着调用关系，我们来看具体发送数据的`IPCThreadState::waitForResponse(...)`
+``` c++
+// frameworks/native/libs/binder/IPCThreadState.cpp:712
+status_t IPCThreadState::waitForResponse(Parcel *reply, status_t *acquireResult)
+{   // reply            指向一个清白的Parcel
+    // acquireResult    NULL
+    uint32_t cmd;
+    int32_t err;
+
+    while (1) {
+        if ((err=talkWithDriver()) < NO_ERROR) break;
+        ... ...
+        cmd = (uint32_t)mIn.readInt32();
+        // 接下来根据ServiceManager应答数据中的cmd分别处理，具体怎么处理暂且不表
+        ... ...
+    }
+... ...
+}
+
+// frameworks/natvie/libs/binder/IPCThreadState.cpp:803
+status_t IPCThreadState::talkWithDriver(bool doReceive)
+{   // doReceive    默认参数为true，定义在IPCThreadState.h:98
+    ... ...
+    binder_write_read bwr;
+    ... ...
+
+    bwr.write_size = outAvail;
+    bwr.write_buffer = (uintptr_t)mOut.data();
+    ... ...
+    bwr.read_size = mIn.dataCapacity();
+    bwr.read_buffer = (uintptr_t)mIn.data();
+    ... ...
+    status_t err;
+    do {
+        ... ...
+        // 对/dev/binder完成一次读写操作
+        if (ioctl(mProcess->mDriverFD, BINDER_WRITE_READ, &bwr) >= 0)
+            err = NO_ERROR;
+        ... ...
+    } while (err == -EINTR);
+    ... ...
+    return err;
+}
+```
+这两个函数砍掉细枝末节主要完成两个事：1、从/dev/binder完成一次读写操作，把前面组好的数据包mOut发出去，把读入响应数据放到mIn中；2、根据响应数据中的cmd做相应的处理。我们先看1，因为只有分析过ServiceManager如何组织响应数据才能分析2中怎么处理。
+1中数据通过ioctl(...)函数发向/dev/binder，接下来应该去看驱动层怎么处理了。
+
+### 驱动层怎么处理addService数据包
+
+<font color="red">未完待续...</font>
 ## ProcessState::startThreadPool()时刻等待着接客
 
 # 查找服务

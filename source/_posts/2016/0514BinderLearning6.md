@@ -104,4 +104,4 @@ status_t IPCThreadState::writeTransactionData(int32_t cmd, uint32_t binderFlags,
 }
 ```
 它组织成最终的请求数据为：
-![](0514BinderLearning6/img02.png)
+![Server端为addService组织的请求数据](0514BinderLearning6/img02.png)
