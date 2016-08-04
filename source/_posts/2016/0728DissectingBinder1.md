@@ -439,9 +439,239 @@ status_t IPCThreadState::talkWithDriver(bool doReceive)
 这两个函数砍掉细枝末节主要完成两个事：1、从/dev/binder完成一次读写操作，把前面组好的数据包mOut发出去，把读入响应数据放到mIn中；2、根据响应数据中的cmd做相应的处理。我们先看1，因为只有分析过ServiceManager如何组织响应数据才能分析2中怎么处理。
 1中数据通过ioctl(...)函数发向/dev/binder，接下来应该去看驱动层怎么处理了。
 
-### 驱动层怎么处理addService数据包
+### 驱动层怎么处理Server端的addService数据包
+承接`ioctl(m_Process->mDriverFD, BINDER_WRITE_READ, &bwr)`的驱动层函数是`binder_ioctl(...)`，这个函数的大框架比较简单：
+* 将用户空间的数据拷贝到内核空间
+* 根据cmd的值，对数据做不同处理。这里只涉及了BINDER_WRITE_READ命令，它的处理又分两部分
+    - 调用binder_thread_write(...)来处理bwr中写缓冲区里用户写入的数据
+    - 调用binder_thread_read(...)将用户要读出的数据放到bwr中读缓冲区里
+* 将处理完的数据拷贝回用户空间
+<font color=red>需要确定binder_get_thread(proc)都干了什么</font>
+``` c++
+// kernel/goldfish/drivers/staging/android/binder.c:2716
+static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{   // cmd      BINDER_WRITE_READ
+    // arg      指向bwr的地址
+    int ret;
+    struct binder_proc *proc = filp->private_data;
+    struct binder_thread *thread;
+    unsigned int size = _IOC_SIZE(cmd);
+    void __user *ubuf = (void __user *)arg;
+
+    ... ...
+    thread = binder_get_thread(proc);
+    ... ...
+    switch (cmd) {
+    case BINDER_WRITE_READ: {
+        struct binder_write_read bwr;
+        ... ...
+        // 将用户空间的bwr拷贝到内核空间
+        if (copy_from_user(&bwr, ubuf, sizeof(bwr))) { 
+            ... ...
+        }
+        ... ...
+
+        if (bwr.write_size > 0) {  // 表明bwr的写缓冲区有数据，将数据发送到目标
+            ret = binder_thread_write(proc, thread, (void __user *)bwr.write_buffer, bwr.write_size, &bwr.write_consumed);
+            ... ...
+        }
+        if (bwr.read_size > 0) {    // 表明bwr的读缓冲区有空间，读取数据
+            ret = binder_thread_read(proc, thread, (void __user *)bwr.read_buffer, bwr.read_size, &bwr.read_consumed, filp->f_flags & O_NONBLOCK);
+            ... ...
+            if (!list_empty(&proc->todo))
+                wake_up_interruptible(&proc->wait);
+            ... ...
+        }
+        ... ...
+        // 将处理后的数据拷贝回用户空间
+        if (copy_to_user(ubuf, &bwr, sizeof(bwr))) {
+            ... ...
+        }
+        break;
+    }
+    ... ...
+    }
+... ...
+    return ret;
+}
+```
+先来看写入的部分，bwr的write_buffer是一个cmd跟着一个`binder_transaction_data`结构体。函数的大框架是根据cmd做不同的处理，addService请求对应的cmd是BC_TRANSACTION，我们先只看这部分。它把`binder_trsansction_data`结构体拷贝到内核空间，然后调用binder_transaction(...)来处理该结构体：
+``` c++
+// kernel/goldfish/drivers/staging/android/binder.c:1837
+int binder_thread_write(struct binder_proc *proc, struct binder_thread *thread,
+            void __user *buffer, int size, signed long *consumed)
+{   // buffer   bwr.write_buffer
+    // size     brw.write_size
+    // consumed brw.write_confumed
+    uint32_t cmd;
+    void __user *ptr = buffer + *consumed;
+    void __user *end = buffer + size;
+
+    while (ptr < end && thread->return_error == BR_OK) {
+        if (get_user(cmd, (uint32_t __user *)ptr))  // 从用户空间拿到cmd
+            return -EFAULT;
+        ptr += sizeof(uint32_t);
+        ... ...
+        switch (cmd) {
+        ... ...
+        case BC_TRANSACTION:
+        case BC_REPLY: {
+            struct binder_transaction_data tr;
+            if (copy_from_user(&tr, ptr, sizeof(tr)))// 将用户空间的tr拷贝到内核空间
+                return -EFAULT;
+            ptr += sizeof(tr);
+            binder_transaction(proc, thread, &tr, cmd == BC_REPLY); // 处理tr
+            break;
+        }
+        ... ...
+        }
+        *consumed = ptr - buffer;
+    }
+    return 0;
+}
+```
+`binder_transaction(...)`函数是处理写入数据的核心代码，在深入分析代码之前，让我们再温习一下已经从用户空间拷贝到内核空间的Server端为addService组织的请求数据：
+![Server端为addService组织的请求数据](http://palanceli.github.io/blog/2016/05/11/2016/0514BinderLearning6/img02.png)
+``` c++
+kernel/goldfish/drivers/staging/android/binder.c:1402
+static void binder_transaction(struct binder_proc *proc,
+                   struct binder_thread *thread,
+                   struct binder_transaction_data *tr, int reply)
+{   // reply    (cmd==BC_REPLY)即false
+    struct binder_transaction *t;
+    struct binder_work *tcomplete;
+    size_t *offp, *off_end;
+    struct binder_proc *target_proc;
+    struct binder_thread *target_thread = NULL;
+    struct binder_node *target_node = NULL;
+    struct list_head *target_list;
+    wait_queue_head_t *target_wait;
+    struct binder_transaction *in_reply_to = NULL;
+
+    ... ...
+        if (tr->target.handle) {                    // 从上图上查到handle为0
+            ... ...
+        } else {
+            target_node = binder_context_mgr_node;  // 发往ServiceManager
+            ... ...
+        }
+        ... ...
+        // 这是ServiceManager在打开/dev/binder时，驱动层为该进程创建的内核数据结构
+        target_proc = target_node->proc;
+        ... ...
+        if (!(tr->flags & TF_ONE_WAY) && thread->transaction_stack) {
+            struct binder_transaction *tmp;
+            tmp = thread->transaction_stack;
+            ... ...
+            while (tmp) {
+                if (tmp->from && tmp->from->proc == target_proc)
+                    target_thread = tmp->from;
+                tmp = tmp->from_parent;
+            }
+        }
+
+    if (target_thread) {
+        e->to_thread = target_thread->pid;
+        target_list = &target_thread->todo;
+        target_wait = &target_thread->wait;
+    } else {
+        target_list = &target_proc->todo;
+        target_wait = &target_proc->wait;
+    }
+    ... ...
+
+    t = kzalloc(sizeof(*t), GFP_KERNEL);
+    ... ...
+
+    tcomplete = kzalloc(sizeof(*tcomplete), GFP_KERNEL);
+    ... ...
+
+    if (!reply && !(tr->flags & TF_ONE_WAY))        // 为真
+        t->from = thread;
+    ... ...
+    t->sender_euid = proc->tsk->cred->euid;
+    t->to_proc = target_proc;
+    t->to_thread = target_thread;
+    t->code = tr->code;
+    t->flags = tr->flags;
+    t->priority = task_nice(current);
+
+    ... ...
+
+    t->buffer = binder_alloc_buf(target_proc, tr->data_size,
+        tr->offsets_size, !reply && (t->flags & TF_ONE_WAY));
+    ... ...
+    t->buffer->allow_user_free = 0;
+    t->buffer->debug_id = t->debug_id;
+    t->buffer->transaction = t;
+    t->buffer->target_node = target_node;
+    ... ...
+    if (target_node)
+        binder_inc_node(target_node, 1, 0, NULL);
+
+    offp = (size_t *)(t->buffer->data + ALIGN(tr->data_size, sizeof(void *)));
+
+    if (copy_from_user(t->buffer->data, tr->data.ptr.buffer, tr->data_size)) {
+        ... ...
+    }
+    if (copy_from_user(offp, tr->data.ptr.offsets, tr->offsets_size)) {
+        ... ...
+    }
+    ... ...
+    off_end = (void *)offp + tr->offsets_size;
+    for (; offp < off_end; offp++) {
+        struct flat_binder_object *fp;
+        ... ...
+        fp = (struct flat_binder_object *)(t->buffer->data + *offp);
+        switch (fp->type) {
+        case BINDER_TYPE_BINDER:
+        case BINDER_TYPE_WEAK_BINDER: {
+            struct binder_ref *ref;
+            struct binder_node *node = binder_get_node(proc, fp->binder);
+            if (node == NULL) {
+                node = binder_new_node(proc, fp->binder, fp->cookie);
+                ... ...
+                node->min_priority = fp->flags & FLAT_BINDER_FLAG_PRIORITY_MASK;
+                node->accept_fds = !!(fp->flags & FLAT_BINDER_FLAG_ACCEPTS_FDS);
+            }
+            ... ...
+            ref = binder_get_ref_for_node(target_proc, node);
+            ... ...
+            if (fp->type == BINDER_TYPE_BINDER)
+                fp->type = BINDER_TYPE_HANDLE;
+            else
+                fp->type = BINDER_TYPE_WEAK_HANDLE;
+            fp->handle = ref->desc;
+            binder_inc_ref(ref, fp->type == BINDER_TYPE_HANDLE,
+                       &thread->todo);
+
+            ... ...
+        } break;
+        ... ...
+    }
+    if (reply) {                            // 为假
+        ... ...
+    } else if (!(t->flags & TF_ONE_WAY)) {  // 为真
+        ... ...
+        t->need_reply = 1;
+        t->from_parent = thread->transaction_stack;
+        thread->transaction_stack = t;
+    } ... ...
+    t->work.type = BINDER_WORK_TRANSACTION;
+    list_add_tail(&t->work.entry, target_list);
+    tcomplete->type = BINDER_WORK_TRANSACTION_COMPLETE;
+    list_add_tail(&tcomplete->entry, &thread->todo);
+    if (target_wait)
+        wake_up_interruptible(target_wait);
+    return;
+
+... ...
+}
+```
 
 <font color="red">未完待续...</font>
+### ServiceManager端如何等待响应
+### 驱动层怎么处理ServiceManager响应的addService数据
 ## ProcessState::startThreadPool()时刻等待着接客
 
 # 查找服务
