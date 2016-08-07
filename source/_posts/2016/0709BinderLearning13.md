@@ -10,7 +10,7 @@ layout: post
 # 驱动层为什么要篡改binder_buffer内的数据？
 先给出这张图：
 ![binder_transaction(...)完成后的数据结构](http://palanceli.github.io/blog/2016/06/14/2016/0614BinderLearning12/img14.png)
-上图中标红的部分需要重点考虑，为什么驱动层要篡改这两个字段呢？我们结合前面的文章或许可以找出端倪。在[Binder学习笔记（七）—— ServiceManager如何响应addService请求 ？](http://localhost:4000/blog/2016/05/12/2016/0514BinderLearning7/)一文中其实留下了挺多疑问。
+上图中标红的部分需要重点考虑，为什么驱动层要篡改这两个字段呢？我们结合前面的文章或许可以找出端倪。在[Binder学习笔记（七）—— ServiceManager如何响应addService请求 ？](http://palanceli.github.io/blog/2016/05/12/2016/0514BinderLearning7/)一文中其实留下了挺多疑问。
 
 server端调用addService(...)向ServiceManager注册该Service，ServiceManager保存Service的(name, binder)二元对以备后用，但其中最不可理解的是在函数`bio_get_ref(struct binder_io *bio)`中判断如果Service的type==BINDER_TYPE_HANDLE，binder为0。这个疑团现在就可以打开了：因为ServiceManager收到的service的type不可能为BINDER_TYPE_BINDER！
 
@@ -46,13 +46,13 @@ addService会执行`binder_transaction`，为addService事务创建`struct binde
 生成的数据结构如下图：
 ![addService组织的数据结构](0709BinderLearning13/img01.png)
 
-根据[Binder学习笔记（七）—— ServiceManager如何响应addService请求 ？](http://localhost:4000/blog/2016/05/12/2016/0514BinderLearning7/)可知：ServiceManager会把Service的name和handle保存下来，串到链表svclist中。
+根据[Binder学习笔记（七）—— ServiceManager如何响应addService请求 ？](http://palanceli.github.io/blog/2016/05/12/2016/0514BinderLearning7/)可知：ServiceManager会把Service的name和handle保存下来，串到链表svclist中。
 
 # 再看ServiceManager是如何响应checkService请求的
 当Client请求Service的时候，ServiceManager是怎么根据前面保存的handle关联到Service的，Client又是怎么据此调用到Service的函数？回答了这两个问题，binder的通道就算打通啦:)
 
-回顾[Binder学习笔记（四）—— ServiceManager如何响应checkService请求](http://localhost:4000/blog/2016/05/09/2016/0514BinderLearning4/)，来看这幅图：
-![ServiceManager响应checkService请求组织的数据结构](http://localhost:4000/blog/2016/05/09/2016/0514BinderLearning4/img05.png)
+回顾[Binder学习笔记（四）—— ServiceManager如何响应checkService请求](http://palanceli.github.io/blog/2016/05/09/2016/0514BinderLearning4/)，来看这幅图：
+![ServiceManager响应checkService请求组织的数据结构](http://palanceli.github.io/blog/2016/05/09/2016/0514BinderLearning4/img05.png)
 
 客户端请求Service时带的是Service的name，在ServiceManager根据name在svclist中查找到handle，然后组织成rdata数据返回。看！它的type是BINDER_TYPE_HANDLE，驱动层是不是要做点什么？来看看binder_transaction(...)的case BINDER_TYPE_HANDLE和case BINDER_TYPE_WEAK_HANDLE部分：
 ``` c
