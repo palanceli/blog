@@ -1,9 +1,9 @@
 ---
 layout: post
-title:  "深入浅出Binder（二）注册服务"
+title:  "深度探索Binder（二）注册服务"
 date:   2016-08-06 22:12:10 +0800
 categories: Android
-tags:   深入浅出binder
+tags:   深度探索binder
 toc: true
 comments: true
 ---
@@ -712,6 +712,7 @@ int binder_become_context_manager(struct binder_state *bs)
 
 接下来的`binder_loop(...)`函数体现了上一节末讲到的“不断地查找信箱，看有没有新的申请过来”的逻辑。
 ``` c++
+// frameworks/native/cmds/servicemanager/binder.c:372
 void binder_loop(struct binder_state *bs, binder_handler func)
 {
     int res;
@@ -912,13 +913,256 @@ done:
 它组装了驱动层的tr，并把该结构拷贝到用户地址空间。为什么它的成员buffer所指向的binder_buffer的data部分不需要拷贝到用户空间呢？因为这部分空间在对应的物理页面已经被同时映射到了内核和用户的地址空间，已经具备跨越阴阳两界的能力了。这个tr就是驱动层返回给应用层的数据了，也即是ServiceManager调用`ioctl(...)`函数的结果。
 
 ### ServiceManager应用层怎么处理请求
+回到应用层代码，驱动层将读到的数据返回给`ioctl(bs->fd, BINDER_WRITE_READ, &bwr)`的bwr参数，接下来`binder_parse(...)`将解析该数据。
+![ServiceManager引用层调用关系](0806DissectingBinder2/img04.png)
+来看`binder_parse(...)`函数，它收到的数据格式是“命令+数据”，该函数主要逻辑是根据命令做不同处理，对于`addService`的请求，收到的命令为`BR_TRANSACTION`。
+再看针对该命令的逻辑分支，它取出`binder_transaction_data`数据，并将该数据转换成`binder_io`格式交给msg，联通一个新构造的reply一并传给`func(...)`函数。
+``` c++
+//frameworks/native/cmds/servicemanager/binder.c:204
+int binder_parse(struct binder_state *bs, struct binder_io *bio,
+                 uintptr_t ptr, size_t size, binder_handler func)
+{
+    int r = 1;
+    uintptr_t end = ptr + (uintptr_t) size;
 
-<font color="red">未完待续...</font>
+    while (ptr < end) {
+        uint32_t cmd = *(uint32_t *) ptr;
+        ptr += sizeof(uint32_t);
+        ... ...
+        switch(cmd) {
+        ... ...
+        case BR_TRANSACTION: {
+            struct binder_transaction_data *txn = (struct binder_transaction_data *) ptr;
+            ... ...
+            if (func) {
+                unsigned rdata[256/4];
+                struct binder_io msg;
+                struct binder_io reply;
+                int res;
+
+                // 把rdata作为reply的数据缓存，offs指向前4个size_t，data指向之后的部分
+                bio_init(&reply, rdata, sizeof(rdata), 4);
+                bio_init_from_txn(&msg, txn);
+                res = func(bs, txn, &msg, &reply);
+                binder_send_reply(bs, &reply, txn->data.ptr.buffer, res);
+            }
+            ptr += sizeof(*txn);
+            break;
+        }
+        ... ...
+        }
+    }
+
+    return r;
+}
+```
+函数指针`func`指向`svcmgr_handler(...)`，在进入该函数之前，让我们看看引用层组织的数据结构：
+![在svcmgr_handle(...)处理之前面对的数据结构](0806DissectingBinder2/img05.png)
+这份数据最初是由Server组织并发起的，经过驱动层处理，最后来到了ServiceManager应用层，因此我保留了在这个轨迹上所有关键的数据结构。需要说明的是：有些数据是跨越了驱动层和应用层的，如`binder_buffer`，有些数据是同样内容被拷贝到两层，如txn所指的`binder_transaction_data`，为了压缩篇幅，数据产生在哪一层我就把它划到了那层，实际上它的副本可能已经不在那层了。
+最下面的`ServiceManager应用层`部分是svcmgr_handle(...)即将要处理的部分。
+``` c++
+// frameworks/natvie/cmds/servicemanager/service_manager.c:244
+int svcmgr_handler(struct binder_state *bs,
+                   struct binder_transaction_data *txn,
+                   struct binder_io *msg,
+                   struct binder_io *reply)
+{
+    struct svcinfo *si;
+    uint16_t *s;
+    size_t len;
+    uint32_t handle;
+    uint32_t strict_policy;
+    int allow_isolated;
+    ... ...
+    strict_policy = bio_get_uint32(msg);
+    s = bio_get_string16(msg, &len);
+    ... ...
+
+    switch(txn->code) {
+    case SVC_MGR_GET_SERVICE:
+    case SVC_MGR_CHECK_SERVICE:
+        ... ...
+
+    case SVC_MGR_ADD_SERVICE:
+        s = bio_get_string16(msg, &len);                // name
+        ... ...
+        handle = bio_get_ref(msg);                      // service.handle
+        allow_isolated = bio_get_uint32(msg) ? 1 : 0;   // 0
+        if (do_add_service(bs, s, len, handle, txn->sender_euid,
+            allow_isolated, txn->sender_pid))
+            return -1;
+        break;
+
+    case SVC_MGR_LIST_SERVICES: {
+        ... ...
+    }
+
+    bio_put_uint32(reply, 0);
+    return 0;
+}
+```
+`bio_get_xxx(...)`系列函数定义在`frameworks/native/cmds/servicemanager/binder.c`中，从函数名就可以看出它是从`binder_io`中依次解析出xxx类型的数据。`bio_get_ref(...)`则是先解析出`flat_binder_object`类型的数据，再返回它的handle字段，我们不再追它的代码了。
+
+此处有一点非常诡异：txn传过来的code是`ADD_SERVICE_TRANSACTION`（定义在frameworks/native/include/binder/IServiceManager.h:61），到了这里为什么换了一套名称？`SVC_MGR_ADD_SERVICE`定义在frameworks/native/cmds/servicemanager/binder.h:40，两个值是相等的。
+
+来看接下来的`do_add_service(...)`，它是“添加服务”的终点，ServiceManager如何处理“添加服务”的请求，逻辑全在这了。
+``` c++
+int do_add_service(struct binder_state *bs,
+                   const uint16_t *s, size_t len,
+                   uint32_t handle, uid_t uid, int allow_isolated,
+                   pid_t spid)
+{
+    struct svcinfo *si;
+
+    ... ...
+    si = find_svc(s, len);
+    if (si) {
+        if (si->handle) {
+            ... ...
+            svcinfo_death(bs, si);
+        }
+        si->handle = handle;
+    } else {
+        si = malloc(sizeof(*si) + (len + 1) * sizeof(uint16_t));
+        ... ...
+        si->handle = handle;
+        si->len = len;
+        memcpy(si->name, s, (len + 1) * sizeof(uint16_t));
+        si->name[len] = '\0';
+        si->death.func = (void*) svcinfo_death;
+        si->death.ptr = si;
+        si->allow_isolated = allow_isolated;
+        si->next = svclist;
+        svclist = si;
+    }
+
+    binder_acquire(bs, handle);
+    binder_link_to_death(bs, handle, &si->death);
+    return 0;
+}
+```
+全局链表`svclist`维护所有添加过的服务，链表的key是name，即服务名称。`find_svc(...)`遍历链表，如果从来没添加过服务，则创建节点，把它串到链表上去，Client端来查找服务的时候肯定也是遍历该链表，返回handle咯。如果链表上已经有匹配的节点，`svcinfo_death(...)`先释放对si->handle的引用，再将si->handle指向新的handle。
+
 ## ProcessState::startThreadPool()时刻等待着接客
+银行业是提供服务的，完成添加以后，接下来要做的事情跟取款机生产商是一模一样的——不断查找信箱，看有没有新的申请过来，如果有，赶紧收件处理。只不过ServiceManager提供的服务是收录所有服务信息，而Server提供的是自定义服务。所以接下来Server端应该也需要一个大循环，读数据，处理数据，把响应结果写入binder。
 
-# 查找服务
+### 开启两个循环
+[TestServer.cpp](https://github.com/palanceli/androidex/blob/master/external-testservice/TestServer.cpp)代码最后有两行都跟这个大循环相关：
+``` c++
+    ProcessState::self()->startThreadPool();
+    IPCThreadState::self()->joinThreadPool();
+```
+只不过第一行启动了一个子线程，在子线程函数中启动大循环；第二行则在剩下的主线程中也启动大循环。先来进入第一行：
+``` c++
+// frameworks/native/libs/binder/ProcessState.cpp:132
+void ProcessState::startThreadPool()
+{
+    AutoMutex _l(mLock);
+    if (!mThreadPoolStarted) {
+        mThreadPoolStarted = true;
+        spawnPooledThread(true);
+    }
+}
 
-# 调用服务接口
+// frameworks/native/libs/binder/ProcessState.cpp:286
+void ProcessState::spawnPooledThread(bool isMain)
+{   // isMain   true
+    if (mThreadPoolStarted) {   // true
+        String8 name = makeBinderThreadName();
+        ... ...
+        sp<Thread> t = new PoolThread(isMain);
+        t->run(name.string());
+    }
+}
+
+// frameworks/native/libs/binder/ProcessState.cpp:52
+class PoolThread : public Thread
+{
+... ...
+protected:
+    virtual bool threadLoop()
+    {
+        IPCThreadState::self()->joinThreadPool(mIsMain); // mIsMain true
+        return false;
+    }
+    ... ...
+};
+```
+`ProcessState::startThreadPool`启动子线程`PoolThread`，该线程函数里调用了`IPCThreadState::joinThreadPool(...)`，传入参数isMain为true，该参数的默认值也为true。所以这里干了跟Server主线程接下来完全一样的事儿。弄明白该函数，主线程、子线程干的事儿全明白了。
+
+### 循环内做了什么？
+``` c++
+// frameworks/native/libs/binder/IPCThreadState.cpp:477
+void IPCThreadState::joinThreadPool(bool isMain)
+{
+    ... ...
+    mOut.writeInt32(isMain ? BC_ENTER_LOOPER : BC_REGISTER_LOOPER);
+    ... ...
+    status_t result;
+    do {    // 函数命名已经很清晰了：反复获取和执行命令
+        ... ...
+        result = getAndExecuteCommand();
+        ... ...
+    } while (result != -ECONNREFUSED && result != -EBADF);
+    ... ...
+    mOut.writeInt32(BC_EXIT_LOOPER);
+    talkWithDriver(false);
+}
+
+// frameworks/native/libs/binder/IPCThreadState.cpp:414
+status_t IPCThreadState::getAndExecuteCommand()
+{
+    status_t result;
+    int32_t cmd;
+
+    result = talkWithDriver();          // 读取数据到mIn
+    if (result >= NO_ERROR) {
+        ... ...
+        cmd = mIn.readInt32();          // 解析命令
+        ... ...
+        result = executeCommand(cmd);   // 执行命令
+        ... ...
+    }
+
+    return result;
+}
+
+// frameworks/native/libs/binder/IPCThreadState.cpp:947
+status_t IPCThreadState::executeCommand(int32_t cmd)
+{
+    BBinder* obj;
+    RefBase::weakref_type* refs;
+    status_t result = NO_ERROR;
+    
+    switch ((uint32_t)cmd) {
+    ... ...
+    case BR_TRANSACTION:
+        {
+            binder_transaction_data tr;
+            result = mIn.read(&tr, sizeof(tr));
+            ... ...
+            Parcel reply;
+            ... ...
+            if (tr.target.ptr) {
+                sp<BBinder> b((BBinder*)tr.cookie);
+                error = b->transact(tr.code, buffer, &reply, tr.flags);
+            } else {
+                error = the_context_object->transact(tr.code, buffer, &reply, tr.flags);
+            }
+            ... ...
+        }
+        break;
+        ... ...
+    }
+    ... ...
+    return result;
+}
+```
+核心代码在`IPCThreadState::executeCommand(...)`，这套处理模式大量地遭遇，已经非常熟悉了，根据命令做不同处理。我们挑最常用的`BR_TRANSACTION`来分析，mIn里面的数据应该类似[ServiceManager在svcmgr_handle(...)处理之前面对的数据结构](http://palanceli.github.io/blog/2016/08/06/2016/0806DissectingBinder2/img05.png)，此处的tr相当于图中的txn，所不同的是tr.cookie里面的内容不再是ServiceManager的Service地址，而是Server端Service的地址，即Binder实体地址，所以在这里用它可以直接转成BBinder对象，这个对象的真实身份就是`BnTestService`。
+
+到此，《注册服务》的内容终于讲完了。完成了《Binder学习笔记》系列以后，迫不及待地想把这部分内容串起来系统地整理一遍，因为《Binder学习笔记》是从零开始，一边看各种资料一边读源码一边记笔记，现在回过头来看有些内容是错的，有些细枝末节是没必要一开始就深究的。但我也不想把《Binder学习笔记》做大规模修改了，因为它记录了我初次探索Binder的足迹。重新修改会让它更正确，但也会删掉一些信息，让新来者只能看到一条最近的路，却不知道这条路是怎么开出来的。这个新来者可能正是几年后的我呢:)，开路的过程是最重要的。
+
+《注册服务》的篇幅远比我预想的要长，我原本计划用一篇尽量短的小文就能领略从请求的发起端，到驱动，到接收端每个关键点的控制流与数据结构。越短越容易掌握概念，但把我认为的关键点都说明白了，已经不算小文了。结合目录，我觉得思路还算清晰。
 
 
 

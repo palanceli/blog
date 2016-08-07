@@ -1,9 +1,9 @@
 ---
 layout: post
-title:  "深入浅出Binder（一）取款机模型"
+title:  "深度探索Binder（一）取款机模型"
 date:   2016-07-28 00:11:32 +0800
 categories: Android
-tags:   深入浅出binder
+tags:   深度探索binder
 toc: true
 comments: true
 ---
