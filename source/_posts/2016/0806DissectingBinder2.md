@@ -437,7 +437,7 @@ status_t IPCThreadState::talkWithDriver(bool doReceive)
     - 调用binder_thread_write(...)来处理bwr中写缓冲区里用户写入的数据
     - 调用binder_thread_read(...)将用户要读出的数据放到bwr中读缓冲区里
 * 将处理完的数据拷贝回用户空间
-<font color=red>需要确定binder_get_thread(proc)都干了什么</font>
+
 ``` c++
 // kernel/goldfish/drivers/staging/android/binder.c:2716
 static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
@@ -914,7 +914,7 @@ done:
 
 ### ServiceManager应用层怎么处理请求
 回到应用层代码，驱动层将读到的数据返回给`ioctl(bs->fd, BINDER_WRITE_READ, &bwr)`的bwr参数，接下来`binder_parse(...)`将解析该数据。
-![ServiceManager引用层调用关系](0806DissectingBinder2/img04.png)
+![ServiceManager应用层调用关系](0806DissectingBinder2/img04.png)
 来看`binder_parse(...)`函数，它收到的数据格式是“命令+数据”，该函数主要逻辑是根据命令做不同处理，对于`addService`的请求，收到的命令为`BR_TRANSACTION`。
 再看针对该命令的逻辑分支，它取出`binder_transaction_data`数据，并将该数据转换成`binder_io`格式交给msg，联通一个新构造的reply一并传给`func(...)`函数。
 ``` c++
@@ -956,7 +956,7 @@ int binder_parse(struct binder_state *bs, struct binder_io *bio,
     return r;
 }
 ```
-函数指针`func`指向`svcmgr_handler(...)`，在进入该函数之前，让我们看看引用层组织的数据结构：
+函数指针`func`指向`svcmgr_handler(...)`，在进入该函数之前，让我们看看应用层组织的数据结构：
 ![在svcmgr_handle(...)处理之前面对的数据结构](0806DissectingBinder2/img05.png)
 这份数据最初是由Server组织并发起的，经过驱动层处理，最后来到了ServiceManager应用层，因此我保留了在这个轨迹上所有关键的数据结构。需要说明的是：有些数据是跨越了驱动层和应用层的，如`binder_buffer`，有些数据是同样内容被拷贝到两层，如txn所指的`binder_transaction_data`，为了压缩篇幅，数据产生在哪一层我就把它划到了那层，实际上它的副本可能已经不在那层了。
 最下面的`ServiceManager应用层`部分是svcmgr_handle(...)即将要处理的部分。
