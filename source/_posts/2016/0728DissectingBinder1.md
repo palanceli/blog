@@ -3,7 +3,7 @@ layout: post
 title:  "深度探索Binder（一）取款机模型"
 date:   2016-07-28 00:11:32 +0800
 categories: Android
-tags:   深度探索binder
+tags:   深度探索Binder
 toc: true
 comments: true
 ---
