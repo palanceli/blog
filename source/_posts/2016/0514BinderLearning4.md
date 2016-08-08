@@ -1,10 +1,9 @@
 ---
 layout: post
-title:  "Binder学习笔记（四）—— ServiceManager如何响应checkService请求
-"
+title:  "Binder学习笔记（四）—— ServiceManager如何响应checkService请求"
 date:   2016-05-09 00:32:48 +0800
 categories: Android
-tags:   binder
+tags:   Binder学习笔记
 toc: true
 comments: true
 ---

@@ -1,10 +1,8 @@
 ---
-title:  "Binder学习笔记（八）—— 客户端如何组织Test()请求
-？
-"
+title:  "Binder学习笔记（八）—— 客户端如何组织Test()请求？"
 date:   2016-05-14 21:33:04 +0800
 categories: Android
-tags:   binder
+tags:   Binder学习笔记
 toc: true
 comments: true
 ---

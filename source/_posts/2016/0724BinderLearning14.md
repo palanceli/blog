@@ -2,7 +2,7 @@
 title: binder学习笔记（十四）—— binder_thread_read(...)都干了什么？
 date: 2016-07-24 18:56:38
 categories: Android
-tags:   binder
+tags:   Binder学习笔记
 toc: true
 comments: true
 ---

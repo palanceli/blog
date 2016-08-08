@@ -2,7 +2,7 @@
 title:  "Binder学习笔记（十一）—— 智能指针"
 date:   2016-06-10 00:07:23 +0800
 categories: Android
-tags:   binder
+tags:   Binder学习笔记
 toc: true
 comments: true
 ---

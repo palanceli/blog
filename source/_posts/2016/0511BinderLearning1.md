@@ -3,7 +3,7 @@ layout: post
 title:  "Binder学习笔记（一）引子"
 date:   2016-04-25 01:18:48 +0800
 categories: Android
-tags:   binder
+tags:   Binder学习笔记
 toc: true
 comments: true
 ---

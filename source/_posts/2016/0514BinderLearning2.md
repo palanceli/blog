@@ -3,7 +3,7 @@ layout: post
 title:  "Binder学习笔记（二）—— defaultServiceManager()返回了什么？"
 date:   2016-05-07 00:39:48 +0800
 categories: Android
-tags:   binder
+tags:   Binder学习笔记
 toc: true
 comments: true
 ---

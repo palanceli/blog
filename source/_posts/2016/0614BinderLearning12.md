@@ -2,7 +2,7 @@
 title: Binder学习笔记（十二）—— binder_transaction(...)都干了什么？
 date:   2016-06-14 00:20:23 +0800
 categories: Android
-tags:   binder
+tags:   Binder学习笔记
 toc: true
 comments: true
 layout: post
