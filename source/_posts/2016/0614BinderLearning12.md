@@ -444,8 +444,8 @@ static void binder_insert_free_buffer(struct binder_proc *proc,
 ![binder_mmap(...)调用完成后构造的binder_proc结构体](0614BinderLearning12/img10.png)
 
 # 从服务端addService触发的`binder_transaction(...)`
-从native层的调用过程参见[binder学习笔记（十）—— 穿越到驱动层](http://palanceli.github.io/blog/2016/05/28/2016/0528BinderLearning10/)。我们以addService为例深入到binder_transaction(...)内部，
-传入的`binder_transaction_data`输入参数为：![addService组织的请求数据](http://palanceli.github.io/blog/2016/05/11/2016/0514BinderLearning6/img02.png)
+从native层的调用过程参见[binder学习笔记（十）—— 穿越到驱动层](https://palanceli.github.io/2016/05/28/2016/0528BinderLearning10/)。我们以addService为例深入到binder_transaction(...)内部，
+传入的`binder_transaction_data`输入参数为：![addService组织的请求数据](https://palanceli.github.io/2016/05/11/2016/0514BinderLearning6/img02.png)
 
 kernel/goldfish/drivers/staging/android/binder.c:1402
 ``` c

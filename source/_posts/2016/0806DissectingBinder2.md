@@ -14,7 +14,7 @@ comments: true
 sp < ProcessState > proc(ProcessState::self());
 sp < IServiceManager > sm = defaultServiceManager(); 
 ```
-智能指针在本系列中不再赘述，参见[《Binder学习笔记（十一）—— 智能指针》](http://palanceli.github.io/blog/2016/06/10/2016/0610BinderLearning11/)，在framework层所有Binder相关的智能指针`sp <XXX> pObj`都可以当`XXX *pObj`来看。
+智能指针在本系列中不再赘述，参见[《Binder学习笔记（十一）—— 智能指针》](https://palanceli.github.io/2016/06/10/2016/0610BinderLearning11/)，在framework层所有Binder相关的智能指针`sp <XXX> pObj`都可以当`XXX *pObj`来看。
 
 sm是什么？为什么defaultServiceManager()就能返回ServiceManager？本质上ServiceManager也是Binder服务，位于另一个进程空间，为什么这么一行调用就能获取另一个进程空间的服务？这个“服务”具体是什么，实体？handle？
 我们先给出答案，再逐步求证。
@@ -76,7 +76,7 @@ static int binder_open(struct inode *nodp, struct file *filp)
 }
 ```
 结构体`struct file`表示进程已打开的文件，包含访问模式、当前偏移等信息（参见《Linux内核设计与实现（第三版）》第13章11节），这说明对于同一个文件`struct file`是每进程一份的。
-`binder_open(...)`函数创建了结构体`struct binder_proc`并将之保存在文件对象的private_data成员中。[struct binder_proc](http://palanceli.github.io/blog/2016/06/14/2016/0614BinderLearning12/#struct-binder-proc)描述一个正在使用Binder的进程。
+`binder_open(...)`函数创建了结构体`struct binder_proc`并将之保存在文件对象的private_data成员中。[struct binder_proc](https://palanceli.github.io/2016/06/14/2016/0614BinderLearning12/#struct-binder-proc)描述一个正在使用Binder的进程。
 
 ### 映射/dev/binder
 ProcessState在初始化列表中打开`/dev/binder`后，在构造函数体内立刻调用`mmap`完成映射，该函数最终落地在驱动层的`binder_mmap(...)`函数：
@@ -307,7 +307,7 @@ virtual status_t addService(const String16& name, const sp<IBinder>& service,
     return err == NO_ERROR ? reply.readExceptionCode() : err;
 }
 ```
-Parcel的封装细节可参见[《Binder学习笔记（五）—— Parcel是怎么打包的？》](http://palanceli.github.io/blog/2016/05/10/2016/0514BinderLearning5/)。data中携带的重要数据还是服务名称以及服务对象。remote()返回的是BpBinder(0)，因此来看`BpBinder::transact(...)`
+Parcel的封装细节可参见[《Binder学习笔记（五）—— Parcel是怎么打包的？》](https://palanceli.github.io/2016/05/10/2016/0514BinderLearning5/)。data中携带的重要数据还是服务名称以及服务对象。remote()返回的是BpBinder(0)，因此来看`BpBinder::transact(...)`
 ``` c++
 // frameworks/native/libs/binder/BpBinder.cpp:159
 status_t BpBinder::transact(
@@ -378,7 +378,7 @@ status_t IPCThreadState::writeTransactionData(int32_t cmd, uint32_t binderFlags,
     return NO_ERROR;
 }
 ```
-![Server端为addService组织的请求数据](http://palanceli.github.io/blog/2016/05/11/2016/0514BinderLearning6/img02.png)
+![Server端为addService组织的请求数据](https://palanceli.github.io/2016/05/11/2016/0514BinderLearning6/img02.png)
 这个数据结构很重要，它表达了Server端本次请求的具体内容，即把addService(...)封装成的数据包。其中tr记录定长的控制信息，data记录变长的数据信息。本次的控制信息的核心内容就是ADD_SERVICE_TRANSACTION，数据信息的核心内容是服务名称和服务实体。
 
 组织完数据接下来显然要发出去，
@@ -522,7 +522,7 @@ int binder_thread_write(struct binder_proc *proc, struct binder_thread *thread,
 }
 ```
 `binder_transaction(...)`函数是处理写入数据的核心代码，在深入分析代码之前，让我们再温习一下已经从用户空间拷贝到内核空间的Server端为addService组织的请求数据：
-![Server端为addService组织的请求数据](http://palanceli.github.io/blog/2016/05/11/2016/0514BinderLearning6/img02.png)
+![Server端为addService组织的请求数据](https://palanceli.github.io/2016/05/11/2016/0514BinderLearning6/img02.png)
 `binder_transaction(...)`函数的核心功能就是把这份数据封装成一个binder事务`struct binder_transaction`，并把该事务结构体挂到目标 `binder_proc`或者`binder_thread`的todo队列中去。目标侧发现自己的todo队列中有内容，便取下处理，这就完成了一个请求从发起端到接收端的发送。
 ``` c++
 kernel/goldfish/drivers/staging/android/binder.c:1402
@@ -1158,7 +1158,7 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
     return result;
 }
 ```
-核心代码在`IPCThreadState::executeCommand(...)`，这套处理模式大量地遭遇，已经非常熟悉了，根据命令做不同处理。我们挑最常用的`BR_TRANSACTION`来分析，mIn里面的数据应该类似[ServiceManager在svcmgr_handle(...)处理之前面对的数据结构](http://palanceli.github.io/blog/2016/08/06/2016/0806DissectingBinder2/img05.png)，此处的tr相当于图中的txn，所不同的是tr.cookie里面的内容不再是ServiceManager的Service地址，而是Server端Service的地址，即Binder实体地址，所以在这里用它可以直接转成BBinder对象，这个对象的真实身份就是`BnTestService`。
+核心代码在`IPCThreadState::executeCommand(...)`，这套处理模式大量地遭遇，已经非常熟悉了，根据命令做不同处理。我们挑最常用的`BR_TRANSACTION`来分析，mIn里面的数据应该类似[ServiceManager在svcmgr_handle(...)处理之前面对的数据结构](https://palanceli.github.io/2016/08/06/2016/0806DissectingBinder2/img05.png)，此处的tr相当于图中的txn，所不同的是tr.cookie里面的内容不再是ServiceManager的Service地址，而是Server端Service的地址，即Binder实体地址，所以在这里用它可以直接转成BBinder对象，这个对象的真实身份就是`BnTestService`。
 
 到此，《注册服务》的内容终于讲完了。完成了《Binder学习笔记》系列以后，迫不及待地想把这部分内容串起来系统地整理一遍，因为《Binder学习笔记》是从零开始，一边看各种资料一边读源码一边记笔记，现在回过头来看有些内容是错的，有些细枝末节是没必要一开始就深究的。但我也不想把《Binder学习笔记》做大规模修改了，因为它记录了我初次探索Binder的足迹。重新修改会让它更正确，但也会删掉一些信息，让新来者只能看到一条最近的路，却不知道这条路是怎么开出来的。这个新来者可能正是几年后的我呢:)，开路的过程是最重要的。
 

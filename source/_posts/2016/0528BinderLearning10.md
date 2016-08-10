@@ -7,7 +7,7 @@ toc: true
 comments: true
 ---
 Binder驱动层的代码在`kernel/goldfish/drivers/staging/android`下的`binder.c`和`binder.h`。Android源码是不带Linux内核的，驱动正是在这个内核里，需要单独下载，出门左转参见[《Anrdoid源码、内核编译》](http://www.cnblogs.com/palance/p/5187103.html)。驱动的相关知识先不在这里展开了，那又是一个庞大的体系，以后再啃。直奔我们的主题——客户端为`test()`组织的请求数据是：
-![客户端为test()组织的请求数据](http://palanceli.github.io/blog/2016/05/14/2016/0514BinderLearning8/img01.png)
+![客户端为test()组织的请求数据](https://palanceli.github.io/2016/05/14/2016/0514BinderLearning8/img01.png)
 驱动程序是如何处理这个数据包的呢？
 # 从应用层登陆，顺流直下
 为此，还需要先从应用层往下看，frameworks/native/libs/binder/IPCThreadState.cpp:548，就从这里登陆吧。客户端组织test()请求数据时，调用到IPCThreadState::transact(...)

@@ -34,7 +34,7 @@ widgets: ## Six widgets in sidebar provided: search, category, tag, recent_posts
 
 links:
   - title: 我的GitHub
-    url: https://github.com/palanceli
+    url: https://palanceli.github.io
   - title: 我的博客园
     url: http://www.cnblogs.com/palance/
   - title: 我的CSDN

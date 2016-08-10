@@ -12,7 +12,7 @@ comments: true
 
 ## 获取ServiceManager VS 获取普通Binder的代理
 Client端获取ServiceManager和获取普通Binder代理其实是一模一样的，这里的Client端是相对而言，通常所说的Client/Server是指Service的请求方和提供方，二者在请求ServiceManager服务的时候，又都是该服务的Client。
-在讲注册服务[初始化sm](http://palanceli.github.io/blog/2016/08/06/2016/0806DissectingBinder2/#初始化sm)一节中，有如下代码：
+在讲注册服务[初始化sm](https://palanceli.github.io/2016/08/06/2016/0806DissectingBinder2/#初始化sm)一节中，有如下代码：
 ``` c++
 // frameworks/native/libs/binder/IServiceManager.cpp
 // #33
@@ -79,7 +79,7 @@ void BpTestService::test() {
 何其相似，TEST也是自定义的枚举变量，用来给每个函数编号。而且比较好的做法是只提供一份头文件，让Client端和Server端公用，这样才不容易产生歧义。
 
 ## Server端如何把数据包拆解成函数调用
-其实在《深度探索Binder（二）注册服务》的[循环内做了什么](http://palanceli.github.io/blog/2016/08/06/2016/0806DissectingBinder2/#循环内做了什么？)已经讲了一半：客户端对Service的请求被封装成数据包，其中最重要的数据就是Binder的handle、请求接口的编号以及参数。该数据包在驱动层会被修改，主要是根据handle找到对应的`binder_node`，并把handle字段替换成影子对象——binder以及binder对象——cookie。到了Server端则直接拿cookie提领出Binder对象：
+其实在《深度探索Binder（二）注册服务》的[循环内做了什么](https://palanceli.github.io/2016/08/06/2016/0806DissectingBinder2/#循环内做了什么？)已经讲了一半：客户端对Service的请求被封装成数据包，其中最重要的数据就是Binder的handle、请求接口的编号以及参数。该数据包在驱动层会被修改，主要是根据handle找到对应的`binder_node`，并把handle字段替换成影子对象——binder以及binder对象——cookie。到了Server端则直接拿cookie提领出Binder对象：
 ``` c++
 // frameworks/native/libs/binder/IPCThreadState.cpp:947
 status_t IPCThreadState::executeCommand(int32_t cmd)

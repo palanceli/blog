@@ -9,8 +9,8 @@ layout: post
 ---
 # 驱动层为什么要篡改binder_buffer内的数据？
 先给出这张图：
-![binder_transaction(...)完成后的数据结构](http://palanceli.github.io/blog/2016/06/14/2016/0614BinderLearning12/img14.png)
-上图中标红的部分需要重点考虑，为什么驱动层要篡改这两个字段呢？我们结合前面的文章或许可以找出端倪。在[Binder学习笔记（七）—— ServiceManager如何响应addService请求 ？](http://palanceli.github.io/blog/2016/05/12/2016/0514BinderLearning7/)一文中其实留下了挺多疑问。
+![binder_transaction(...)完成后的数据结构](https://palanceli.github.io/2016/06/14/2016/0614BinderLearning12/img14.png)
+上图中标红的部分需要重点考虑，为什么驱动层要篡改这两个字段呢？我们结合前面的文章或许可以找出端倪。在[Binder学习笔记（七）—— ServiceManager如何响应addService请求 ？](https://palanceli.github.io/2016/05/12/2016/0514BinderLearning7/)一文中其实留下了挺多疑问。
 
 server端调用addService(...)向ServiceManager注册该Service，ServiceManager保存Service的(name, binder)二元对以备后用，但其中最不可理解的是在函数`bio_get_ref(struct binder_io *bio)`中判断如果Service的type==BINDER_TYPE_HANDLE，binder为0。这个疑团现在就可以打开了：因为ServiceManager收到的service的type不可能为BINDER_TYPE_BINDER！
 
@@ -22,7 +22,7 @@ flat_binder_object的binder字段和handle字段公用一个联合，在实体�
 于是驱动层需要做转化，确保在“阴阳两界各自唯一，到了对端就不唯一”的两个id之间建立关联，使得一端向另一端的binder喊话时，对端对应的binder能收到。
 
 # 再看Server端是如何组织addService数据的
-在[Binder学习笔记（六）—— binder服务端是如何组织addService数据的？](http://palanceli.github.io/blog/2016/05/11/2016/0514BinderLearning6/)中我们主要讨论了应用层行为和数据结构，在本节中我们重点看驱动层。
+在[Binder学习笔记（六）—— binder服务端是如何组织addService数据的？](https://palanceli.github.io/2016/05/11/2016/0514BinderLearning6/)中我们主要讨论了应用层行为和数据结构，在本节中我们重点看驱动层。
 
 回顾一下Server端代码：
 ``` c
@@ -35,7 +35,7 @@ int main() {
     return 0;
 }
 ```
-第3行的`defaultServiceManager()`我们在[Binder学习笔记（二）—— defaultServiceManager()返回了什么？](http://palanceli.github.io/blog/2016/05/07/2016/0514BinderLearning2/)中讨论过。在ProcessState的构造函数的初始化列表中，打开了文件`/dev/binder`，在构造函数体中完成了映射。
+第3行的`defaultServiceManager()`我们在[Binder学习笔记（二）—— defaultServiceManager()返回了什么？](https://palanceli.github.io/2016/05/07/2016/0514BinderLearning2/)中讨论过。在ProcessState的构造函数的初始化列表中，打开了文件`/dev/binder`，在构造函数体中完成了映射。
 
 打开文件`/dev/binder`，会执行`binder_open`，为Server进程创建一个文件对象`struct file`（定义在kernel/goldfish/include/linux/fs.h:978），在binder_open(...)中会为该结构体创建一个binder_proc对象，并把文件对象的private_data成员指向该binder_proc对象。
 
@@ -46,13 +46,13 @@ addService会执行`binder_transaction`，为addService事务创建`struct binde
 生成的数据结构如下图：
 ![addService组织的数据结构](0709BinderLearning13/img01.png)
 
-根据[Binder学习笔记（七）—— ServiceManager如何响应addService请求 ？](http://palanceli.github.io/blog/2016/05/12/2016/0514BinderLearning7/)可知：ServiceManager会把Service的name和handle保存下来，串到链表svclist中。
+根据[Binder学习笔记（七）—— ServiceManager如何响应addService请求 ？](https://palanceli.github.io/2016/05/12/2016/0514BinderLearning7/)可知：ServiceManager会把Service的name和handle保存下来，串到链表svclist中。
 
 # 再看ServiceManager是如何响应checkService请求的
 当Client请求Service的时候，ServiceManager是怎么根据前面保存的handle关联到Service的，Client又是怎么据此调用到Service的函数？回答了这两个问题，binder的通道就算打通啦:)
 
-回顾[Binder学习笔记（四）—— ServiceManager如何响应checkService请求](http://palanceli.github.io/blog/2016/05/09/2016/0514BinderLearning4/)，来看这幅图：
-![ServiceManager响应checkService请求组织的数据结构](http://palanceli.github.io/blog/2016/05/09/2016/0514BinderLearning4/img05.png)
+回顾[Binder学习笔记（四）—— ServiceManager如何响应checkService请求](https://palanceli.github.io/2016/05/09/2016/0514BinderLearning4/)，来看这幅图：
+![ServiceManager响应checkService请求组织的数据结构](https://palanceli.github.io/2016/05/09/2016/0514BinderLearning4/img05.png)
 
 客户端请求Service时带的是Service的name，在ServiceManager根据name在svclist中查找到handle，然后组织成rdata数据返回。看！它的type是BINDER_TYPE_HANDLE，驱动层是不是要做点什么？来看看binder_transaction(...)的case BINDER_TYPE_HANDLE和case BINDER_TYPE_WEAK_HANDLE部分：
 ``` c
@@ -90,8 +90,8 @@ addService会执行`binder_transaction`，为addService事务创建`struct binde
 下图是驱动层为Client创建的binder_ref以及它与binder_node之间的关系，我用绿色表示新增加的这部分关系，虚线表示并非直接指针指过来，而是通过红黑树串入的节点：
 ![驱动层为Client创建的binder_ref](0709BinderLearning13/img03.png)
 
-呵呵，好复杂的三角关系！乱么？正当我以为在我内心里已经无比清晰，正要势如破竹乘胜追击，甚至要提前祝贺攻下binder的时候，我被接下来的问题整懵了。接下来的主题应该是“再看客户端是如何组织Test()请求的”，可是当我分析[Binder学习笔记（八）—— 客户端如何组织Test()请求 ？](http://palanceli.github.io/blog/2016/05/14/2016/0514BinderLearning8/)这一篇中的最后那张图：
-![客户端为test()组织的请求数据](http://palanceli.github.io/blog/2016/05/14/2016/0514BinderLearning8/img01.png)
+呵呵，好复杂的三角关系！乱么？正当我以为在我内心里已经无比清晰，正要势如破竹乘胜追击，甚至要提前祝贺攻下binder的时候，我被接下来的问题整懵了。接下来的主题应该是“再看客户端是如何组织Test()请求的”，可是当我分析[Binder学习笔记（八）—— 客户端如何组织Test()请求 ？](https://palanceli.github.io/2016/05/14/2016/0514BinderLearning8/)这一篇中的最后那张图：
+![客户端为test()组织的请求数据](https://palanceli.github.io/2016/05/14/2016/0514BinderLearning8/img01.png)
 才发现data的部分根本没有flat_binder_object，根据binder_transaction(...)，也就不走什么case语句了，生成了binder_transaction就完了？谁来负责把这个事务交到Server端继续执行呢？原来我还有一半的路程要走，当初穿越驱动层的时候只分析到`binder_ioctl(...)`调用`binder_thread_write(...)`，后面还有一半是`binder_thread_read(...)`。看来小结做得还为时过早，后面还有峰回路转，后半部分留待以后的章节再搞吧。
 
 

@@ -9,4 +9,4 @@ date: 2016-05-15 00:55:06
 
 <i class="fa fa-weixin" aria-hidden="true"></i> Palance
 
-<i class="fa fa-github" aria-hidden="true"></i> [Palanceli](https://github.com/palanceli)
+<i class="fa fa-github" aria-hidden="true"></i> [Palanceli](https://palanceli.github.io)

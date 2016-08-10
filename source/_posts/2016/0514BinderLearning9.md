@@ -170,12 +170,12 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
     return result;
 }
 ```
-tr.cookie是什么玩意？我们回到[《客户端如何组织Test()请求 ？》](http://palanceli.github.io/blog/2016/05/14/2016/0514BinderLearning8/)末尾那张图上，此时服务端收到的tr就应该是客户端请求test时组织的数据，可是那张图里cookie明明是0呀？怎么可能用空指针来初始化sp<BBinder>呢？而且后面还有对这个指针的调用！
+tr.cookie是什么玩意？我们回到[《客户端如何组织Test()请求 ？》](https://palanceli.github.io/2016/05/14/2016/0514BinderLearning8/)末尾那张图上，此时服务端收到的tr就应该是客户端请求test时组织的数据，可是那张图里cookie明明是0呀？怎么可能用空指针来初始化sp<BBinder>呢？而且后面还有对这个指针的调用！
 
 ## 客户端发出的test请求中tr.cookie是什么？
 为了确认那张图中cookie的正确性，我用gdb调试到源码内部，这是能得到最确凿结论的方法。
 * 部署环境 
-编译[《Binder学习笔记（一）》](http://palanceli.github.io/blog/2016/04/25/2016/0511BinderLearning1/)中的代码。我将该代码放到了android源码的external/testservice下，执行
+编译[《Binder学习笔记（一）》](https://palanceli.github.io/2016/04/25/2016/0511BinderLearning1/)中的代码。我将该代码放到了android源码的external/testservice下，执行
 ``` bash
 $ mmm external/testservice
 $ emulator&    # 启动模拟器，把编译出的可执行文件上传到模拟器并修改可执行权限
@@ -280,7 +280,7 @@ $1 = {target = {handle = 3066421360, ptr = 3066421360}, cookie = 3066323044, cod
 
 ```
 见了鬼了，cookie非0！发送端和接收端看到的值不一样！服务端此时收到的这个cookie是什么呢？服务端把cookie直接当作地址转换成了BBinder，能这么搞说明cookie里记录的地址一定是服务端自己地址空间的，接下来又调用b->transact(...)执行具体服务，那这个服务应该就是服务端的BnTestService吧？
-BnTestService是在addService时创建，而且还记得嘛，这个地址是被发送给了ServiceManager。参见[《binder服务端是如何组织addService数据的？》](http://palanceli.github.io/blog/2016/05/11/2016/0514BinderLearning6/)末尾的图，服务端调用addService向ServiceManager注册自己，并把自己的BnTestService对象指针传给了cookie。在那张图中有两个cookie，左边是向ServiceManager发送的ADD_SERVICE_TRANSACTION命令数据，右边Parcel是该命令包含的注册信息数据。
+BnTestService是在addService时创建，而且还记得嘛，这个地址是被发送给了ServiceManager。参见[《binder服务端是如何组织addService数据的？》](https://palanceli.github.io/2016/05/11/2016/0514BinderLearning6/)末尾的图，服务端调用addService向ServiceManager注册自己，并把自己的BnTestService对象指针传给了cookie。在那张图中有两个cookie，左边是向ServiceManager发送的ADD_SERVICE_TRANSACTION命令数据，右边Parcel是该命令包含的注册信息数据。
 ## cookie是否就是当初注册的时候new出来的BnTestService呢？
 继续用gdb验证！
 * 服务端收到的tr.cookie是否就是注册时呢我出来的BnTestService？

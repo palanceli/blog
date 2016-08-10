@@ -17,8 +17,8 @@ int main() {
 }
 ```
 # sm->getService(...)返回了什么？
-其中第2行`defaultServiceManager()`返回的是`new BpServiceManager(new BpBinder(0));`这在[《 defaultServiceManager()返回了什么？》](http://palanceli.github.io/blog/2016/05/07/2016/0514BinderLearning2/)中有分析。
-接下来的`sm->getService(...)`在[《ServiceManager如何响应checkService请求》](http://palanceli.github.io/blog/2016/05/09/2016/0514BinderLearning4/)的结尾给出了ServiceManager响应checkService返回的数据，我们再进入BpServiceManager::getService(...)
+其中第2行`defaultServiceManager()`返回的是`new BpServiceManager(new BpBinder(0));`这在[《 defaultServiceManager()返回了什么？》](https://palanceli.github.io/2016/05/07/2016/0514BinderLearning2/)中有分析。
+接下来的`sm->getService(...)`在[《ServiceManager如何响应checkService请求》](http://palanceli.github.io/2016/05/09/2016/0514BinderLearning4/)的结尾给出了ServiceManager响应checkService返回的数据，我们再进入BpServiceManager::getService(...)
 frameworks/native/libs/binder/IServiceManager.cpp:134
 ``` c++
     virtual sp<IBinder> getService(const String16& name) const
@@ -73,7 +73,7 @@ status_t unflatten_binder(const sp<ProcessState>& proc,
 }
 ```
 我们看服务端返回的数据：
-![](http://palanceli.github.io/blog/2016/05/09/2016/0514BinderLearning4/img05.png)
+![](http://palanceli.github.io/2016/05/09/2016/0514BinderLearning4/img05.png)
 返回的flat_binder_object的type是BINDER_TYPE_HANDLE，于是进入ProcessState::getStrongProxyForHandle(...)，frameworks/native/libs/binder/ProcessState.cpp:179
 ``` c++
 sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
@@ -107,7 +107,7 @@ sp<IBinder> ProcessState::getStrongProxyForHandle(int32_t handle)
 }
 ```
 首次执行，会创建一个新的BpBinder(handle)，并缓存该节点；以后在被调用，就直接返回该节点了。Parcel::finish_unflatten_binder(...)内部没有任何调用，直接返回了。
-> 因此客户端的getService(...)调用就返回了new BpBinder(handle);其中handle是有服务端在addService时生成（见[《binder服务端是如何组织addService数据的？》](http://palanceli.github.io/blog/2016/05/11/2016/0514BinderLearning6/)尾部的addService组织的请求数据图），并由ServiceManager缓存的，binder_uintptr_t值。
+> 因此客户端的getService(...)调用就返回了new BpBinder(handle);其中handle是有服务端在addService时生成（见[《binder服务端是如何组织addService数据的？》](https://palanceli.github.io/2016/05/11/2016/0514BinderLearning6/)尾部的addService组织的请求数据图），并由ServiceManager缓存的，binder_uintptr_t值。
 
 # interface_cast < ITestService> (binder)返回了什么？
 这个函数定义在frameworks/natvie/include/binder/IInterface.h:41
@@ -197,12 +197,12 @@ void BpTestService::test() {
     printf("reply: %d\n", reply.readInt32());
 }
 ```
-他的remote()是什么？在[《defaultServiceManager()返回了什么？》](http://palanceli.github.io/blog/2016/05/07/2016/0514BinderLearning2/)中遇到过BpInterface::remote()，它返回的是在构造函数中传入的Binder。BpTestService正是继承自BpInterface：
+他的remote()是什么？在[《defaultServiceManager()返回了什么？》](https://palanceli.github.io/2016/05/07/2016/0514BinderLearning2/)中遇到过BpInterface::remote()，它返回的是在构造函数中传入的Binder。BpTestService正是继承自BpInterface：
 ``` c++
 class BpTestService: public BpInterface<ITestService>
 ```
 所以BpTestService的remote()就返回构造时传入的`new BpBinder(handle)`。
-在[《binder客户端是如何组织checkService数据的 ？》](http://palanceli.github.io/blog/2016/05/08/2016/0514BinderLearning3/)中曾分析过，`BpBinder::transact(...)`调用了`IPCThreadState::transact(...)`
+在[《binder客户端是如何组织checkService数据的 ？》](https://palanceli.github.io/2016/05/08/2016/0514BinderLearning3/)中曾分析过，`BpBinder::transact(...)`调用了`IPCThreadState::transact(...)`
 frameworks/native/libs/binder/IPCThreadState.cpp:548
 ``` c++
 status_t IPCThreadState::transact(int32_t handle,

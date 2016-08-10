@@ -6,9 +6,9 @@ tags:   Binder学习笔记
 toc: true
 comments: true
 ---
-在binder请求的发起端，[binder_transaction(...)](http://palanceli.github.io/blog/2016/06/14/2016/0614BinderLearning12/#从服务端addService触发的binder-transaction)函数的结尾，第#198行，它将`struct binder_transaction`的`work`字段插入`target_list`的尾部，然后完成发起端的工作。
+在binder请求的发起端，[binder_transaction(...)](https://palanceli.github.io/2016/06/14/2016/0614BinderLearning12/#从服务端addService触发的binder-transaction)函数的结尾，第#198行，它将`struct binder_transaction`的`work`字段插入`target_list`的尾部，然后完成发起端的工作。
 
-在接收端[binder_loop(...)](http://palanceli.github.io/blog/2016/05/09/2016/0514BinderLearning4/#binder-loop-bs-svcmgr-handler)函数的第#19行，也在通过调用`ioctl(bs->fd, BINDER_WRITE_READ, &bwr)`等待着来自发起端的请求。在驱动层，沿着如下的调用路径![binder_ioctl(...)的调用关系](0724BinderLearning14/img01.png)，通过`binder_thread_read(...)`函数接收到请求。
+在接收端[binder_loop(...)](https://palanceli.github.io/2016/05/09/2016/0514BinderLearning4/#binder-loop-bs-svcmgr-handler)函数的第#19行，也在通过调用`ioctl(bs->fd, BINDER_WRITE_READ, &bwr)`等待着来自发起端的请求。在驱动层，沿着如下的调用路径![binder_ioctl(...)的调用关系](0724BinderLearning14/img01.png)，通过`binder_thread_read(...)`函数接收到请求。
 
 需要注意的是，对于checkService请求，在发起端（即Client端）的`binder_thread_write(...)`函数中，其proc、thread均表示Client端，target_proc、target_thread以及target_xxx均表示目标端（即ServiceManager）；而在接收端的`binder_thread_read(...)`函数中则刚好相反，proc、thread表示ServiceManager。
 
@@ -245,7 +245,7 @@ done:
     return 0;
 }
 ```
-走到这里，[上一节](http://localhost:4000/blog/2016/07/09/2016/0709BinderLearning13/#再看ServiceManager是如何响应checkService请求的)末尾处的悬疑似乎可以水落石出了。
+走到这里，[上一节](https://palanceli.github.io/2016/07/09/2016/0709BinderLearning13/#再看ServiceManager是如何响应checkService请求的)末尾处的悬疑似乎可以水落石出了。
 
 # 小结
 无论addService还是checkService请求，发起端的请求经由驱动层，驱动层的主要工作有两部分：
