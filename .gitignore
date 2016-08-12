@@ -27,10 +27,5 @@ II# Compiled Object files
 *.out
 *.app
 
-/public/
-/node_modules/
-/db.json
-*.log
-/package.json
 *.sublime-workspace
 
