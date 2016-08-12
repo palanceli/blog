@@ -1,4 +1,4 @@
-# Compiled Object files
+II# Compiled Object files
 *.slo
 *.lo
 *.o
@@ -26,3 +26,11 @@
 *.exe
 *.out
 *.app
+
+/public/
+/node_modules/
+/db.json
+*.log
+/package.json
+*.sublime-workspace
+
