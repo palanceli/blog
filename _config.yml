@@ -5,10 +5,13 @@
 # Site
 title: Palance's Blog
 subtitle:
-description:
+description: 学习，重生
 author: Palance Li
-language: zh-CN
+language: zh-Hans
 timezone:
+avatar: https://avatars0.githubusercontent.com/u/13184524
+duoshuo_shortname: palanceli
+baidu_analytics: e9c9a05f15583e8039e36cfe85103e96
 
 # URL
 ## If your site is put in a subdirectory, set url as 'http://yoursite.com/child' and root as '/child/'
@@ -63,7 +66,7 @@ pagination_dir: page
 # Extensions
 ## Plugins: https://hexo.io/plugins/
 ## Themes: https://hexo.io/themes/
-theme: maupassant
+theme: next
 
 # Deployment
 ## Docs: https://hexo.io/docs/deployment.html
@@ -71,3 +74,4 @@ deploy:
   type: git
   repository: https://github.com/palanceli/palanceli.github.io.git
   branch: master
+  

@@ -9,9 +9,46 @@ tags:   hexo
 我用hexo作为静态页面生成器，操作过程遇到不少问题，搞定之后留一份操作记录吧。
 
 # 安装环境
-* 安装node.js，去官网下载安装即可，我安装的是最新稳定版。
-* 安装Hexo
-`sudo npm install -g hexo`
+环境安装步骤可以参见[hexo 官方文档](https://hexo.io/zh-cn/docs)。这里还是记下一份操作路径，以后重新安装时，闭着眼睛操作就好了，呵呵呵~
+
+安装Node.js
+`$ curl https://raw.github.com/creationix/nvm/master/install.sh | sh`
+`$ nvm install stable`
+
+安装Hexo
+`$ sudo npm install -g hexo-cli`
+
+# 建站
+`$ cd blog`
+`$ hexo init`
+`$ npm install`
+
+将自己的`GitHub/blog.git`项目 Clone到本地`blog/blog`下。将主题Clone到`blog/themes/next`下，我使用的主题是[NexT](https://github.com/palanceli/hexo-theme-next)。
+
+执行脚本`setup.sh`：
+`$ cd blog`
+`$ sh setup.sh`
+该shell脚本的主要作用是
+删除文件(夹)：
+`blog/source/`
+`blog/_config.yml`
+`blog/themes/next/_config.yml`
+然后分别为它们创建软链：
+`blog/source/ -> blog/blog/source`
+`blog/_config.yml -> blog/blog/_config.yml`
+`blog/themes/next/_config.yml -> blog/blog/_next-theme-config.yml`
+注意：生成软链一定要使用绝对路径哦。
+
+接下来就可以生成网页了：
+`$ hexo clean`
+`$ hexo generate`
+`$ hexo server`
+
+# 设置主题
+我使用的主题是[NexT](https://github.com/palanceli/hexo-theme-next)，把它Clone到blog/threme/next下，删除blog/theme/next/_config.yml
+使用我的配置：
+`$ cd blog`
+`$ ln -s blog/_next-theme-config.yml themes/next/_config.yml`
 
 * 创建hexo目录并初始化
 ```

@@ -1,6 +1,8 @@
 ---
 title: 关于作者
 date: 2016-05-15 00:55:06
+type: "about"
+comments: false
 ---
 
 <i class="fa fa-envelope"></i> palanceli@163.com
