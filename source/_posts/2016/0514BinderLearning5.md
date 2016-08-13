@@ -12,6 +12,8 @@ comments: true
 >748      Parcel::writeInt32(int32_t val)
 >1149       Parcel::writeAligned(val)
 
+<!-- more -->
+
 所有的基本数据类型的打包最后都由writeAligned(…)实现的，其内部逻辑也非常简单，
 frameworks/native/libs/binder/Parcel.cpp:1149
 ``` c++

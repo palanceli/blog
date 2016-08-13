@@ -17,6 +17,7 @@ int main() {
     return 0;
 }
 ```
+<!-- more -->
 前三行代码在之前的Binder学习笔记系列中都分析过了，继续往下看。
 # ProcessState::self()->startThreadPool()做了什么？
 frameworks/native/libs/binder/ProcessState.cpp:132

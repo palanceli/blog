@@ -8,6 +8,8 @@ toc: true
 comments: true
 ---
 这要从frameworks/native/cmds/servicemanager/service_manager.c:347的main函数说起，该文件编译后生成servicemanager。
+<!-- more -->
+
 ``` c++
 int main(int argc, char **argv)
 {

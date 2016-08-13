@@ -1,7 +1,9 @@
 ---
 title: android drivers
+date:   2016-05-12 10:28:49 +0800
 tags:
 toc: true
+description: 未完成
 ---
 # module_init和device_initcall宏
 kernel/goldfish/include/linux/init.h:267

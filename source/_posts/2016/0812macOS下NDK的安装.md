@@ -6,8 +6,10 @@ tags: Android开发环境
 toc: true
 comments: true
 ---
-本来是个很初级的操作步骤，可是在macOS 10.11.6下做的时候遇到点障碍，有必要记录，以免再踩坑。
-
+本来是个很初级的操作步骤，可是在macOS 10.11.6下安装NDK的时候遇到了
+`bad interpreter: Operation not permitted`
+的问题，有必要记录下解决过程，以免再踩坑。
+<!-- more -->
 # 下载
 从[NDK Downloads](https://developer.android.com/ndk/downloads/index.html)下载Package文件，也可以去国内的网站[AndroidDevTools](http://www.androiddevtools.cn/)下载。
 

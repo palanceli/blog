@@ -7,7 +7,9 @@ tags:   Binder学习笔记
 toc: true
 comments: true
 ---
-在checkService的调查中我们知道客户端向ServiceManager请求服务名，ServiceManager根据服务名遍历本地链表，找到匹配的handle返回给客户端。这个handle显然是由服务端注册的，这个handle究竟是什么？要先搞清楚这个问题，必须研究服务端和ServiceManager是如何共同完成一次addService操作的。我们从服务端代码出发。TestService.cpp:30
+在checkService的调查中我们知道客户端向ServiceManager请求服务名，ServiceManager根据服务名遍历本地链表，找到匹配的handle返回给客户端。这个handle显然是由服务端注册的，这个handle究竟是什么？要先搞清楚这个问题，必须研究服务端和ServiceManager是如何共同完成一次addService操作的。我们从服务端代码出发。
+<!-- more -->
+TestService.cpp:30
 ``` c++
 int main() {
     sp < ProcessState > proc(ProcessState::self());

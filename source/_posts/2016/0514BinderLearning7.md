@@ -17,6 +17,7 @@ int main(int argc, char **argv)
     ……
 }
 ```
+<!-- more -->
 frameworks/native/cmds/servicemanager/binder.c:372
 ``` c++
 void binder_loop(struct binder_state *bs, binder_handler func)

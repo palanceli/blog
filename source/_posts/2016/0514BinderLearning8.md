@@ -16,6 +16,7 @@ int main() {
     return 0;
 }
 ```
+<!-- more -->
 # sm->getService(...)返回了什么？
 其中第2行`defaultServiceManager()`返回的是`new BpServiceManager(new BpBinder(0));`这在[《 defaultServiceManager()返回了什么？》](https://palanceli.github.io/2016/05/07/2016/0514BinderLearning2/)中有分析。
 接下来的`sm->getService(...)`在[《ServiceManager如何响应checkService请求》](http://palanceli.github.io/2016/05/09/2016/0514BinderLearning4/)的结尾给出了ServiceManager响应checkService返回的数据，我们再进入BpServiceManager::getService(...)

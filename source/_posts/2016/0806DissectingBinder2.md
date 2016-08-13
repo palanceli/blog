@@ -10,6 +10,7 @@ comments: true
 # 注册服务
 注册服务是Server端首先要做的事情，Server段代码在[TestServer.cpp](https://github.com/palanceli/androidex/blob/master/external-testservice/TestServer.cpp)。
 无论是服务端还是客户端，在使用Binder机制之前都必须找到取款机，即ServiceManager：
+<!-- more -->
 ``` c
 sp < ProcessState > proc(ProcessState::self());
 sp < IServiceManager > sm = defaultServiceManager(); 

@@ -9,7 +9,7 @@ comments: true
 ---
 # 查找服务
 查找服务的起点在Client端 [TestClient.cpp](https://github.com/palanceli/androidex/blob/master/external-testservice/TestClient.cpp)。客户把银行卡插到取款机，取款机负责根据前面的注册找到匹配的服务。
-
+<!-- more -->
 ## 应用层如何组织checkService数据
 客户端的调用很简单：根据服务名称获得服务，接下来就可以调用服务接口执行服务了：
 `sp < IBinder > binder = sm->getService(String16("service.testservice"));`

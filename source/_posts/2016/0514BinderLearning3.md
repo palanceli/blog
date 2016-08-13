@@ -17,6 +17,8 @@ int main() {
     return 0;
 }
 ```
+<!-- more -->
+
 前文已经分析过sm是new BpServiceManager(new BpBinder(0))，于是sm->getService(…)的行为应该找BpServiceManager::getService(…)，frameworks/native/libs/binder/IServiceManager.cpp:134
 ``` c++
     virtual sp<IBinder> getService(const String16& name) const

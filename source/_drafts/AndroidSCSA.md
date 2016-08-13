@@ -1,7 +1,9 @@
 ---
 title: Android系统源代码情景分析 - Binder驱动程序
+date:   2016-04-12 10:28:49 +0800
 tags:
 toc: true
+description: 未完成
 ---
 # Binder设备文件的内存映射过程
 kernel/goldfish/drivers/staging/android/binder.c:2883

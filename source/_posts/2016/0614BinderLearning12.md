@@ -9,6 +9,7 @@ layout: post
 ---
 # binder_open(...)都干了什么？
 在回答binder_transaction(...)之前，还有一些基础设施要去探究，比如binder_open(...)，binder_mmap(...)，这些调用是在打开设备文件/dev/binder之后必须完成的程式化操作，而在它们内部需要做一些数据结构的准备。首先来看binder_open(...)
+<!-- more -->
 kernel/drivers/staging/android/binder.c:2979
 ``` c++
 static int binder_open(struct inode *nodp, struct file *filp)

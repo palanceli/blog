@@ -12,6 +12,7 @@ comments: true
 sp < IServiceManager > sm = defaultServiceManager();
 ```
 defaultServiceManager()都干了什么，它返回的是什么实例呢？
+<!-- more -->
 该函数定义在frameworks/native/libs/binder/IServiceManager.cpp:33
 ``` c++
 sp<IServiceManager> defaultServiceManager()

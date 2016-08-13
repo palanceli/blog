@@ -9,6 +9,7 @@ comments: true
 ---
 # 取款机模型
 Binder机制就像一个取款机，Client、Server、ServiceManager和驱动层分别就是客户、银行、取款机和每个银行的程序。
+<!-- more -->
 * 要想让取款机可以受理某个银行的卡，银行必须先向取款机注册，把自己的程序注册进去。这就是Server端要先调用addService完成注册，ServiceManager会保存服务名称以及对应的服务“实体”。
 * 之后客户就可以把银行卡塞入取款机获取服务，取款机会根据银行卡找到对应的银行服务程序。Client调用checkService，ServiceManager查找之前保存的注册信息，找到和名称匹配的服务“实体”，并返回给客户端。
 * 在客户看似是对自己的银行卡操作，而实际上操作的是银行的数据库。这张卡就是BPBinder，是代理；银行账户是BBinder，是服务本尊。在Client端和ServiceManager端拿到的服务“实体”实际上只是在自己进程空间内的UID，通过该UID可以提领到位于Server进程空间的Service对象。这也是前面给“实体”加引号的原因，我们称之为代理。通过BPBinder调用Binder接口看似是个本地函数调用，实际上是在Server端执行了一段代码。

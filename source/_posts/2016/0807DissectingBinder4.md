@@ -9,7 +9,7 @@ comments: true
 ---
 # 调用服务接口
 前一篇博文讲的《查找服务》其实就是“调用服务接口”，因为服务的注册与查找正是ServiceManager提供的服务接口，尤其是查找服务，既有请求又有响应。在native层和驱动层已经走了非常完备的“调用服务接口”的流程。在这一篇中我们查漏补缺，仅探索前面没有涉及到的点。
-
+<!-- more -->
 ## 获取ServiceManager VS 获取普通Binder的代理
 Client端获取ServiceManager和获取普通Binder代理其实是一模一样的，这里的Client端是相对而言，通常所说的Client/Server是指Service的请求方和提供方，二者在请求ServiceManager服务的时候，又都是该服务的Client。
 在讲注册服务[初始化sm](https://palanceli.github.io/2016/08/06/2016/0806DissectingBinder2/#初始化sm)一节中，有如下代码：

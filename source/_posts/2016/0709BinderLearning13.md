@@ -8,6 +8,7 @@ comments: true
 layout: post
 ---
 # 驱动层为什么要篡改binder_buffer内的数据？
+<!-- more -->
 先给出这张图：
 ![binder_transaction(...)完成后的数据结构](https://palanceli.github.io/2016/06/14/2016/0614BinderLearning12/img14.png)
 上图中标红的部分需要重点考虑，为什么驱动层要篡改这两个字段呢？我们结合前面的文章或许可以找出端倪。在[Binder学习笔记（七）—— ServiceManager如何响应addService请求 ？](https://palanceli.github.io/2016/05/12/2016/0514BinderLearning7/)一文中其实留下了挺多疑问。
