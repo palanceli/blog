@@ -1,5 +1,5 @@
 ---
-title: 驱动->HAL->frameworks->app
+title: Hello Android —— 驱动->HAL->frameworks->app
 date:   2016-08-15 00:51:21 +0800
 categories: 随笔笔记
 tags: Android开发环境
@@ -143,5 +143,21 @@ Read the value again:13.
 ```
 说明dev文件系统访问接口正常！
 
+# 硬件抽象层
+硬件抽象层运行在用户控件，是Android系统的独有设计。Linux对硬件的支持是在驱动层，完全运行在内核空间。Android的这种设计是为了保护厂商的商业利益，它通过引入硬件抽象层允许厂商在该层封装对硬件的操作细节，该层遵循Apache License协议，因此厂商可以将业务逻辑实现闭源。
 
+该层的代码详见[hello-android-hal](https://github.com/palanceli/androidex/tree/master/hello-android/hello-android-hal)。编译第一步还是先执行setup.sh，完成文件软链的创建：
+``` bash
+$ cd androidex
+$ sh setup.sh
+```
+然后编译：
+``` bash
+$ cd android-6.0.1_r11
+$ source build/envsetup.sh
+$ lunch aosp_arm-eng
+$ mmm hardware/libhardware/modules/hello-android
+$ make snod
+```
+最后一步`make snod`是打包Android系统镜像文件system.img。
 
