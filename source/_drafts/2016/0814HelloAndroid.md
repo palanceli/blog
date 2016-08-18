@@ -146,7 +146,12 @@ Read the value again:13.
 # 硬件抽象层
 硬件抽象层运行在用户控件，是Android系统的独有设计。Linux对硬件的支持是在驱动层，完全运行在内核空间。Android的这种设计是为了保护厂商的商业利益，它通过引入硬件抽象层允许厂商在该层封装对硬件的操作细节，该层遵循Apache License协议，因此厂商可以将业务逻辑实现闭源。
 
-该层的代码详见[hello-android-hal](https://github.com/palanceli/androidex/tree/master/hello-android/hello-android-hal)。编译第一步还是先执行setup.sh，完成文件软链的创建：
+HAL层的框架不难理解，不过能讲得简洁、清晰的也不多，[mr_raptor](http://blog.csdn.net/mr_raptor)的[HAL Stub框架分析](http://blog.csdn.net/mr_raptor/article/details/8074549)就是一篇，应该先好好读透了再往下进行。
+
+我简单说一下我的理解：HAL层的so文件都有一个固定入口符号即HAL_MODULE_INFO_SYM，该符号指向的结构体hw_moduel_t用来描述一个硬件对象。通过该结构体的methods可以找到打开该硬件对象的open方法，调用open方法返回针对该硬件对象的操作接口hw_device_t，它们之间的结构关系如下图：
+![HAL层so文件的结构](0814HelloAndroid/img01.png)
+
+这几个结构体以及函数正是我们在HAL层要实现的内容。该层的代码详见[hello-android-hal](https://github.com/palanceli/androidex/tree/master/hello-android/hello-android-hal)。编译第一步还是先执行setup.sh，完成文件软链的创建：
 ``` bash
 $ cd androidex
 $ sh setup.sh
@@ -160,4 +165,19 @@ $ mmm hardware/libhardware/modules/hello-android
 $ make snod
 ```
 最后一步`make snod`是打包Android系统镜像文件system.img。
+
+修改设备文件/dev/ha的访问权限，编辑system/core/rootdir/ueventd.rc，加入如下行使得所有用户均可访问/dev/ha：
+```
+/dev/ha  0666  root  root
+```
+
+修改了ueventd.rc文件需要重新编译Android源码：
+``` bash
+$ make -j8
+```
+由于绝大部分源代码并没有修改过，所以这次编译很快就完成了。
+
+# 硬件访问服务
+应用层通过该服务访问硬件抽象层，该层代码放在[androidex/hello-android/hello-android-service/](https://github.com/palanceli/androidex/tree/master/hello-android/hello-android-service)。
+还是老规矩，首先执行setup.sh。
 
