@@ -182,11 +182,37 @@ $ make -j8
 还是老规矩，首先执行setup.sh，它执行几个操作：
 1. 为hello-android-service/IHAService.aidl生成软链frameworks/base/core/java/android/os/IHAService.aidl。这使得编译出的frameworks.jar包含IHAService接口。
 2. 为hello-android-service/HAService.java生成软链frameworks/base/services/java/core/android/server/HAService.java。这使得编译出的services.jar中包含HAService类，该服务调用native接口实现具体功能。
-3. 
+3. 为hello-android-service/com_android_server_HAService.cpp生成软链frameworks/base/services/jni/com_android_server_HHService.cpp，这使得编译出的libandroid_servers.so文件包含init_native、setValue_native和getValue_native方法。
 
-执行
+执行命令：
 ``` bash
 $ mmm frameworks/base/
 $ mmm frameworks/base/services/java
 ```
-使得编译出的frameworks.jar包含IHAService接口
+编译frameworks.jar和services.jar。
+
+修改frameworks/base/services/core/jni/onload.cpp，添加函数register_android_server_HAService的声明和和调用：
+``` c++
+... ...
+namespace android {
+... ...
+int register_android_server_HAService(JNIEnv* env);
+};
+
+using namespace android;
+
+extern "C" jint JNI_OnLoad(JavaVM* vm, void* /* reserved */)
+{
+    ... ...
+    register_android_server_HAService(env);
+
+
+    return JNI_VERSION_1_4;
+}
+
+```
+执行命令：
+``` bash
+mmm frameworks/base/service/jni/
+```
+编译libandroid_servers.so文件。
