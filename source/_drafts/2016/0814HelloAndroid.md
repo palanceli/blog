@@ -179,5 +179,14 @@ $ make -j8
 
 # 硬件访问服务
 应用层通过该服务访问硬件抽象层，该层代码放在[androidex/hello-android/hello-android-service/](https://github.com/palanceli/androidex/tree/master/hello-android/hello-android-service)。
-还是老规矩，首先执行setup.sh。
+还是老规矩，首先执行setup.sh，它执行几个操作：
+1. 为hello-android-service/IHAService.aidl生成软链frameworks/base/core/java/android/os/IHAService.aidl。这使得编译出的frameworks.jar包含IHAService接口。
+2. 为hello-android-service/HAService.java生成软链frameworks/base/services/java/core/android/server/HAService.java。这使得编译出的services.jar中包含HAService类，该服务调用native接口实现具体功能。
+3. 
 
+执行
+``` bash
+$ mmm frameworks/base/
+$ mmm frameworks/base/services/java
+```
+使得编译出的frameworks.jar包含IHAService接口
