@@ -1,5 +1,5 @@
 ---
-title: Hello Android —— 驱动->HAL->frameworks->app
+title: Hello Android —— 自下而上的探索
 date:   2016-08-15 00:51:21 +0800
 categories: 随笔笔记
 tags: Android开发环境
@@ -216,3 +216,36 @@ extern "C" jint JNI_OnLoad(JavaVM* vm, void* /* reserved */)
 mmm frameworks/base/service/jni/
 ```
 编译libandroid_servers.so文件。
+
+# 应用层
+代码详见[androidex/hello-android/hello-android-app/](https://github.com/palanceli/androidex/tree/master/hello-android/hello-android-app)。
+setup.sh为文件夹hello-android-app创建软链packages/experimental/HelloAndroid，它的目录结构为：
+``` 
+HelloAndroid
+├──AndroidManifest.xml
+├──Android.mk
+├──src
+│  └──palance
+│     └──li
+│        └──ha
+│           └──HelloAndroid.java
+└──res
+   ├──layout
+   │  └──main.xml
+   ├──values
+   │  └──strings.xml
+   └──drawable
+      └──icon.png
+```
+接下来就可以编译引用层app，并打出系统镜像文件system.img：
+``` bash
+$ mmm packages/experimental/Ha/
+$ make snod
+```
+
+
+
+
+
+
+
