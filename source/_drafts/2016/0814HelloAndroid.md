@@ -8,7 +8,7 @@ comments: true
 ---
 跟着《Android系统源代码情景分析》第2章，我想把从`驱动层`到`硬件抽象层`到`frameworks层`再到`应用层`各层的工作完整地做一遍、调一遍。之前已经有了一些积累，我希望在Android最新的源码上，并且使用AndroidStudio能编译、调试得到每一层。按照我下一步计划，接下来将深入研究键盘消息处理机制，希望在开展这一步工作之前，能够对Android的格局有更进一步的理解，对AndroidStudio的使用能够更娴熟。
 
-首先我会按照《Android系统源代码情景分析》，在命令行下，自下而上把各层工作跑一遍。尔后再从上到下，逐步把各层工作切换到AndroidStudio上来。计划用两周时间搞定。代码就放在[androidex/hello-android](https://github.com/palanceli/androidex/tree/master/hello-android)下。
+首先我会按照《Android系统源代码情景分析》，在命令行下，自下而上把各层工作跑一遍。顺道把编译不过、错误的地方都修正了。尔后再从上到下，逐步把各层工作切换到AndroidStudio上来。计划用两周时间搞定。代码就放在[androidex/hello-android](https://github.com/palanceli/androidex/tree/master/hello-android)下。
 <!-- more -->
 androidex的文件结构如下：
 ```
@@ -64,7 +64,7 @@ $ sh setup.sh
 ```
 hello-android-driver/setup.sh创建软链：
 `kernel/goldfish/drivers/hello-android` -> 
-`androidex/hell-android/hello-android-driver/`。
+`androidex/hello-android/hello-android-driver/`。
 
 这么做的目的是让Android源码和我的代码分离开，我的代码全都集中在androidex下，可以完整地提交到GitHub上去。随Android源码编译的需要，androidex散落到源码树中，建个软链就确保Android源码树下总能访问到最新androidex了。
 
@@ -158,8 +158,12 @@ $ adb shell "cd /sys/class/ha/ha && cat value"
 3
 ```
 ### 验证dev文件系统接口
-验证虚拟设备ha的dev文件系统访问接口略微麻烦，因为它读/写的内容是二进制的，需要编一个小程序来验证，源码详见[ha-driver-checker](https://github.com/palanceli/androidex/tree/master/hello-android/ha-driver-checker)。
-该程序的编译同样先通过`androidex/setup.sh`完成初始化，然后单独编译ha-driver-checker：
+验证虚拟设备ha的dev文件系统访问接口略麻烦，因为它读/写的内容是二进制的，需要编一个小程序来验证，源码在[androidex/hello-android/ha-driver-checker](https://github.com/palanceli/androidex/tree/master/hello-android/ha-driver-checker)。
+执行`androidex/setup.sh`完成初始化，它创建软链：
+`external/ha-driver-checker` ->
+`androidex/hello-android/ha-driver-checker`
+
+然后单独编译ha-driver-checker：
 ``` bash
 $ mmm external/ha-driver-checker
 ... ...
@@ -172,8 +176,11 @@ Install: out/debug/target/product/generic/system/bin/ha
 ```
 输出信息已经清楚地写明了生成文件存放的路径，把它拷贝到模拟器上然后执行：
 ``` bash
+$ emulator -kernel kernel/goldfish/arch/arm/boot/zImage &
+$ adb push drivers/hello-android/hello-android.ko /data
 $ adb push out/debug/target/product/generic/obj/EXECUTABLES/ha_intermediates/LINKED/ha /data
 1843 KB/s (82652 bytes in 0.043s)
+$ adb shell insmod /data/hello-android.ko
 $ adb shell /data/ha
 Read original value: 3.
 Write value 13 to /dev/ha.
@@ -189,12 +196,15 @@ HAL层的框架不难理解，不过能讲得简洁、清晰的也不多，[mr_r
 我简单说一下我的理解：HAL层的so文件都有一个固定入口符号即HAL_MODULE_INFO_SYM，该符号指向的结构体hw_moduel_t用来描述一个硬件对象。通过该结构体的methods可以找到打开该硬件对象的open方法，调用open方法返回针对该硬件对象的操作接口hw_device_t，它们之间的结构关系如下图：
 ![HAL层so文件的结构](0814HelloAndroid/img01.png)
 
-这几个结构体以及函数正是我们在HAL层要实现的内容。该层的代码详见[hello-android-hal](https://github.com/palanceli/androidex/tree/master/hello-android/hello-android-hal)。编译第一步还是先执行setup.sh，完成文件软链的创建：
-``` bash
-$ cd androidex
-$ sh setup.sh
-```
-然后编译：
+这几个结构体以及函数正是我们在HAL层要实现的内容。该层的代码详见[androidex/hello-android/hello-android-hal](https://github.com/palanceli/androidex/tree/master/hello-android/hello-android-hal)。
+第一步还是先执行setup.sh创建软链：
+`hardware/libhardware/include/hardware/hello-android.h` ->
+`androidex/hello-android/hello-android-hal/hello-android.h`
+
+`hardware/libhardware/modules/hello-android` ->
+`androidex/hello-android/hello-android-hal`
+
+然后执行编译：
 ``` bash
 $ cd android-6.0.1_r11
 $ source build/envsetup.sh
@@ -202,14 +212,13 @@ $ lunch aosp_arm-eng
 $ mmm hardware/libhardware/modules/hello-android
 $ make snod
 ```
-最后一步`make snod`是打包Android系统镜像文件system.img。
+其中`make snod`是打包Android系统镜像文件system.img。
 
-修改设备文件/dev/ha的访问权限，编辑system/core/rootdir/ueventd.rc，加入如下行使得所有用户均可访问/dev/ha：
+接下来，修改设备文件`/dev/ha`的访问权限，编辑`system/core/rootdir/ueventd.rc`，加入：
 ```
 /dev/ha  0666  root  root
 ```
-
-修改了ueventd.rc文件需要重新编译Android源码：
+使得所有用户均可访问`/dev/ha`。然后需要重新编译Android源码：
 ``` bash
 $ make -j8
 ```
@@ -217,17 +226,31 @@ $ make -j8
 
 # 硬件访问服务
 应用层通过该服务访问硬件抽象层，该层代码放在[androidex/hello-android/hello-android-service/](https://github.com/palanceli/androidex/tree/master/hello-android/hello-android-service)。
-还是老规矩，首先执行setup.sh，它执行几个操作：
-1. 为hello-android-service/IHAService.aidl生成软链frameworks/base/core/java/android/os/IHAService.aidl。这使得编译出的frameworks.jar包含IHAService接口。
-2. 为hello-android-service/HAService.java生成软链frameworks/base/services/java/core/android/server/HAService.java。这使得编译出的services.jar中包含HAService类，该服务调用native接口实现具体功能。
-3. 为hello-android-service/com_android_server_HAService.cpp生成软链frameworks/base/services/jni/com_android_server_HHService.cpp，这使得编译出的libandroid_servers.so文件包含init_native、setValue_native和getValue_native方法。
+setup.sh执行几个操作：
+1. 创建软链
+`frameworks/base/core/java/android/os/IHAService.aidl` ->
+`hello-android-service/IHAService.aidl`
+这使得编译出的frameworks.jar包含IHAService接口。
+2. 创建软链
+`frameworks/base/services/java/com/android/server/HAService.java` ->
+`hello-android-service/HAService.java`
+这使得编译出的services.jar中包含HAService类，该服务调用native接口实现具体功能。
+3. 创建软链
+frameworks/base/services/core/jni/com_android_server_HAService.cpp ->
+hello-android-service/com_android_server_HAService.cpp
+这使得编译出的libandroid_servers.so文件包含init_native、setValue_native和getValue_native方法。
 
-执行命令：
+修改`frameworks/base/Android.mk`：
+``` make
+LOCAL_SRC_FILES += \
+  ... ...
+  core/java/android/os/IHaService.aidl \
+
+```
+以便编译系统将其转换为Java文件，执行编译命令，生成frameworks.jar：
 ``` bash
 $ mmm frameworks/base/
-$ mmm frameworks/base/services/java
 ```
-编译frameworks.jar和services.jar。
 
 修改frameworks/base/services/core/jni/onload.cpp，添加函数register_android_server_HAService的声明和和调用：
 ``` c++
@@ -249,24 +272,39 @@ extern "C" jint JNI_OnLoad(JavaVM* vm, void* /* reserved */)
 }
 
 ```
-执行命令：
-``` bash
-mmm frameworks/base/service/jni/
+
+修改/frameworks/base/services/core/jni/Android.mk：
+``` base
+LOCAL_SRC_FILES += \
+  ... ...
+  $(LOCAL_REL_DIR)/com_android_server_HAService.cpp \
+  $(LOCAL_REL_DIR)/onload.cpp
 ```
-编译libandroid_servers.so文件。
+
+执行编译命令，生成libandroid_server.so：
+``` bash
+$ mmm frameworks/base/services
+```
+
+保险起见，还是整体编译一遍吧：
+``` bash
+$ cd android-6.0.1_r11
+$ make update-api -j4
+```
+注意，这里添加了参数`update-api`。这是因为当在Android源码中添加了自定义的包、类、方法或者修改了Android源码中标识为@hide的方法、类时，如果需要这些内容对Application可见，并且需要编译进SDK的Document的话，必须添加该参数更新文档。
 
 # 应用层
 代码详见[androidex/hello-android/hello-android-app/](https://github.com/palanceli/androidex/tree/master/hello-android/hello-android-app)。
-setup.sh为文件夹hello-android-app创建软链packages/experimental/HelloAndroid，它的目录结构为：
+setup.sh创建软链：
+`packages/experimental/HelloAndroid` ->
+`androidex/hello-android/hello-android-app`
+它的目录结构为：
 ``` 
 HelloAndroid
 ├──AndroidManifest.xml
 ├──Android.mk
-├──src
-│  └──palance
-│     └──li
-│        └──ha
-│           └──HelloAndroid.java
+├──src/palance/li/ha
+│                 └──HelloAndroid.java
 └──res
    ├──layout
    │  └──main.xml
@@ -277,10 +315,15 @@ HelloAndroid
 ```
 接下来就可以编译引用层app，并打出系统镜像文件system.img：
 ``` bash
-$ mmm packages/experimental/Ha/
+$ mmm packages/experimental/HelloAndroid/
 $ make snod
 ```
-
+运行emulator：
+``` bash
+$ emulator -kernel kernel/goldfish/arch/arm/boot/zImage &
+$ adb push drivers/hello-android/hello-android.ko /data
+$ adb shell insmod /data/hello-android.ko
+```
 
 
 
