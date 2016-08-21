@@ -10,7 +10,7 @@ comments: true
 <!-- more -->
 ![LaunchControl配置](0819AutoRunOnMac/img01.png)
 公司的机器经常重起后ip就变了，这会让我在家里vpn不到这台机器。我让这台机器每隔一段时间向server发http请求，server的ip是固定的，因此从server的http log上就能找到这台机器的ip了。
-再来看看它生成的plist文件：
+LaunchControl背后还是调用了launchctl，只是它能把错误信息更直观地展现出来。再来看看它生成的plist文件：
 ``` xml
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

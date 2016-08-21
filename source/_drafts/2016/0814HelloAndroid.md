@@ -32,53 +32,83 @@ androidex的文件结构如下：
       └──hello-android-app      // 应用层
          └──... ... 
 ```
+在编译之前要做的固定操作：
+``` bash
+$ cd android-6.0.1_r11
+$ source build/envsetup.sh
+$ lunch aosp_arm-eng
+$ cd kernel/goldfish
+$ export ARCH=arm
+$ export SUBARCH=arm
+$ export CROSS_COMPILE=arm-eabi-
+$ export PATH=/Volumes/android-6.0.1_r11g/android-6.0.1_r11/prebuilts/gcc/darwin-x86/arm/arm-eabi-4.8/bin:$PATH
+```
+
 # 驱动层
 驱动层的代码在[androidex/hello-android/hello-android-driver/](https://github.com/palanceli/androidex/tree/master/hello-android/hello-android-driver)。
-脚本androidex/hello-android/hello-android-driver/setup.sh创建
-软链`kernel/goldfish/drivers/hello-android` -> 
-`androidex/hell-android/hello-android-driver/`。
+结构为：
+``` 
+hello-android-driver       
+├──setup.sh         // 创建软链到android-6.0.1_r11，完成初始化工作
+├──hello-android.c  // 
+├──hello-android.h  // 
+├──Kconfig          // 内核配置文件，供make menuconfig使用，生成.config
+└──Makefile         
+```
+
 ## 执行`setup.sh`完成初始化
 
 ``` bash
 $ cd androidex
 $ sh setup.sh
 ```
-这么做的目的是让Android源码和我的代码分离开，我的代码全都集中在androidex下，可以完整地提交到GitHub上去。随Android源码编译的需要，androidex散落到源码树中，建个软链就确保源码树下总能访问到最新androidex了。
+hello-android-driver/setup.sh创建软链：
+`kernel/goldfish/drivers/hello-android` -> 
+`androidex/hell-android/hello-android-driver/`。
+
+这么做的目的是让Android源码和我的代码分离开，我的代码全都集中在androidex下，可以完整地提交到GitHub上去。随Android源码编译的需要，androidex散落到源码树中，建个软链就确保Android源码树下总能访问到最新androidex了。
 
 ## 修改内核Kconfig文件
-Android源码是不包含内核源码的，内核源码需要独立下载。我从[这里](https://android.googlesource.com/kernel/goldfish.git)下到的Android内核源码，并使用了3.4分支。在该版本的内核中，需要修改kernel/goldfish/drivers/Kconfig文件，并在后面追加：
+在文件
+`kernel/goldfish/drivers/Kconfig`
+尾部追加：
 ``` bash
 source drivers/hello-android/Kconfig
 ```
 它的原理和我前面做`androidex/setup.sh`是一样的，内核通过该`Kconfig`总文件知道都需要编译哪些子模块，具体子模块的编译规则，则存放在`hello-android/Kconfig`中。
 
+Android源码是不包含内核源码的，需要独立下载。我从[这里](https://android.googlesource.com/kernel/goldfish.git)下到的Android内核源码，并使用了3.4分支。
+
 ## 修改内核Makefile文件
-在`kernel/goldfish/drivers/Makefile`的尾部添加：
+在文件
+`kernel/goldfish/drivers/Makefile`
+尾部添加：
 ``` bash
 obj-$(CONFIG_HA) += hello-android/
 ```
 其中`obj-$()`括号内的内容，前半部分`CONFIG_`是固定的，后半部分是`drivers/hello-android/Kconfig`第一行中`config`的名字。
 
 ## 编译内核驱动模块
-先运行make menuconfig（注意：android6.0+goldfish3.4，默认运行make menuconfig有坑，解决办法详见[这里](http://www.cnblogs.com/palance/p/5187103.html)）
+先运行make menuconfig（注意：android6.0+goldfish3.4，默认运行make menuconfig有坑，解决办法详见[这里](http://www.cnblogs.com/palance/p/5187103.html)）：
 ``` bash
 $ cd kernel/goldfish
 $ make menuconfig
 ```
-勾选`Enable loadable module support`，并进入勾选子菜单`Module unloading`。
-进入`Device Drivers` - 找到`Hello Android Driver`按`M`，指定以模块的方式编译`Hello Android`
+完成如下设置：
+```
+[*] Enable load module support --->   允许内核支持动态加载模块
+  []  Forced module loading
+  [*] Module unloading
+  []  Forced module unloading
+  [*] Module versioning support
+  [*] Source checksum for all modules
+Device Drivers --->
+  <M> Hello Android Driver  指定以模块的方式编译
+```
 
 接下来就可以编译了：
 ``` bash
-$ cd /Volumes/android-6.0.1_r11g/android-6.0.1_r11
-$ source build/envsetup.sh
-$ lunch aosp_arm-eng
-... ...
 $ cd kernel/goldfish
-$ export ARCH=arm
-$ export SUBARCH=arm
-$ export CROSS_COMPILE=arm-eabi-
-$ export PATH=/Volumes/android-6.0.1_r11g/android-6.0.1_r11/prebuilts/gcc/darwin-x86/arm/arm-eabi-4.8/bin:$PATH
 $ make -j4
 ```
 新编译的内核镜像文件被保存在`kernel/goldfish/arch/arm/boot/zImage`。
