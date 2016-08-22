@@ -244,7 +244,7 @@ hello-android-service/com_android_server_HAService.cpp
 ``` make
 LOCAL_SRC_FILES += \
   ... ...
-  core/java/android/os/IHaService.aidl \
+  core/java/android/os/IHAService.aidl \
 
 ```
 以便编译系统将其转换为Java文件，执行编译命令，生成frameworks.jar：
