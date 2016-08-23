@@ -318,6 +318,29 @@ HelloAndroid
 $ mmm packages/experimental/HelloAndroid/
 $ make snod
 ```
+# 小结
+## 文件结构
+setup.sh在android-6.0.1_r11下插入的文件软链分别为：
+```
+android-6.0.1_r11
+├──kernel/goldfish/drivers
+│                  └──hello-android/ -> hello-android/hello-android-driver/
+├──external
+│  └──ha-driver-checker/ -> hello-android/ha-driver-checker/
+├──hardware/libhardware
+│           ├──include/hardware
+│           │          └──libhardware/include/hardware/hello-android.h -> hello-android/hello-android-hal/hello-android.h
+│           ├──modules/hello-android/ -> hello-android/hello-android-hal/
+│           └──...
+├──frameworks/base
+│             ├──core/java/android/os
+│             │                    └──IHAService.aidl -> hello-android/hello-android-service/IHAService.aidl
+│             ├──services
+│                ├──java/com/android/server/HAService.java -> hello-android/hello-android-service/HAService.java
+│                └──core/jni
+│                        └──com_android_server_HAService.cpp -> hello-android/hello-android-service/com_android_server_HAService.cpp
+└──...
+```
 运行emulator：
 ``` bash
 $ emulator -kernel kernel/goldfish/arch/arm/boot/zImage &
