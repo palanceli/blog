@@ -341,7 +341,53 @@ android-6.0.1_r11
 │                        └──com_android_server_HAService.cpp -> hello-android/hello-android-service/com_android_server_HAService.cpp
 └──...
 ```
-运行emulator：
+调试期间我把子目录的setup.sh脚本都改成了setup.py，实在不喜欢shell脚本。androidex/setup.sh没有变，执行方式和以前完全一样。
+
+## 执行步骤
+除了执行`sh setup.sh`完成软链接的创建以外，需要手动执行的操作依次为：
+1、在文件`kernel/goldfish/drivers/Kconfig`尾部追加
+``` bash  
+source drivers/hello-android/Kconfig
+```
+2、在文件`kernel/goldfish/drivers/Makefile`尾部追加
+```
+obj-$(CONFIG_HA) += hello-android/ 
+```
+3、修改内核编译选项：
+``` bash
+$ cd kernel/goldfish
+$ make menuconfig
+```
+完成配置如下：
+```
+[*] Enable load module support --->   允许内核支持动态加载模块
+  []  Forced module loading
+  [*] Module unloading
+  []  Forced module unloading
+  [*] Module versioning support
+  [*] Source checksum for all modules
+Device Drivers --->
+  <M> Hello Android Driver  指定以模块的方式编译
+```
+4、编译内核：
+``` bash
+$ cd kernel/goldfish
+$ make -j4
+```
+5、修改文件`system/core/rootdir/ueventd.rc`，尾部追加
+```
+/dev/ha  0666  root  root
+```
+6、修改文件`/frameworks/base/services/core/jni/Android.mk`追加
+```
+LOCAL_SRC_FILES += \
+  ... ...
+  $(LOCAL_REL_DIR)/com_android_server_HAService.cpp \
+  $(LOCAL_REL_DIR)/onload.cpp 
+```
+
+运行emulator时，可以加上参数`-show-kernel -debug all`来看log输出：
+`$ emulator -show-kernel -debug all &`
 ``` bash
 $ emulator -kernel kernel/goldfish/arch/arm/boot/zImage &
 $ adb push drivers/hello-android/hello-android.ko /data
