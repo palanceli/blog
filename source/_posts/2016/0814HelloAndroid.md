@@ -44,6 +44,11 @@ $ export CROSS_COMPILE=arm-eabi-
 $ export PATH=/Volumes/android-6.0.1_r11g/android-6.0.1_r11/prebuilts/gcc/darwin-x86/arm/arm-eabi-4.8/bin:$PATH
 ```
 
+编译完成，运行emulator时，可以加上参数`-show-kernel -debug all`以开启log输出，加上`-kernel`参数以指定内核镜像：
+``` bash
+$ emulator -kernel kernel/goldfish/arch/arm/boot/zImage -show-kernel -debug all &
+```
+
 # 驱动层
 驱动层的代码在[androidex/hello-android/hello-android-driver/](https://github.com/palanceli/androidex/tree/master/hello-android/hello-android-driver)。
 结构为：
@@ -385,14 +390,27 @@ LOCAL_SRC_FILES += \
   $(LOCAL_REL_DIR)/com_android_server_HAService.cpp \
   $(LOCAL_REL_DIR)/onload.cpp 
 ```
+<font color='red'>不过做到这里卡壳了，运行emulator总是停在启动界面再也进不去了。搞了好几天，我找到根本原因是在注册JNI接口：
+</font>
+``` c++
+// JAVA本地接口方法表
+static const JNINativeMethod method_table[] = {
+   {"init_native",  "()I",    (void*)ha_init},
+   {"setValue_native", "(II)V",   (void*)ha_setValue},
+   {"getValue_native", "(I)I",  (void*)ha_getValue},
+};
 
-运行emulator时，可以加上参数`-show-kernel -debug all`来看log输出：
-`$ emulator -show-kernel -debug all &`
-``` bash
-$ emulator -kernel kernel/goldfish/arch/arm/boot/zImage &
-$ adb push drivers/hello-android/hello-android.ko /data
-$ adb shell insmod /data/hello-android.ko
+// 注册Java本地接口方法
+int register_android_server_HAService(JNIEnv *env)
+{
+    return jniRegisterNativeMethods(env, "com/android/server/HAService",
+            method_table, NELEM(method_table));
+}
 ```
+<font color='red'>我把第11行注掉就能跑过，可是我把第3~5行注掉，也就是改成接口列表为空，emulator还是会停在启动界面。这让我很诧异：因为接口列表为空也就意味着没有跑我的任何代码，为什么只是多注册一套系统服务接口就出事呢？
+</font>
+花了好几个晚上也没搞定，只好暂时先停一停了。原计划两周技术战斗，只能delay，而且先跳过。接下来校园招聘的序幕拉开了，得花一些功夫放在笔试、面试题上。原计划本文还有半篇是自上而下地研究，因为本文卡壳，先暂停。弄完校招，开始研究键盘消息处理机制。
+
 
 
 
