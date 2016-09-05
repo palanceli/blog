@@ -49,9 +49,11 @@ public final class SystemServer {
         }
 
 ```
-这跟《源码分析》有很些差异，在Android2.3中InputManager是在WindowManagerService中被创建和启动的。
+这跟《源码分析》有些差异，在Android2.3中InputManager是在WindowManagerService中被创建和启动的。
 ## 创建
 接下来看InputManagerService在创建过程中都做了什么：
+
+<a name="InputManagerService__InputManagerService"></a>
 ``` java
 // frameworks/base/services/core/java/com/android/server/input/InputManagerService.java
 
@@ -66,7 +68,9 @@ public class InputManagerService extends IInputManager.Stub
     }
     ... ...
 }
-
+```
+InputManagerService::mPtr是函数nativeInit(...)的返回值，继续看该函数返回的是一个NativeInputManager对象：
+``` java
 // frameworks/base/services/core/jni/com_android_server_input_InputManagerService.cpp
 // :1035
 static jlong nativeInit(JNIEnv* env, jclass /* clazz */,
@@ -77,7 +81,9 @@ static jlong nativeInit(JNIEnv* env, jclass /* clazz */,
     im->incStrong(0);
     return reinterpret_cast<jlong>(im);
 }
-
+```
+<a name="NativeInputManager__NativeInputManager"></a>
+``` java
 // :288
 NativeInputManager::NativeInputManager(jobject contextObj,
         jobject serviceObj, const sp<Looper>& looper) :
@@ -103,6 +109,87 @@ void InputManager::initialize() {
     mReaderThread = new InputReaderThread(mReader);
     mDispatcherThread = new InputDispatcherThread(mDispatcher);
 }
+
+// frameworks/native/services/inputflinger/InputDispatcher.cpp:202
+InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy) :
+    mPolicy(policy),
+    mPendingEvent(NULL), mLastDropReason(DROP_REASON_NOT_DROPPED),
+    mAppSwitchSawKeyDown(false), mAppSwitchDueTime(LONG_LONG_MAX),
+    mNextUnblockedEvent(NULL),
+    mDispatchEnabled(false), mDispatchFrozen(false), mInputFilterEnabled(false),
+    mInputTargetWaitCause(INPUT_TARGET_WAIT_CAUSE_NONE) {
+    mLooper = new Looper(false);
+    ... ...
+}
+
+// frameworks/native/services/inputflinger/InputReader.cpp:249
+InputReader::InputReader(const sp<EventHubInterface>& eventHub,
+        const sp<InputReaderPolicyInterface>& policy,
+        const sp<InputListenerInterface>& listener) :
+        mContext(this), mEventHub(eventHub), mPolicy(policy),
+        mGlobalMetaState(0), mGeneration(1),
+        mDisableVirtualKeysTimeout(LLONG_MIN), mNextTimeout(LLONG_MAX),
+        mConfigurationChangesToRefresh(0) {
+    mQueuedListener = new QueuedInputListener(listener);
+
+    { // acquire lock
+        AutoMutex _l(mLock);
+
+        refreshConfigurationLocked(0);
+        updateGlobalMetaStateLocked();
+    } // release lock
+}
 ```
+总结一下：InputManagerService的创建包含：
+* 构造NativeInputManager
+* 构造EventHub
+* 构造InputManager
+* 构造InputDispatcher
+* 构造InputReader
+* 构造InputReaderThread
+* 构造InputDispatcherThread
+* 构造Looper
+* 构造QueuedInputListener
+
+## 启动
+InputManagerService的启动是由[SystemServer::startOtherServices()](#InputManagerService的启动和创建)中的
+`inputManager.start()`
+引爆：
+``` java
+// frameworks/base/services/core/java/com/android/server/input/InputService.java
+
+public class InputManagerService extends IInputManager.Stub
+        implements Watchdog.Monitor {
+        ... ...
+    // :299
+    public void start() {
+        ... ...
+        nativeStart(mPtr);
+        ... ...
+    }
+    ... ...
+}
+
+// frameworks/base/services/core/jni/com_android_server_input_InputManagerService.cpp
+// :1049
+static void nativeStart(JNIEnv* env, jclass /* clazz */, jlong ptr) {
+    NativeInputManager* im = reinterpret_cast<NativeInputManager*>(ptr);
+
+    status_t result = im->getInputManager()->start();
+    ... ...
+}
+```
+参数im来自InputManagerService::mPtr，在[InputManagerService的构造函数](#InputManagerService__InputManagerService)中已有分析，它是一个NativeInputManager对象。
+它的getInputManager()返回成员变量mInputManager：
+``` c++
+class NativeInputManager : public virtual RefBase,
+    public virtual InputReaderPolicyInterface,
+    public virtual InputDispatcherPolicyInterface,
+    public virtual PointerControllerPolicyInterface {
+    ... ...
+    inline sp<InputManager> getInputManager() const { return mInputManager; }
+};
+```
+在[NativeInputManager的构造函数](#NativeInputManager__NativeInputManager)中，mInputManager是新创建的InputManager对象。
 
 <font color="red">待续...</font>
