@@ -32,3 +32,37 @@ $ adb install /Users/palance/Downloads/SogouInput_android_v8.4_sweb.apk
 
 # 使用AndroidStudio在emulator上调试Android源码
 上周只是蜻蜓点水地试了一下，貌似也可以了，详细的步骤我还要再梳理，稍后补上。这一块补足后，开发、调试环境这条道上的障碍就基本扫清了，以后就可以在上面更快地跑马咯~
+
+记录我在macOS下的操作步骤：
+## 修改AndroidStudio的内存配置
+应用程序 - Android Studio.app右键 - 显示包内容 - Contents/bin/studio.vmoptions，被修改的两项内容如下：
+``` bash
+-Xms512m
+-Xmx2048m
+```
+Xms是JVM启动的起始堆内存，Xmx是AndroidStudio能使用的最大heap内存。
+
+## 使用源码生成ipr文件
+在源码下执行
+``` bash
+$ source build/ensetup.sh
+$ make idegen && development/tools/idegen/idegen.sh
+```
+该命令会在源码根目录下生成AndroidStudio所需要的ipr文件，打开AndroidStudio - Open an existing Android Studio project - 选择刚刚生成的android.ipr
+
+接下来需要一段时间来读取源码，我等了25分钟。为了让以后每次打开项目的时候节省点时间，可以把一些文件夹设置为Excluded，这样以后再打开项目的时候，AndroidStudio就不再读取这些文件夹了。具体操作为：在项目上右键 - Open Module Settings - Project Settings - Modules，点击要排除的文件夹，点击Excluded。我选择排除了docs、out、prebuilts。
+
+## 配置JDK、SDK
+回到Module Settings - Platform Settings - SDKs。依照已有的JDK再添加一个，取名为1.8(No Libraries)，删除classpath下所有jar文件，以确保使用Android源码里的库文件。并将1.8(No Libraries)作为Android SDK使用的JDK，如下：
+![JDK设置](0908Emulator/img01.png)
+![SDK设置](0908Emulator/img02.png)
+在Project SDK中选择对应的Android API版本：
+![Project SDK设置](0908Emulator/img03.png)
+
+回到Project Settings - Modules - Dependencies，删除除
+`<Module source>`
+`Android API 23 Platform(java version "1.8.0_60"`
+以外的所有依赖，这样代码跳转时就会优先从这两个文件夹下查找，而不是去Android.jar。
+
+## 为Debug配置
+Project Settings - Modules - 选中中间试图中的android - 点击加号 - 选择Framework/Android
