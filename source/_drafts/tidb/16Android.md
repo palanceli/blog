@@ -7,6 +7,7 @@ toc: true
 comments: true
 ---
 # 阅读下面这段代码，说出它的目的，每个成员函数的作用，最终的输出结果以及设计思路
+<!-- more -->
 
 ``` java
 public class PinyinNet {
