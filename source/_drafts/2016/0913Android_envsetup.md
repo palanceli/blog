@@ -84,3 +84,199 @@ s ：取代，可以直接进行取代的工作哩！通常这个 s 的动作可
 是在function中跟了2个操作：
 1. `"[ \t]*function /p"`表示查找所有以function打头的行
 2. `"/^[ \t]*function /s/function \([a-z_]*\).*/\1/p"`则把这些行中的`function 函数名`替代为`函数名`
+
+# 一堆include
+``` bash
+# Execute the contents of any vendorsetup.sh files we can find.
+for f in `test -d device && find -L device -maxdepth 4 -name 'vendorsetup.sh' 2> /dev/null | sort` \
+         `test -d vendor && find -L vendor -maxdepth 4 -name 'vendorsetup.sh' 2> /dev/null | sort`
+do
+    echo "including $f"
+    . $f
+done
+unset f
+```
+## test命令
+其中test命令格式：
+`test condition`
+通常在if-then-else中，用[]代替，即[ condition ]，注意：方括号两边都要有空格。test命令可用于多种类型的比较。
+* 文件比较，condition格式如下：
+``` bash
+-d file 检查file是否存在并是一个目录 
+-e file 检查file是否存在 
+-f file 检查file是否存在并是一个文件 
+-r file 检查file是否存在并可读 
+-s file 检查file是否存在并非空 
+-w file 检查file是否存在并可写 
+-x file 检查file是否存在并可执行 
+-O file 检查file是否存在并属当前用户所有 
+-G file 检查file是否存在并且默认组与当前用户相同 
+file1 -nt file2 检查file1是否比file2新 
+file1 -ot file2 检查file1是否比file2旧 
+```
+* 字符串比较，condition格式如下：
+``` bash
+str1 = str2 检查str1是否和str2相同 
+str1 != str2 检查str1是否和str2不同 
+str1 < str2 检查str1是否比str2小 
+str1 > str2 检查str1是否比str2大 
+-n str1 检查str1的长度是否非0 
+-z str1 检查str1的长度是否为0 
+```
+
+所以，上面的for循环中，分两部分，第一部分：
+1. 判断文件夹device是否存在
+2. 进入device目录下最多4层，查找所有vendorsetup.sh文件
+
+第二部分和第一部分一样，只是把device换成vendor。因此这段代码就是查找目录device和vendor下所有的vendorsetup.sh文件，并执行。
+
+## vendorsetup.sh
+例如，device/huawei/angler/vendorsetup.sh的内容如下：
+``` bash
+add_lunch_combo aosp_angler-userdebug
+```
+### add_lunch_combo
+
+``` bash
+add_lunch_combo函数的定义如下：
+# build/envsetup.sh:450
+function add_lunch_combo()
+{
+    local new_combo=$1  # $1是要添加的菜单项
+    local c
+    for c in ${LUNCH_MENU_CHOICES[@]} ; do  # 如果要添加的菜单项已经存在，则返回
+        if [ "$new_combo" = "$c" ] ; then
+            return
+        fi
+    done
+    LUNCH_MENU_CHOICES=(${LUNCH_MENU_CHOICES[@]} $new_combo)    # 添加
+}
+
+# add the default one here
+add_lunch_combo aosp_arm-eng
+add_lunch_combo aosp_arm64-eng
+add_lunch_combo aosp_mips-eng
+add_lunch_combo aosp_mips64-eng
+add_lunch_combo aosp_x86-eng
+add_lunch_combo aosp_x86_64-eng
+
+```
+# lunch命令
+``` bash
+# build/envsetup.sh:489
+function lunch()
+{
+    local answer
+
+    if [ "$1" ] ; then  # 是否有参数
+        answer=$1
+    else
+        print_lunch_menu
+        echo -n "Which would you like? [aosp_arm-eng] "
+        read answer     # 如果没有则读入
+    fi
+
+    local selection=
+
+    if [ -z "$answer" ]     # answer长度为0
+    then
+        selection=aosp_arm-eng
+    elif (echo -n $answer | grep -q -e "^[0-9][0-9]*$") # answer为数字
+    then
+        if [ $answer -le ${#LUNCH_MENU_CHOICES[@]} ]
+        then
+            selection=${LUNCH_MENU_CHOICES[$(($answer-1))]} # 得到菜单项内容
+        fi
+    elif (echo -n $answer | grep -q -e "^[^\-][^\-]*-[^\-][^\-]*$") # 为字串
+    then
+        selection=$answer
+    fi
+
+    if [ -z "$selection" ]
+    then
+        echo
+        echo "Invalid lunch combo: $answer"
+        return 1
+    fi
+
+    export TARGET_BUILD_APPS=
+    # selection 应该符合<product>-<variant>的形式，product为设备型号，variant为编译类型
+    local product=$(echo -n $selection | sed -e "s/-.*$//")
+    check_product $product  # 检查设备型号的合法性
+    if [ $? -ne 0 ]
+    then
+        echo
+        echo "** Don't have a product spec for: '$product'"
+        echo "** Do you have the right repo manifest?"
+        product=
+    fi
+
+    local variant=$(echo -n $selection | sed -e "s/^[^\-]*-//")
+    check_variant $variant  # 检查编译类型的合法性
+    if [ $? -ne 0 ]
+    then
+        echo
+        echo "** Invalid variant: '$variant'"
+        echo "** Must be one of ${VARIANT_CHOICES[@]}"
+        variant=
+    fi
+
+    if [ -z "$product" -o -z "$variant" ]
+    then
+        echo
+        return 1
+    fi
+
+    export TARGET_PRODUCT=$product
+    export TARGET_BUILD_VARIANT=$variant
+    export TARGET_BUILD_TYPE=debug
+
+    echo
+
+    set_stuff_for_environment   # 配置环境
+    printconfig                 # 显示编译环境参数
+}
+```
+其中主要步骤已经在代码中注释出来，接下来继续分析子函数。
+## check_product函数
+``` bash
+# build/envsetup.sh:63
+function check_product()
+{
+    T=$(gettop)
+    if [ ! "$T" ]; then     # 找不到根目录就返回吧
+        echo "Couldn't locate the top of the tree.  Try setting TOP." >&2
+        return
+    fi
+        TARGET_PRODUCT=$1 \     # 把参数赋给TARGET_PRODUCT
+        TARGET_BUILD_VARIANT= \
+        TARGET_BUILD_TYPE= \
+        TARGET_BUILD_APPS= \
+        get_build_var TARGET_DEVICE > /dev/null
+    # hide successful answers, but allow the errors to show
+}
+
+function get_build_var()
+{
+    T=$(gettop)
+    if [ ! "$T" ]; then
+        echo "Couldn't locate the top of the tree.  Try setting TOP." >&2
+        return
+    fi
+    # CALLED_FROM_SETUP=true ：接下来执行的make命令是用来初始化Android编译环境的
+    # BUILD_SYSTEM=build/core ：Android编译系统的核心目录
+    # 执行make命令，当前目录为Android源码根目录，mk文件为build/core/config.mk
+    # 目标为dumpvar-TARGET_DEVICE
+    (\cd $T; CALLED_FROM_SETUP=true BUILD_SYSTEM=build/core \
+      command make --no-print-directory -f build/core/config.mk dumpvar-$1)
+}
+```
+继续深入build/core/config.mk
+### build/core/config.mk
+``` bash
+# :158
+include $(BUILD_SYSTEM)/envsetup.mk # build/core/envsetup.mk
+
+# :688
+include $(BUILD_SYSTEM)/dumpvar.mk  # build/core/dumpvar.mk
+```
