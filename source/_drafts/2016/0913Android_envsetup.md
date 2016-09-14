@@ -280,3 +280,23 @@ include $(BUILD_SYSTEM)/envsetup.mk # build/core/envsetup.mk
 # :688
 include $(BUILD_SYSTEM)/dumpvar.mk  # build/core/dumpvar.mk
 ```
+
+#### build/core/envsetup.mk
+``` bash
+# :135
+include $(BUILD_SYSTEM)/product_config.mk
+```
+
+##### build/core/product_config.mk
+``` bash
+# :182
+ifneq ($(strip $(TARGET_BUILD_APPS)),)
+# An unbundled app build needs only the core product makefiles.
+all_product_configs := $(call get-product-makefiles,\
+    $(SRC_TARGET_DIR)/product/AndroidProducts.mk)
+else
+# Read in all of the product definitions specified by the AndroidProducts.mk
+# files in the tree.
+all_product_configs := $(get-all-product-makefiles)
+endif
+```
