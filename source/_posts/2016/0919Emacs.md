@@ -48,8 +48,40 @@ C-c s e 寻找正则表达式
 C-c s f 寻找文件
 C-c s i 看看指定的文件被哪些文件include
 
-# ede
-在菜单Tools - Project Support(EDE)中我发现了EDE，它属于cedet，也是Emacs for mac osx默认带的。
+# gdb
+## 安装
+macOS下默认没有gdb，需要另行下载安装：
+``` bash
+$ brew tap homebrew/dupes
+$ brew install gdb
+```
+安装完成后，需要在~/.emacs中添加：
+``` lisp
+(setenv "PATH" "/usr/local/bin:$PATH" t)
+ (add-to-list 'exec-path "/usr/local/bin")
+```
+如果没有这两行，emacs是找不到gdb的。
+## 签名
+macOS下使用gdb必须签名，否则不能调试。具体步骤是：
+* 打开钥匙串访问，点击菜单钥匙串访问 - 证书助理 - 创建证书
+* 名称：gdb-cert；身份类型：自签名根证书；证书类型：代码签名；勾选“让我覆盖这些默认值”
+* 指定尽量长的有效期
+* 一路回车直到“指定用于该证书的位置”，钥匙串：系统
+* 一路完成后，在该证书上右键 - 显示简介，代码签名：始终信任
+
+接下来打开终端，输入命令：
+```bash
+codesign -s gdb-cert /usr/local/bin/gdb
+```
+打开任务管理器，杀掉进程taskgated。接下来就可以正常使用gdb调试程序了。
+
+## 使用
+编译单个文件，不用写makefile脚本，直接执行g++就好了：
+`M-x compile RET`把紧接着出现的命令改成：`g++ main.cpp -g -o main.out`
+选择菜单Tools - Debugger，启动调试。
+命令：
+`M-x gdb-many-windows RET`
+打开多个窗口。
 
 # .emacs文件配置
 ``` lisp
@@ -158,6 +190,10 @@ C-c s i 看看指定的文件被哪些文件include
 ;; 加载ede
 (require 'cedet)
 (global-ede-mode 1)
+
+;; 添加gdb路径到PATH
+(setenv "PATH" "/usr/local/bin:$PATH" t)
+(add-to-list 'exec-path "/usr/local/bin")
 
 ```
 <font color='red'>未完待续...</font>
