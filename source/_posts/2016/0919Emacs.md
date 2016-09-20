@@ -15,7 +15,7 @@ comments: true
 
 我也认为学习这两样工具之前需要慎重考虑，有了十足的必要性再开动。因为学习成本真的不低，隔段时间不用又会忘掉，所以最忌讳学个三五成扔掉了，过一年半载的又觉得需要，再从头学。这种学法是最浪费精力，浪费时间的。也是我过去的学法:(
 
-学习周期长没关系，每次学一点也无所谓。有效地沉淀和记录下来，日常用起来，总能在可预期的时间里把它啃下来。本文不是什么全面的总结，只是把我自己需要的配置、操作、注意点记录下来，确保有效积累。
+学习周期长没关系，每次学一点也无所谓。有效地沉淀和记录下来，日常用起来，总能在可预期的时间里把它啃下来。本文不是什么全面的总结，只是把我自己需要的配置、操作、注意点记录下来，确保有效积累。前面小节中记录下的点滴如果涉及到配置的，都会在最后一节的`.emacs文件配置`中体现出来。
 
 # 安装Emacs
 在mac OS下安装Emacs非常简单，去[emacs for mac osx](https://emacsformacosx.com/)下载安装最新版本即可。这个版本默认就带了cedet、semantic、speedbar等工具，不用额外下载，只需要完成配置即可。
@@ -35,6 +35,21 @@ Emacs会列出当前使用的字体字号的文本描述：
 `name (opened by): -*-Courier New-normal-normal-normal-*-16-*-*-*-m-0-iso10646-1`
 在~/.emacs中加入：
 `(set-default-font"-*-Courier New-normal-normal-normal-*-16-*-*-*-m-0-iso10646-1")`
+
+# cscope
+cscope是用来帮助阅读源码的，Emacs for mac osx默认自带cscope的支持。在使用之前，cscope也需要对代码进行索引。在emacs中可以这样做：
+C-c s a 设定初始化的目录，一般是你代码的根目录
+C-s s I 对目录中的相关文件建立列表并进行索引
+C-c s s 寻找符号
+C-c s g 寻找全局的定义
+C-c s c 看看指定函数被哪些函数所调用
+C-c s C 看看指定函数调用了哪些函数
+C-c s e 寻找正则表达式
+C-c s f 寻找文件
+C-c s i 看看指定的文件被哪些文件include
+
+# ede
+在菜单Tools - Project Support(EDE)中我发现了EDE，它属于cedet，也是Emacs for mac osx默认带的。
 
 # .emacs文件配置
 ``` lisp
@@ -145,20 +160,5 @@ Emacs会列出当前使用的字体字号的文本描述：
 (global-ede-mode 1)
 
 ```
-# cscope
-cscope是用来帮助阅读源码的，Emacs for mac osx默认自带cscope的支持。在使用之前，cscope也需要对代码进行索引。在emacs中可以这样做：
-C-c s a 设定初始化的目录，一般是你代码的根目录
-C-s s I 对目录中的相关文件建立列表并进行索引
-C-c s s 寻找符号
-C-c s g 寻找全局的定义
-C-c s c 看看指定函数被哪些函数所调用
-C-c s C 看看指定函数调用了哪些函数
-C-c s e 寻找正则表达式
-C-c s f 寻找文件
-C-c s i 看看指定的文件被哪些文件include
-
-# ede
-在菜单Tools - Project Support(EDE)中我发现了EDE，它属于cedet，也是Emacs for mac osx默认带的。
-
 <font color='red'>未完待续...</font>
 
