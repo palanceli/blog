@@ -83,6 +83,18 @@ codesign -s gdb-cert /usr/local/bin/gdb
 `M-x gdb-many-windows RET`
 打开多个窗口。
 
+# 常用基本命令
+
+命令|说明
+---|----
+C-x C-f|打开文件
+C-x k|关闭缓冲区
+M-x scroll-down-line|向下滚动一行
+M-x scroll-up-line|向上滚动一行
+M-]|向后循环滚动buffer（自定义）
+M-[|向前循环滚动buffer（自定义）
+M-x shell|在buffer中开启命令行
+
 # .emacs文件配置
 ``` lisp
 ;; CC-mode配置
@@ -195,6 +207,9 @@ codesign -s gdb-cert /usr/local/bin/gdb
 (setenv "PATH" "/usr/local/bin:$PATH" t)
 (add-to-list 'exec-path "/usr/local/bin")
 
+;; 全局快捷键定义
+(global-set-key "\M-]"  'bs-cycle-next)     ;; 向后循环滚动buffer
+(global-set-key "\M-["  'bs-cycle-previous) ;; 向前循环滚动buffer
 ```
 <font color='red'>未完待续...</font>
 
