@@ -36,6 +36,24 @@ Emacs会列出当前使用的字体字号的文本描述：
 在~/.emacs中加入：
 `(set-default-font"-*-Courier New-normal-normal-normal-*-16-*-*-*-m-0-iso10646-1")`
 
+# 标题栏显示文件完整路径
+``` lisp
+;;Emacs title bar to reflect file name
+(defun frame-title-string ()
+"Return the file name of current buffer, using ~ if under home directory"
+(let 
+((fname (or 
+(buffer-file-name (current-buffer))
+(buffer-name))))
+;;let body
+(when (string-match (getenv "HOME") fname)
+(setq fname (replace-match "~" t t fname)) )
+fname))
+
+;;; Title = 'system-name File: foo.bar'
+(setq frame-title-format '(:eval (frame-title-string)))
+```
+
 # cscope
 cscope是用来帮助阅读源码的，Emacs for mac osx默认自带cscope的支持。在使用之前，cscope也需要对代码进行索引。在emacs中可以这样做：
 C-c s a 设定初始化的目录，一般是你代码的根目录

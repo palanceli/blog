@@ -131,3 +131,25 @@
 ;; 全局快捷键定义
 (global-set-key "\M-]"  'bs-cycle-next)
 (global-set-key "\M-["  'bs-cycle-previous)
+
+;; Emacs Markdown Mode
+(add-to-list 'load-path "~/.emacs.d/modes")  
+(autoload 'markdown-mode "markdown-mode.el"  
+"Major mode for editing Markdown files" t)  
+(setq auto-mode-alist  
+      (cons '(".md" . markdown-mode) auto-mode-alist))
+
+;;Emacs title bar to reflect file name
+(defun frame-title-string ()
+  "Return the file name of current buffer, using ~ if under home directory"
+  (let
+      ((fname (or
+               (buffer-file-name (current-buffer))
+               (buffer-name))))
+    ;;let body
+    (when (string-match (getenv "HOME") fname)
+      (setq fname (replace-match "~" t t fname)) )
+    fname))
+
+;;; Title = 'system-name File: foo.bar'
+(setq frame-title-format '(:eval (frame-title-string)))

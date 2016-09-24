@@ -10,7 +10,7 @@ comments: true
 <!-- more -->
 
 # 帮助函数hmm
-该文件以函数hmm()的定义开头，该函数提供了envsetup.sh的[Here Document](http://tldp.org/LDP/abs/html/here-docs.html)，执行如下命令即可看到输出结果：
+文件开头定义了函数hmm()，它提供envsetup.sh的[Here Document](http://tldp.org/LDP/abs/html/here-docs.html)，执行如下命令即可看到输出结果：
 ``` bash
 $ source build/envsetup.sh
 $ hmm
@@ -57,36 +57,17 @@ EOF
     echo $A
 }
 ```
-## sed
-此处使用sed把envsetup.sh中的函数名解析出来。sed的用法如下：
-```
-sed [-nefr] [action]
-选项与参数：
--n ：使用安静(silent)模式。在一般 sed 的用法中，所有来自 STDIN 的数据一般都会被列出到终端上。但如果加上 -n 参数后，则只有经过sed 特殊处理的那一行(或者动作)才会被列出来。
--e ：直接在命令列模式上进行 sed 的动作编辑；
--f ：直接将 sed 的动作写在一个文件内， -f filename 则可以运行 filename 内的 sed 动作；
--r ：sed 的动作支持的是延伸型正规表示法的语法。(默认是基础正规表示法语法)
--i ：直接修改读取的文件内容，而不是输出到终端。
-
-action说明： [n1[,n2]]function
-n1, n2 ：不见得会存在，一般代表『选择进行动作的行数』，举例来说，如果我的动作是需要在 10 到 20 行之间进行的，则『 10,20[动作行为] 』
-
-function说明：
-a ：新增， a 的后面可以接字串，而这些字串会在新的一行出现(目前的下一行)～
-c ：取代， c 的后面可以接字串，这些字串可以取代 n1,n2 之间的行！
-d ：删除， d 后面通常不接任何内容；
-i ：插入， i 的后面可以接字串，而这些字串会在新的一行出现(目前的上一行)；
-p ：列印，将某个选择的数据印出。通常 p 会与参数 sed -n 一起运行～
-s ：取代，可以直接进行取代的工作哩！通常这个 s 的动作可以搭配正规表示法！例如 1,20s/old/new/g 就是啦！
-```
-命令
-`sed -n "/^[ \t]*function /s/function \([a-z_]*\).*/\1/p"`
-是在function中跟了2个操作：
-1. `"[ \t]*function /p"`表示查找所有以function打头的行
-2. `"/^[ \t]*function /s/function \([a-z_]*\).*/\1/p"`则把这些行中的`function 函数名`替代为`函数名`
+此处使用sed是把envsetup.sh中的函数名解析出来。sed的用法参见[这里](#anchor-sed)。
 
 # 一堆include
+编译Android源码之前要做两个和环境设置相关的操作：
 ``` bash
+$ source build/envsetup.sh
+$ lunch aosp_arm-eng
+```
+前者主要执行位于envsetup.sh尾部的代码段，用来包含子目录中的sh文件。代码如下：
+``` bash
+# build/envsetup.sh:1500
 # Execute the contents of any vendorsetup.sh files we can find.
 for f in `test -d device && find -L device -maxdepth 4 -name 'vendorsetup.sh' 2> /dev/null | sort` \
          `test -d vendor && find -L vendor -maxdepth 4 -name 'vendorsetup.sh' 2> /dev/null | sort`
@@ -96,53 +77,28 @@ do
 done
 unset f
 ```
-## test命令
-其中test命令格式：
-`test condition`
-通常在if-then-else中，用[]代替，即[ condition ]，注意：方括号两边都要有空格。test命令可用于多种类型的比较。
-* 文件比较，condition格式如下：
-``` bash
--d file 检查file是否存在并是一个目录 
--e file 检查file是否存在 
--f file 检查file是否存在并是一个文件 
--r file 检查file是否存在并可读 
--s file 检查file是否存在并非空 
--w file 检查file是否存在并可写 
--x file 检查file是否存在并可执行 
--O file 检查file是否存在并属当前用户所有 
--G file 检查file是否存在并且默认组与当前用户相同 
-file1 -nt file2 检查file1是否比file2新 
-file1 -ot file2 检查file1是否比file2旧 
-```
-* 字符串比较，condition格式如下：
-``` bash
-str1 = str2 检查str1是否和str2相同 
-str1 != str2 检查str1是否和str2不同 
-str1 < str2 检查str1是否比str2小 
-str1 > str2 检查str1是否比str2大 
--n str1 检查str1的长度是否非0 
--z str1 检查str1的长度是否为0 
-```
-
-所以，上面的for循环中，分两部分，第一部分：
+test命令的用法可参见[这里](#anchor-test)。上面的for循环中，分两部分，第一部分：
 1. 判断文件夹device是否存在
 2. 进入device目录下最多4层，查找所有vendorsetup.sh文件
 
 第二部分和第一部分一样，只是把device换成vendor。因此这段代码就是查找目录device和vendor下所有的vendorsetup.sh文件，并执行。
 
+即：它执行了device和vendor下最多4层子目录中所有的vendorsetup.sh。
+
 ## vendorsetup.sh
-例如，device/huawei/angler/vendorsetup.sh的内容如下：
+接下来看着一堆vendorsetup.sh里面都干了什么。例如，device/huawei/angler/vendorsetup.sh的内容如下：
 ``` bash
+# device/huawei/angler/vendorsetup.sh:17
 add_lunch_combo aosp_angler-userdebug
 ```
 ### add_lunch_combo
 
-``` bash
 add_lunch_combo函数的定义如下：
+``` bash
 # build/envsetup.sh:450
 function add_lunch_combo()
 {
-    local new_combo=$1  # $1是要添加的菜单项
+    local new_combo=$1                      # $1是要添加的菜单项
     local c
     for c in ${LUNCH_MENU_CHOICES[@]} ; do  # 如果要添加的菜单项已经存在，则返回
         if [ "$new_combo" = "$c" ] ; then
@@ -159,13 +115,21 @@ add_lunch_combo aosp_mips-eng
 add_lunch_combo aosp_mips64-eng
 add_lunch_combo aosp_x86-eng
 add_lunch_combo aosp_x86_64-eng
-
 ```
+因此，这一对的include主要把编译选项字符串追加到数组LUNCH_MENU_CHOICES中。
+
+需要注意，在调试envsetup.sh文件的时候，常用的手段是在里面插入echo语句，查看输出结果。要记得每次修改envsetup.sh文件之后都要重新执行`source build/envsetup.sh`，再调用内部的函数，如lunch。这是因为这些函数是在执行`source build/envsetup.sh`时把相关的代码加载到了内存，因此能够在命令行下直接调用。如果修改了这些函数，必须重新加载才能生效。
+
 # lunch命令
+来看环境设置的第二个重要操作，它会把前面记录的LUNCH_MENU_CHOICES列出来，供用户选择。确定了某个编译选项后，make即可按照该选项包含的配置启动编译。
+
 ``` bash
 # build/envsetup.sh:489
 function lunch()
 {
+    # ---------- ---------- ---------- ----------
+    #  获取输入参数放入selection，如aosp_arm-eng
+    # ---------- ---------- ---------- ----------
     local answer
 
     if [ "$1" ] ; then  # 是否有参数
@@ -200,9 +164,11 @@ function lunch()
     fi
 
     export TARGET_BUILD_APPS=
-    # selection 应该符合<product>-<variant>的形式，product为设备型号，variant为编译类型
+    # selection 应该符合<product>-<variant>的形式，
+    # product为设备型号，如aosp_arm
+    # variant为编译类型，如eng
     local product=$(echo -n $selection | sed -e "s/-.*$//")
-    check_product $product  # 检查设备型号的合法性
+    check_product $product  # 检查设备型号的合法性，后面会有介绍
     if [ $? -ne 0 ]
     then
         echo
@@ -212,7 +178,7 @@ function lunch()
     fi
 
     local variant=$(echo -n $selection | sed -e "s/^[^\-]*-//")
-    check_variant $variant  # 检查编译类型的合法性
+    check_variant $variant  # 检查编译类型的合法性，后面会有介绍
     if [ $? -ne 0 ]
     then
         echo
@@ -244,11 +210,11 @@ function lunch()
 function check_product()
 {
     T=$(gettop)
-    if [ ! "$T" ]; then     # 找不到根目录就返回吧
+    if [ ! "$T" ]; then     # 找不到根目录就返回
         echo "Couldn't locate the top of the tree.  Try setting TOP." >&2
         return
     fi
-        TARGET_PRODUCT=$1 \     # 把参数赋给TARGET_PRODUCT
+        TARGET_PRODUCT=$1 \     # 把参数赋给TARGET_PRODUCT，如aosp_arm
         TARGET_BUILD_VARIANT= \
         TARGET_BUILD_TYPE= \
         TARGET_BUILD_APPS= \
@@ -256,17 +222,18 @@ function check_product()
     # hide successful answers, but allow the errors to show
 }
 
+# build/envsetup.sh:51
 function get_build_var()  # 检查由环境变量TARGET_PRODUCT指定的产品名称是否合法
 {
     T=$(gettop)
-    if [ ! "$T" ]; then
+    if [ ! "$T" ]; then     # 找不到根目录就返回
         echo "Couldn't locate the top of the tree.  Try setting TOP." >&2
         return
     fi
-    # CALLED_FROM_SETUP=true ：接下来执行的make命令是用来初始化Android编译环境的
-    # BUILD_SYSTEM=build/core ：Android编译系统的核心目录
-    # 执行make命令，当前目录为Android源码根目录，mk文件为build/core/config.mk
-    # 目标为dumpvar-TARGET_DEVICE
+    # CALLED_FROM_SETUP=true    :接下来执行的make是用来初始化Android编译环境的
+    # BUILD_SYSTEM=build/core   :Android编译系统的核心目录
+    # 执行make命令:
+    # make --no-print-directory -f build/core/config.mk dumpvar-TARGET_DEVICE
     (\cd $T; CALLED_FROM_SETUP=true BUILD_SYSTEM=build/core \
       command make --no-print-directory -f build/core/config.mk dumpvar-$1)
 }
@@ -288,25 +255,26 @@ include $(BUILD_SYSTEM)/product_config.mk
 ```
 
 ##### build/core/product_config.mk
-相关的参考知识有：
-[Makefile/foreach](#anchor-foreach)
-
+Makefile相关知识请参见[这里](#anchor-make)。
 ``` bash
 # :182
-ifneq ($(strip $(TARGET_BUILD_APPS)),)  # 说明此次编译不是针对整个系统，只需加载核心产品相关的Makefile文件
+# TARGET_BUILD_APPS非空说明此次编译不是针对整个系统，只需加载核心产品相关的Makefile文件
+ifneq ($(strip $(TARGET_BUILD_APPS)),)  
 # An unbundled app build needs only the core product makefiles.
 # 核心产品Makefile文件在$(SRC_TARGET_DIR)/product/AndroidProducts.mk
 # 即build/target/product/AndroidProducts.mk中指定，
 # 通过函数get-product-makefiles获得。
 all_product_configs := $(call get-product-makefiles,\
     $(SRC_TARGET_DIR)/product/AndroidProducts.mk)
-else                                    # 将所有与产品相关的Makefile文件加载进来
+else    # 加载所有与产品相关的Makefile文件，使用lunch aosp_arm-eng，会走该分支
 # Read in all of the product definitions specified by the AndroidProducts.mk
 # files in the tree.
-# 所有与产品相关的Makefile文件可以通过函数get-all-product-makefiles获得。
+# 所有与产品相关的Makefile文件，通过函数get-all-product-makefiles获得。
 all_product_configs := $(get-all-product-makefiles)
 endif   
-# 无论如何，最终获得的产品Makefie文件列表保存在变量all_product_configs中。
+# 无论如何，最终获得的产品Makefie文件列表保存在变量all_product_configs中
+# 在此处插入$(warning all_product_configs:$(get-all-product-makefiles))
+# 会输出一堆mk文件。这里使用了函数get-product-makefiles和get-all-product-makefiles将在下面介绍。
 
 # Find the product config makefile for the current product.
 # all_product_configs consists items like:
@@ -378,6 +346,7 @@ all_product_configs :=
 # Find the device that this product maps to.
 TARGET_DEVICE := $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DEVICE)
 ```
+
 ###### 函数get-all-product-makefiles
 ``` bash
 # build/core/product.mk : 59
@@ -386,7 +355,8 @@ $(call get-product-makefiles,$(_find-android-products-files))
 endef
 
 # : 30
-# Android源代码中定义的所有AndroidProducts.mk文件位于device、vendor或build/target/product目录或者相应的子目录（最深是6层）中
+# 返回Android源代码中的所有AndroidProducts.mk文件。他们定义在device或vendor最多6层的
+# 子目录下，以及build/target/product/AndroidProducts.mk
 define _find-android-products-files
 $(shell test -d device && find device -maxdepth 6 -name AndroidProducts.mk) \
   $(shell test -d vendor && find vendor -maxdepth 6 -name AndroidProducts.mk) \
@@ -406,10 +376,79 @@ $(sort \
   $(eval LOCAL_DIR :=) \
  ) # 将定义在这些AndroidProucts.mk文件中的变量PRODUCT_MAKEFILES的值提取出来，形成一个列表返回给调用者
 endef
-
 ```
+函数`get-all-product-makefiles`调用了`get-product-makefiles`，并传入函数`_find-android-products-files`的返回值。
+
 # 参考知识
+## sed
+<a name="anchor-sed"></a>sed的用法如下：
+```
+sed [-nefr] [action]
+选项与参数：
+-n ：使用安静(silent)模式。在一般 sed 的用法中，所有来自 STDIN 的数据一般都会被列出到终端上。但如果加上 -n 参数后，则只有经过sed 特殊处理的那一行(或者动作)才会被列出来。
+-e ：直接在命令列模式上进行 sed 的动作编辑；
+-f ：直接将 sed 的动作写在一个文件内， -f filename 则可以运行 filename 内的 sed 动作；
+-r ：sed 的动作支持的是延伸型正规表示法的语法。(默认是基础正规表示法语法)
+-i ：直接修改读取的文件内容，而不是输出到终端。
+
+action说明： [n1[,n2]]function
+n1, n2 ：不见得会存在，一般代表『选择进行动作的行数』，举例来说，如果我的动作是需要在 10 到 20 行之间进行的，则『 10,20[动作行为] 』
+
+function说明：
+a ：新增， a 的后面可以接字串，而这些字串会在新的一行出现(目前的下一行)～
+c ：取代， c 的后面可以接字串，这些字串可以取代 n1,n2 之间的行！
+d ：删除， d 后面通常不接任何内容；
+i ：插入， i 的后面可以接字串，而这些字串会在新的一行出现(目前的上一行)；
+p ：列印，将某个选择的数据印出。通常 p 会与参数 sed -n 一起运行～
+s ：取代，可以直接进行取代的工作哩！通常这个 s 的动作可以搭配正规表示法！例如 1,20s/old/new/g 就是啦！
+```
+命令
+`sed -n "/^[ \t]*function /s/function \([a-z_]*\).*/\1/p"`
+是在function中跟了2个操作：
+1. `"[ \t]*function /p"`表示查找所有以function打头的行
+2. `"/^[ \t]*function /s/function \([a-z_]*\).*/\1/p"`则把这些行中的`function 函数名`替代为`函数名`
+
+
+## test命令
+<a name="anchor-test"></a>test命令的语法是：
+`test condition`
+通常在if-then-else中，用[]代替，即[ condition ]，注意：方括号两边都要有空格。test命令可用于多种类型的比较。
+* 文件比较，condition格式如下：
+``` bash
+-d file 检查file是否存在并是一个目录 
+-e file 检查file是否存在 
+-f file 检查file是否存在并是一个文件 
+-r file 检查file是否存在并可读 
+-s file 检查file是否存在并非空 
+-w file 检查file是否存在并可写 
+-x file 检查file是否存在并可执行 
+-O file 检查file是否存在并属当前用户所有 
+-G file 检查file是否存在并且默认组与当前用户相同 
+file1 -nt file2 检查file1是否比file2新 
+file1 -ot file2 检查file1是否比file2旧 
+```
+* 字符串比较，condition格式如下：
+``` bash
+str1 = str2 检查str1是否和str2相同 
+str1 != str2 检查str1是否和str2不同 
+str1 < str2 检查str1是否比str2小 
+str1 > str2 检查str1是否比str2大 
+-n str1 检查str1的长度是否非0 
+-z str1 检查str1的长度是否为0 
+```
+
 ## Makefile中的常用函数
+<a name="anchor-make"></a>
+调试Makefile文件，可以通过插入warning的方式，用来输出变量：
+``` makefile
+$(warning TARGET_BUILD_APPS:$(TARGET_BUILD_APPS))
+```
+但是很奇怪，只有输出"xxx:xxx"的形式才正常，如果只输出
+``` makefile
+$(warning helloworld!)
+```
+是会报错的，我还没弄明白怎么回事。
+
 ### eval
 <a name="anchor-eval"></a>它的语法是：
 `$(eval text)`
