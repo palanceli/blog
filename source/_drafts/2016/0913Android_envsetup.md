@@ -257,7 +257,7 @@ include $(BUILD_SYSTEM)/product_config.mk
 ##### build/core/product_config.mk
 Makefile相关知识请参见[这里](#anchor-make)。
 ``` bash
-# :182
+# build/core/product_config.mk:182
 # TARGET_BUILD_APPS非空说明此次编译不是针对整个系统，只需加载核心产品相关的Makefile文件
 ifneq ($(strip $(TARGET_BUILD_APPS)),)  
 # An unbundled app build needs only the core product makefiles.
@@ -281,20 +281,25 @@ endif
 # <product_name>:<path_to_the_product_makefile>
 # or just <path_to_the_product_makefile> in case the product name is the
 # same as the base filename of the product config makefile.
-# 遍历变量all_product_configs所描述的产品Makefile列表，并且在这些Makefile文件中，找到名称与环境变量TARGET_PRODUCT的值相同的文件，保存在另外一个变量current_product_makefile中，作为需要为当前指定的产品所加载的Makefile文件列表。在这个过程当中，上一步找到的所有的产品Makefile文件也会保存在变量all_product_makefiles中。注意，环境变量TARGET_PRODUCT的值是在我们执行lunch命令的时候设置并且传递进来的。
+# 遍历变量all_product_configs所描述的产品Makefile列表，并且在这些Makefile文件中，
+# 找到名称与环境变量TARGET_PRODUCT的值相同的文件，保存在另外一个变量
+# current_product_makefile中，作为需要为当前指定的产品所加载的Makefile文件列表。
+# 在这个过程当中，上一步找到的所有的产品Makefile文件也会保存在变量
+# all_product_makefiles中。注意，环境变量TARGET_PRODUCT的值是在我们执行lunch命令的
+# 时候设置并且传递进来的。
 current_product_makefile :=
 all_product_makefiles :=
-# all_product_configs中每一项或为<proeuct_name>:<path_to_the_product_makefile>
+# all_product_configs中每一项或为<product_name>:<path_to_the_product_makefile>
 # 或为<path_to_the_product_makefile>，后者的product name就是makefile的文件名
 $(foreach f, $(all_product_configs),\
     $(eval _cpm_words := $(subst :,$(space),$(f)))\ # 将冒号替换为空格
-    $(eval _cpm_word1 := $(word 1,$(_cpm_words)))\  # 产品名称
-    $(eval _cpm_word2 := $(word 2,$(_cpm_words)))\  # mailefile文件名
-    $(if $(_cpm_word2),\                            
+    $(eval _cpm_word1 := $(word 1,$(_cpm_words)))\  # 取冒号前的产品名称
+    $(eval _cpm_word2 := $(word 2,$(_cpm_words)))\  # 取冒号后的makefile文件名
+    $(if $(_cpm_word2),\                            # 如果有product_name
         $(eval all_product_makefiles += $(_cpm_word2))\
         $(if $(filter $(TARGET_PRODUCT),$(_cpm_word1)),\ # 产品名称包含$(TARGET_PRODUCT)
             $(eval current_product_makefile += $(_cpm_word2)),),\
-        $(eval all_product_makefiles += $(f))\
+        $(eval all_product_makefiles += $(f))\      # else以文件名为product_name
         $(if $(filter $(TARGET_PRODUCT),$(basename $(notdir $(f)))),\
             $(eval current_product_makefile += $(f)),)))
 _cpm_words :=
@@ -302,23 +307,28 @@ _cpm_word1 :=
 _cpm_word2 :=
 current_product_makefile := $(strip $(current_product_makefile))
 all_product_makefiles := $(strip $(all_product_makefiles))
+# current_product_makefile为命中TARGET_PRODUCT的makefile列表
+# all_product_makefiles为全部的makefile列表
 
-# 指定的make目标等于product-graph或者dump-products
+
+# 指定的make目标等于product-graph或者dump-products，
+# 对于lunch aosp_arm_eng来说，MAKECMDGOALS为dumpvar-TARGET_DEVICE，
+# 因此进入else分支
 ifneq (,$(filter product-graph dump-products, $(MAKECMDGOALS)))
 # Import all product makefiles.
 $(call import-products, $(all_product_makefiles)) # 加载所有产品相关的Makefile文件
-else
+else    # 走这里！
 # Import just the current product.只加载与目标产品相关的Makefile文件
 ifndef current_product_makefile
 $(error Can not locate config makefile for product "$(TARGET_PRODUCT)")
 endif
-
-# 从前面的分析可以知道，此时的make目标为dumpvar-TARGET_DEVICE，因此接下来只会加载与目标产品，即$(TARGET_PRODUCT)相关的Makefile文件，这是通过调用另外函数import-products实现的。
-
+# 从前面的分析可以知道，此时的make目标为dumpvar-TARGET_DEVICE，
+# 因此接下来只会加载与目标产品，即$(TARGET_PRODUCT)相关的Makefile文件，
+# 这是通过调用另外函数import-products实现的。
 ifneq (1,$(words $(current_product_makefile)))
 $(error Product "$(TARGET_PRODUCT)" ambiguous: matches $(current_product_makefile))
 endif
-$(call import-products, $(current_product_makefile))
+$(call import-products, $(current_product_makefile)) # 该函数在后面分析
 endif  # Import all or just the current product makefile
 
 # Sanity check
@@ -346,6 +356,20 @@ all_product_configs :=
 # Find the device that this product maps to.
 TARGET_DEVICE := $(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_DEVICE)
 ```
+在第16行插入`$(warning all_product_configs:$(all_product_configs))`即可查看all_product_configs的值：
+``` bash
+build/target/product/aosp_arm.mk 
+build/target/product/aosp_arm64.mk 
+... ...
+device/asus/deb/aosp_deb.mk 
+device/asus/flo/aosp_flo.mk 
+... ...
+device/generic/qemu/qemu_mips.mk 
+device/generic/qemu/qemu_mips64.mk 
+... ...
+```
+
+第41行则从这个文件列表中找到等于TARGET_PRODUCT的makefile文件，前面已经分析过，对于`lunch aosp_arm-eng`来说，TARGET_PRODUCT为aosp_arm。到第50行，得到所有名称等于TARGET_PRODUCT的makefile文件，可能是一个集合，放在current_product_makefile中。
 
 ###### 函数get-all-product-makefiles
 ``` bash
@@ -368,9 +392,10 @@ define get-product-makefiles
 $(sort \
   $(foreach f,$(1), \   # 遍历参数$1所描述的AndroidProucts.mk文件列表
     $(eval PRODUCT_MAKEFILES :=) \ 
-    $(eval LOCAL_DIR := $(patsubst %/,%,$(dir $(f)))) \
+    $(eval LOCAL_DIR := $(patsubst %/,%,$(dir $(f)))) \ # 取f的目录名
     $(eval include $(f)) \
     $(PRODUCT_MAKEFILES) \
+    # $(warning PRODUCT_MAKEFILES:$(PRODUCT_MAKEFILES)) \
    ) \
   $(eval PRODUCT_MAKEFILES :=) \
   $(eval LOCAL_DIR :=) \
@@ -379,6 +404,199 @@ endef
 ```
 函数`get-all-product-makefiles`调用了`get-product-makefiles`，并传入函数`_find-android-products-files`的返回值。
 
+`_find-android-products-files`返回
+``` bash
+device/*/AndroidProducts.mk
+vendor/*/AndroidProducts.mk
+build/target/product/AndroidProduct.mk
+```
+
+`get-product-makefiles`函数则遍历这些AndroidProduct.mk文件，并将其中的变量PRODUCT_MAKEFILES提取出来，按字母排序。我在`foreach`循环中插入一段waning，可以看到输出的结果：
+``` bash
+device/asus/deb/aosp_deb.mk
+device/asus/flo/aosp_flo.mk 
+device/asus/flo/full_flo.mk
+device/asus/fugu/aosp_fugu.mk 
+device/asus/fugu/full_fugu.mk
+device/generic/arm64/mini_arm64.mk
+device/generic/armv7-a-neon/mini_armv7a_neon.mk
+device/generic/mini-emulator-arm64/mini_emulator_arm64.mk
+device/generic/mini-emulator-armv7-a-neon/m_e_arm.mk
+... ...
+```
+###### 函数import-product
+在build/core/product_config.mk中，得到了要使用的Makefile文件（current_product_makefile）后，调用import-products函数来处理该文件。
+``` bash
+# build/core/product.mk:157
+define import-products
+$(call import-nodes,PRODUCTS,$(1),$(_product_var_list))
+endef
+```
+其中参数$(1)即current_product_makefile，对于lunch aosp_arm-eng来说就是build/target/product/aosp_arm.mk。
+参数_product_var_list的定义如下，它描述产品Makefile文件中的各种变量：
+``` bash
+# build/core/product.mk:67
+_product_var_list := \
+    PRODUCT_NAME \
+    PRODUCT_MODEL \
+    PRODUCT_LOCALES \
+    PRODUCT_AAPT_CONFIG \
+    ... ...
+```
+####### 函数import-nodes
+``` bash
+# build/core/node_fns.mk:185
+define _import-node
+  # $(1)即"PRODUCTS"
+  # $(2)即current_product_makefile，对于lunch aosp_arm-eng即
+  # build/target/product/aosp_arm.mk
+  # $(3)即_product_var_list
+  $(eval _include_stack := $(2) $$(_include_stack))  
+  $(call clear-var-list, $(3))  
+  $(eval LOCAL_PATH := $(patsubst %/,%,$(dir $(2))))
+  $(eval MAKEFILE_LIST :=)
+  $(eval include $(2)) # $(2)里面肯定有MAKEFILE_LIST，记录一堆makefile文件
+  $(eval _included := $(filter-out $(2),$(MAKEFILE_LIST))) # 过滤掉$(2)
+  $(eval MAKEFILE_LIST :=)
+  $(eval LOCAL_PATH :=)
+  $(call copy-var-list, $(1).$(2), $(3))
+  $(call clear-var-list, $(3))
+
+  # 把PRODUCTS.$(current_product_makefile).inherited.$(3)中以$(INHERIT_TAG)打头的内容择出来，并把$(INHERIT_TAG)过滤掉
+  $(eval $(1).$(2).inherited := \
+      $(call get-inherited-nodes,$(1).$(2),$(3)))
+  # 加载$($(1).$(2).inherited)文件列表，如果出错，该函数会生成更详细的msg以辅助调查
+  $(call _import-nodes-inner,$(1),$($(1).$(2).inherited),$(3))
+
+  $(call _expand-inherited-values,$(1),$(2),$(3))
+
+  $(eval $(1).$(2).inherited :=)
+  $(eval _include_stack := $(wordlist 2,9999,$$(_include_stack)))
+endef
+```
+`clear-var-list`定义于build/core/node_fns.mk:17，注释说得很明白，清空参数列表中的每一项
+``` makefile
+#
+# Clears a list of variables using ":=".
+#
+# E.g.,
+#   $(call clear-var-list,A B C)
+# would be the same as:
+#   A :=
+#   B :=
+#   C :=
+#
+# $(1): list of variable names to clear
+#
+define clear-var-list
+$(foreach v,$(1),$(eval $(v):=))
+endef
+```
+
+`copy-var-list`定义于build/core/node_fns.mk:34，把一个列表拷贝到另一个列表，目标列表和源列表是一致的，只是多了一个用“.”隔开的前缀：
+``` makefile
+#
+# Copies a list of variables into another list of variables.
+# The target list is the same as the source list, but has
+# a dotted prefix affixed to it.
+#
+# E.g.,
+#   $(call copy-var-list, PREFIX, A B)
+# would be the same as:
+#   PREFIX.A := $(A)
+#   PREFIX.B := $(B)
+#
+# $(1): destination prefix
+# $(2): list of variable names to copy
+#
+define copy-var-list
+$(foreach v,$(2),$(eval $(strip $(1)).$(v):=$($(v))))
+endef
+```
+
+`get-inherited-nodes`定义于/build/core/node_fns.mk:109，遍历所有全局变量，把PREFIX.A，PREFIX.B中以INHERIT_TAG打头的内容择出来，并把INHERIT_TAG过滤掉，之后sort uniq。
+``` makefile
+INHERIT_TAG := @inherit:
+
+#
+# Walks through the list of variables, each qualified by the prefix,
+# and finds instances of words beginning with INHERIT_TAG.  Scrape
+# off INHERIT_TAG from each matching word, and return the sorted,
+# unique set of those words.
+#
+# E.g., given
+#   PREFIX.A := A $(INHERIT_TAG)aaa B C
+#   PREFIX.B := B $(INHERIT_TAG)aaa C $(INHERIT_TAG)bbb D E
+# Then
+#   $(call get-inherited-nodes,PREFIX,A B)
+# returns
+#   aaa bbb
+#
+# $(1): variable prefix
+# $(2): list of variables to check
+#
+define get-inherited-nodes
+$(sort \
+  $(subst $(INHERIT_TAG),, \
+    $(filter $(INHERIT_TAG)%, \
+      $(foreach v,$(2),$($(1).$(v))) \
+ )))
+endef
+```
+
+`_import-nodes-inner`定义于build/core/node_fns.mk:221，它用来家在指定的文件，只是额外做了“如果出错，会给出更多错误信息，以便调试”的工作。
+``` makefile
+#
+# This will generate a warning for _included above
+#  $(if $(_included), \
+#      $(eval $(warning product spec file: $(2)))\
+#      $(foreach _inc,$(_included),$(eval $(warning $(space)$(space)$(space)includes: $(_inc)))),)
+#
+
+#
+# $(1): context prefix
+# $(2): list of makefiles representing nodes to import
+# $(3): list of node variable names
+#
+#TODO: Make the "does not exist" message more helpful;
+#      should print out the name of the file trying to include it.
+define _import-nodes-inner
+  $(foreach _in,$(2), \
+    $(if $(wildcard $(_in)), \
+      $(if $($(1).$(_in).seen), \
+        $(eval ### "skipping already-imported $(_in)") \
+       , \
+        $(eval $(1).$(_in).seen := true) \
+        $(call _import-node,$(1),$(strip $(_in)),$(3)) \
+       ) \
+     , \
+      $(error $(1): "$(_in)" does not exist) \
+     ) \
+   )
+endef
+
+#
+# $(1): output list variable name, like "PRODUCTS" or "DEVICES"
+# $(2): list of makefiles representing nodes to import
+# $(3): list of node variable names
+#
+define import-nodes
+$(if \
+  $(foreach _in,$(2), \
+    $(eval _node_import_context := _nic.$(1).[[$(_in)]]) \
+    $(if $(_include_stack),$(eval $(error ASSERTION FAILED: _include_stack \
+                should be empty here: $(_include_stack))),) \
+    $(eval _include_stack := ) \
+    $(call _import-nodes-inner,$(_node_import_context),$(_in),$(3)) \
+    $(call move-var-list,$(_node_import_context).$(_in),$(1).$(_in),$(3)) \
+    $(eval _node_import_context :=) \
+    $(eval $(1) := $($(1)) $(_in)) \
+    $(if $(_include_stack),$(eval $(error ASSERTION FAILED: _include_stack \
+                should be empty here: $(_include_stack))),) \
+   ) \
+,)
+endef
+```
 # 参考知识
 ## sed
 <a name="anchor-sed"></a>sed的用法如下：
@@ -448,6 +666,14 @@ $(warning TARGET_BUILD_APPS:$(TARGET_BUILD_APPS))
 $(warning helloworld!)
 ```
 是会报错的，我还没弄明白怎么回事。
+### dir
+<a name="anchor-dir"></a>它的语法是：
+`$(dir names)`
+从文件名序列（一个或多个文件名）names中取出目录部分。目录部分是指最后一个斜杠”/”之前的部分，如果没有斜杠，则返回”./”。如：
+``` bash
+$(dir user/src/linux-2.4/Makefile hello.c)
+```
+返回`usr/src/linux-2.4` `./`
 
 ### eval
 <a name="anchor-eval"></a>它的语法是：
@@ -534,6 +760,17 @@ cc $(filter %.c %.s,$(sources)) -o foo
 ```
 `$(filter %.c %.s,$(sources))`返回的值是`foo.c bar.c baz.s`。
 
+### filter-out
+<a name="anchor-filter"></a>它的语法是：
+`$(filter-out PATTERN..., TEXT)`
+和"filter"函数实现的功能相反，过滤掉字串TEXT中所有符合模式串PATTERN的单词，保留所有不符合此模式串的单词。如：
+``` bash
+objects=main1.o foo.o main2.o bar.o
+mains=main1.o main2.o
+$(filter-out $(mains), $(objects))
+```
+它的返回值为"foo.o bar.o"。
+
 ### foreach
 <a name="anchor-foreach"></a>它的语法是：
 `$(foreach  var, list, text)`
@@ -565,6 +802,11 @@ $(name)中的单词被逐个取出，并存到变量“n”中，每次得到“
 `ifneq(<arg1>,<arg2>)`
 比较参数arg1和arg2的值是否相等，不相等时表达式值为真。
 
+### include
+<a name="anchor-include"></a>它的语法是：
+`include FILENAMES...`
+“include”指示符告诉 make 暂停读取当前的 Makefile,而转去读取“include”指定的一个或者多个文件,完成以后再继续当前 Makefile 的读取。
+
 ### patsubst
 <a name="anchor-subst"></a>它的语法是：
 `$(patsubst <pattern>, <replacement>, <text>)`
@@ -586,6 +828,15 @@ $(subst ee,EE,feet on the street)
 ```
 把"feetonthestreet"中的"ee"替换成"EE"，返回结果是"fEEtonthestrEEt"。
 
+### sort
+<a name="anchor-sort"></a>它的语法是：
+`$(sort list)`
+将字符串list中的单词按照字母排序（升序）进行排序。遇到相同的单词时，sort函数会自动删除他们。返回排序后的字符串。如：
+``` bash
+$(sort program linux c program anxier)
+```
+返回值是anxier c linux program
+
 ### word
 <a name="anchor-word"></a>它的语法是：
 `$(word n, text)`
@@ -594,3 +845,12 @@ $(subst ee,EE,feet on the street)
 $(word2,foobarbaz)
 ```
 返回值是"bar"。
+
+### words
+<a name="anchor-words"></a>它的语法是：
+`$(words text)`
+统计text中的单词数。如：
+``` bash
+$(words, foo bar baz)
+```
+返回值为3.

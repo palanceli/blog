@@ -101,6 +101,17 @@ codesign -s gdb-cert /usr/local/bin/gdb
 `M-x gdb-many-windows RET`
 打开多个窗口。
 
+# markdown支持
+下载[markdown-mode.el](!http://jblevins.org/projects/markdown-mode/markdown-mode.el)，放到~/.emacs.d/modes/markdown-mode.el，在~/.emacs文件中添加：
+``` lisp
+(add-to-list 'load-path "~/.emacs.d/modes")  
+(autoload 'markdown-mode "markdown-mode.el"  
+"Major mode for editing Markdown files" t)  
+(setq auto-mode-alist  
+      (cons '(".md" . markdown-mode) auto-mode-alist))
+```
+这样打开.md文件，emacs讲自动使用markdown-model.el。
+
 # 常用基本命令
 
 命令|说明
@@ -112,9 +123,14 @@ M-x scroll-up-line|向上滚动一行
 M-]|向后循环滚动buffer（自定义）
 M-[|向前循环滚动buffer（自定义）
 M-x shell|在buffer中开启命令行
+C-x r m (M-x bookmark-set)|设置书签
+C-x r l (M-x bookmark-bmenu-list)|列出书签
+(M-x book-delete)|删除书签
+C-x r b (M-x bookmark-jump)|跳转书签
+(M-x bookmark-save)|将所有书签保存至~/.emacs.bmk
+
 
 # .emacs文件配置
 正文就不贴到这里了，因为经常变化，我放到了[这里](https://github.com/palanceli/blog/blob/master/source/_posts/2016/_0919Emacs/dotemacs)。
 
-<font color='red'>未完待续...</font>
 
