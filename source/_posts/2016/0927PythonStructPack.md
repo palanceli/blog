@@ -40,8 +40,34 @@ import struct
 myData = struct.pack('iH%ds' % len(myStr), iValue, hValue, myStr)
 ```
 但是字符串都要求是utf-16le的形式，为之奈何？
+我一直以为应该怎么把utf-16le的字串用struct.pack打包成字节流，比如：
 ``` python
 # -*- coding:utf-8 -*-
-str = '测试数据'
-myData = struct.pack('')
+myStr = '测试数据'
+utf16Str = myStr.decode('utf8')
+myData = struct.pack('%dH' % len(utf16Str), utf16Str)
 ```
+结果会报错：`pack expected 4 items for packing (got 1)`
+
+最终的解决特别其实特别简单：
+``` python
+# -*- coding:utf-8 -*-
+myStr = '测试数据'
+utf16Str = myStr.decode('utf8').encode('utf-16le')
+myData = struct.pack('iH', iValue, hValue) + utf16Str
+print ['0x%02X' % ord(c) for c in myData]
+```
+输出结果：
+`['0x01', '0x00', '0x00', '0x00', '0x02', '0x00', '0x4B', '0x6D', '0xD5', '0x8B', '0x70', '0x65', '0x6E', '0x63']`
+但我其实至今没有搞懂，Python定义变量不需要指定类型，那么类型信息一定在变量中，应该有类似cookie的东东吧，这样直接累加不是把cookie也加进来了？
+我稍微改一下：
+
+``` python
+# -*- coding:utf-8 -*-
+myStr = '测试数据'
+utf16Str = myStr.decode('utf8')
+myData = struct.pack('iH', iValue, hValue) + utf16Str
+print ['0x%02X' % ord(c) for c in myData]
+```
+输出结果就是：
+`['0x01', '0x00', '0x00', '0x00', '0x02', '0x00', '0x6D4B', '0x8BD5', '0x6570', '0x636E']`，既然都是字节流，跟上面有什么本质区别呢？
