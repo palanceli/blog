@@ -54,6 +54,20 @@ fname))
 (setq frame-title-format '(:eval (frame-title-string)))
 ```
 
+# 备份文件
+``` lisp
+;; 禁止生成配置文件
+(setq make-backup-files nil)
+
+;; 配置文件都生成到~/.backups下
+(setq backup-directory-alist (quote (("." . "~/.backups"))))
+```
+若要恢复文件，可执行：
+```
+M-x recover-file <RET> 文件名 <RET>
+yes <RET>
+C-x C-s
+```
 # cscope
 cscope是用来帮助阅读源码的，Emacs for mac osx默认自带cscope的支持。在使用之前，cscope也需要对代码进行索引。在emacs中可以这样做：
 C-c s a 设定初始化的目录，一般是你代码的根目录
@@ -128,6 +142,7 @@ C-x r l (M-x bookmark-bmenu-list)|列出书签
 (M-x book-delete)|删除书签
 C-x r b (M-x bookmark-jump)|跳转书签
 (M-x bookmark-save)|将所有书签保存至~/.emacs.bmk
+M-x load-file ~/.emacs|无需重启，直接加载配置文件并更新
 
 
 # .emacs文件配置

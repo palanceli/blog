@@ -31,6 +31,9 @@
 (setq indent-line-function 'insert-tab)
 (setq tab-stop-list (number-sequence 2 400 2))
 
+;; 配置文件都生成到~/.backups下
+(setq backup-directory-alist (quote (("." . "~/.backups"))))
+
 ;;;; CC-mode配置
 (require 'cc-mode)
 (c-set-offset 'inline-open 0)		;; 在.h文件中写函数，括号不缩进
