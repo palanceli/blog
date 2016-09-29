@@ -62,10 +62,8 @@ myData = struct.pack('iH', iValue, hValue) + utf16Str
 print ['0x%02X' % ord(c) for c in myData]
 ```
 输出结果：
-```
-['0x01', '0x00', '0x00', '0x00', '0x02', '0x00', '0x4B', 
- '0x6D', '0xD5', '0x8B', '0x70', '0x65', '0x6E', '0x63']
-```
+> ['0x01', '0x00', '0x00', '0x00', '0x02', '0x00', '0x4B',  '0x6D', '0xD5', '0x8B', '0x70', '0x65', '0x6E', '0x63']
+
 我以为unicode也应该是2字节或者4字节的字节流，应该总有办法把它pack到struct里去的，我稍微改一下：
 
 ``` python
@@ -76,23 +74,30 @@ myData = struct.pack('iH', iValue, hValue) + utf16Str
 print ['0x%02X' % ord(c) for c in myData]
 ```
 输出结果就是：
-```
-['0x01', '0x00', '0x00', '0x00', '0x02', '0x00', 
- '0x6D4B', '0x8BD5', '0x6570', '0x636E']
-```
+> ['0x01', '0x00', '0x00', '0x00', '0x02', '0x00', '0x6D4B', '0x8BD5', '0x6570', '0x636E']
+
 既然都是字节流，我没看出来二者有什么本质区别。有没有区别，把myData写到文件里就清晰了，我猜测写出来的文件应该是一样的。可结果出乎我意料，后者写文件时会得到如下错误：
-```
-UnicodeEncodeError: 'ascii' codec can't encode characters in position 
-                    4-7: ordinal not in range(128)
-```
+> UnicodeEncodeError: 'ascii' codec can't encode characters in position 4-7: ordinal not in range(128)
 
 ## 为什么unicode不可以直接pack到struct中
 仔细翻阅文档，发现unicode字符串的定义如下：
-```
-The items of a Unicode object are Unicode code units. A Unicode code unit is represented by a Unicode object of one item and can hold either a 16-bit or 32-bit value representing a Unicode ordinal.
-```
-这段定义貌似也没说清楚Unicode code units是个啥玩意儿，写段代码：
+> The items of a Unicode object are Unicode code units. A Unicode code unit is represented by a Unicode object of one item and can hold either a 16-bit or 32-bit value representing a Unicode ordinal.
+
+这段定义貌似也没说清楚Unicode code units是个啥玩意儿，可以写段代码来求证：
 ``` python
 print type('测试数据'.decode('utf8')[0])
 ```
-结果为：`<type 'unicode'>`，这说明
+结果为：`<type 'unicode'>`，这说明unicode子串中每一个元素都是一个unicode对象，而不是一个字符。一个抽象数据类型不能强转成字节，因为缺少转换语义，这很容易理解。如果一定要转，就应该自己写转换逻辑了。utf16Str是一个unicode，因此不能直接用来pack到struct。如果一定要转成字节流，需要先转成struct.pack能认识的format，那只能是str。都已经是str了，也就不需要什么转换了，所以通过运算符“+”追加即可。
+
+## struct.pack(...)可以追加整形数组么？
+既然`u'测试数据'.encode('utf-16le')`是一个字符数组，可以直接追加到struct.pack(...)。那么一个整形数组本质上跟字符数组也没什么区别，是否也可以直接追加呢？答案是：不能！不能以C中memcpy的思考方式来类比，struct.pack(...)返回的是个str，“字符串+数组”显然是不合法的。随意追加数组的合法方式应该是把数组中每个元素转成struct.pack(...)能识别的格式，一一追加。
+
+还有一个便捷的方式：
+``` python
+arr = (1, 2, 3, 4)
+data = struct.pack('%dH' % len(arr), *arr)
+print ['0x%02X' % ord(c) for c in data]
+```
+输出结果是：
+> [''0x01', '0x00', '0x02', '0x00', '0x03', '0x00', '0x04', '0x00']
+原来Python的数组可以取“*”运算的，运算的结果是把成员都取出来。

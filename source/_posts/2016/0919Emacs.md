@@ -116,7 +116,7 @@ codesign -s gdb-cert /usr/local/bin/gdb
 打开多个窗口。
 
 # markdown支持
-下载[markdown-mode.el](!http://jblevins.org/projects/markdown-mode/markdown-mode.el)，放到~/.emacs.d/modes/markdown-mode.el，在~/.emacs文件中添加：
+下载[markdown-mode.el](http://jblevins.org/projects/markdown-mode/markdown-mode.el)，放到~/.emacs.d/modes/markdown-mode.el，在~/.emacs文件中添加：
 ``` lisp
 (add-to-list 'load-path "~/.emacs.d/modes")  
 (autoload 'markdown-mode "markdown-mode.el"  
