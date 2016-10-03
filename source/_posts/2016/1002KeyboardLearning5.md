@@ -44,7 +44,8 @@ comments: true
                         mInputQueue = new InputQueue();
                         mInputQueueCallback.onInputQueueCreated(mInputQueue);
                     }
-                    // 将mInputChannel注册到正在启动的Activity所在进程的主线程中
+                    // 🏁将mInputChannel注册到正在启动的Activity所在进程的主线程中
+                    // 在《键盘消息处理学习笔记（八）》中深入讨论
                     mInputEventReceiver = new WindowInputEventReceiver(mInputChannel,
                             Looper.myLooper());
                 }
@@ -159,7 +160,7 @@ WindowManagerGlobal.getWindowSession()是一个单例工厂方法：
             ... ...
             // 如果当前活动窗口和正在启动的窗口不是同一个窗口，则当前焦点会发生改变
             if (focusChanged) {
-                // 把正在启动的窗口注册到InputSispatcher中，以便InputDispatcher可以将键盘事件分发给它
+                // 🏁把正在启动的窗口注册到InputDispatcher中，以便InputDispatcher可以将键盘事件分发给它，在《键盘消息处理学习笔记（七）》中详细讨论
                 mInputMonitor.setInputFocusLw(mCurrentFocus, false /*updateInputWindows*/);
             }
             ... ...
