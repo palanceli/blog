@@ -73,7 +73,8 @@ void InputReader::loopOnce() {
     ... ...
 
         if (count) {
-            processEventsLocked(mEventBuffer, count); // 🏁 处理键盘事件，稍后讨论
+            // 🏁 处理键盘事件，将在《键盘消息处理学习笔记（九）》中讨论
+            processEventsLocked(mEventBuffer, count); 
         }
     ... ...
 }
