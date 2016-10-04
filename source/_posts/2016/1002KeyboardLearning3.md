@@ -32,7 +32,7 @@ void InputDispatcher::dispatchOnce() {
         // Run a dispatch loop if there are no pending commands.
         // The dispatch loop might enqueue commands to run afterwards.
         if (!haveCommandsLocked()) {
-            dispatchOnceInnerLocked(&nextWakeupTime);   // 🏁后面再深入讨论
+            dispatchOnceInnerLocked(&nextWakeupTime);   // 🏁《键盘消息处理学习笔记（十）中深入讨论
         }
 
         // Run all pending commands if there are any.
