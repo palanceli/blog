@@ -211,7 +211,8 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime,
         ssize_t connectionIndex = getConnectionIndexLocked(inputTarget.inputChannel); 
         if (connectionIndex >= 0) { // 注册过Connection的窗口，找到其Connection对象
             sp<Connection> connection = mConnectionsByFd.valueAt(connectionIndex);
-            prepareDispatchCycleLocked(currentTime, connection, eventEntry, &inputTarget);  // 🏁
+            prepareDispatchCycleLocked(currentTime, connection, eventEntry, 
+                &inputTarget);  // 🏁
         } ... ...
     }
 }
@@ -233,11 +234,14 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
 # Step6: InputDispatcher::enqueueDispatchEntriesLocked(...)
 ``` c++
 // frameworks/native/services/inputflinger/InputDispatcher.cpp:1821
+// 每一个Connection对象内部都有一个待分发的键盘事件队列outboundQueue，用于依次
+// 分发给与之关联的窗口。只有上一个键盘事件被目标窗口处理完成后，才能继续分发下一个。
 void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
         const sp<Connection>& connection, EventEntry* eventEntry, const InputTarget* inputTarget) {
     bool wasEmpty = connection->outboundQueue.isEmpty();
 
     // Enqueue dispatch entries for the requested modes.
+    // 这一坨只有一个调用会生效
     enqueueDispatchEntryLocked(connection, eventEntry, inputTarget,
             InputTarget::FLAG_DISPATCH_AS_HOVER_EXIT);
     enqueueDispatchEntryLocked(connection, eventEntry, inputTarget,
@@ -252,8 +256,10 @@ void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
             InputTarget::FLAG_DISPATCH_AS_SLIPPERY_ENTER);
 
     // If the outbound queue was previously empty, start the dispatch cycle going.
+    // 如果之前队列为空，本次进队后非空，则可以将分发继续向窗口推进，
+    // 否则说明上一次分发还没被处理完，本次分发不能马上进行
     if (wasEmpty && !connection->outboundQueue.isEmpty()) {
-        startDispatchCycleLocked(currentTime, connection);
+        startDispatchCycleLocked(currentTime, connection);  // 🏁
     }
 }
 
@@ -262,7 +268,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(
         int32_t dispatchMode) {
     int32_t inputTargetFlags = inputTarget->flags;
     if (!(inputTargetFlags & dispatchMode)) {
-        return;
+        return; // 如果和要求的模式不匹配则直接退出
     }
     inputTargetFlags = (inputTargetFlags & ~InputTarget::FLAG_DISPATCH_MASK) | dispatchMode;
 
@@ -278,61 +284,133 @@ void InputDispatcher::enqueueDispatchEntryLocked(
         KeyEntry* keyEntry = static_cast<KeyEntry*>(eventEntry);
         dispatchEntry->resolvedAction = keyEntry->action;
         dispatchEntry->resolvedFlags = keyEntry->flags;
-
-        if (!connection->inputState.trackKey(keyEntry,
-                dispatchEntry->resolvedAction, dispatchEntry->resolvedFlags)) {
-... ...
-            delete dispatchEntry;
-            return; // skip the inconsistent event
-        }
+        ... ...
         break;
     }
-
-    case EventEntry::TYPE_MOTION: {
-        MotionEntry* motionEntry = static_cast<MotionEntry*>(eventEntry);
-        if (dispatchMode & InputTarget::FLAG_DISPATCH_AS_OUTSIDE) {
-            dispatchEntry->resolvedAction = AMOTION_EVENT_ACTION_OUTSIDE;
-        } else if (dispatchMode & InputTarget::FLAG_DISPATCH_AS_HOVER_EXIT) {
-            dispatchEntry->resolvedAction = AMOTION_EVENT_ACTION_HOVER_EXIT;
-        } else if (dispatchMode & InputTarget::FLAG_DISPATCH_AS_HOVER_ENTER) {
-            dispatchEntry->resolvedAction = AMOTION_EVENT_ACTION_HOVER_ENTER;
-        } else if (dispatchMode & InputTarget::FLAG_DISPATCH_AS_SLIPPERY_EXIT) {
-            dispatchEntry->resolvedAction = AMOTION_EVENT_ACTION_CANCEL;
-        } else if (dispatchMode & InputTarget::FLAG_DISPATCH_AS_SLIPPERY_ENTER) {
-            dispatchEntry->resolvedAction = AMOTION_EVENT_ACTION_DOWN;
-        } else {
-            dispatchEntry->resolvedAction = motionEntry->action;
-        }
-        if (dispatchEntry->resolvedAction == AMOTION_EVENT_ACTION_HOVER_MOVE
-                && !connection->inputState.isHovering(
-                        motionEntry->deviceId, motionEntry->source, motionEntry->displayId)) {
-... ...
-            dispatchEntry->resolvedAction = AMOTION_EVENT_ACTION_HOVER_ENTER;
-        }
-
-        dispatchEntry->resolvedFlags = motionEntry->flags;
-        if (dispatchEntry->targetFlags & InputTarget::FLAG_WINDOW_IS_OBSCURED) {
-            dispatchEntry->resolvedFlags |= AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED;
-        }
-
-        if (!connection->inputState.trackMotion(motionEntry,
-                dispatchEntry->resolvedAction, dispatchEntry->resolvedFlags)) {
-                    ... ...
-            delete dispatchEntry;
-            return; // skip the inconsistent event
-        }
-        break;
+    ... ...
     }
-    }
-
-    // Remember that we are waiting for this dispatch to complete.
-    if (dispatchEntry->hasForegroundTarget()) {
-        incrementPendingForegroundDispatchesLocked(eventEntry);
-    }
-
-    // Enqueue the dispatch entry.
+    ... ...
+    // Enqueue the dispatch entry.将待分发的键盘事件入队
     connection->outboundQueue.enqueueAtTail(dispatchEntry);
     traceOutboundQueueLengthLocked(connection);
 }
-
 ```
+# Step7: InputDispatcher::startDispatchCycleLocked(...)
+``` c++
+// frameworks/native/services/inputflinger/InputDispatcher.cpp:1932
+void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
+        const sp<Connection>& connection) {
+... ...
+    while (connection->status == Connection::STATUS_NORMAL
+            && !connection->outboundQueue.isEmpty()) {
+        DispatchEntry* dispatchEntry = connection->outboundQueue.head;
+        dispatchEntry->deliveryTime = currentTime;
+
+        // Publish the event.
+        status_t status;
+        EventEntry* eventEntry = dispatchEntry->eventEntry;
+        switch (eventEntry->type) {
+        case EventEntry::TYPE_KEY: {
+            KeyEntry* keyEntry = static_cast<KeyEntry*>(eventEntry);
+
+            // Publish the key event.
+            status = connection->inputPublisher.publishKeyEvent(dispatchEntry->seq,
+                    keyEntry->deviceId, keyEntry->source,
+                    dispatchEntry->resolvedAction, dispatchEntry->resolvedFlags,
+                    keyEntry->keyCode, keyEntry->scanCode,
+                    keyEntry->metaState, keyEntry->repeatCount, keyEntry->downTime,
+                    keyEntry->eventTime);   // 🏁
+            break;
+        }
+
+        ... ...
+
+        // Check the result.
+        if (status) {
+            if (status == WOULD_BLOCK) {
+                if (connection->waitQueue.isEmpty()) {
+                    ... ...
+                    abortBrokenDispatchCycleLocked(currentTime, connection, true /*notify*/);
+                } else {
+                    // Pipe is full and we are waiting for the app to finish process some events
+                    // before sending more events to it.
+                    ... ...
+                    connection->inputPublisherBlocked = true;
+                }
+            } else {
+                ... ...
+                abortBrokenDispatchCycleLocked(currentTime, connection, true /*notify*/);
+            }
+            return;
+        }
+
+        // Re-enqueue the event on the wait queue.
+        connection->outboundQueue.dequeue(dispatchEntry);
+        traceOutboundQueueLengthLocked(connection);
+        connection->waitQueue.enqueueAtTail(dispatchEntry);
+        traceWaitQueueLengthLocked(connection);
+    }
+}
+```
+# Step8: InputPublisher::publishKeyEvent(...)
+``` c++
+// frameworks/native/libs/input/InputTransport.cpp:243
+status_t InputPublisher::publishKeyEvent(
+        uint32_t seq,
+        int32_t deviceId,
+        int32_t source,
+        int32_t action,
+        int32_t flags,
+        int32_t keyCode,
+        int32_t scanCode,
+        int32_t metaState,
+        int32_t repeatCount,
+        nsecs_t downTime,
+        nsecs_t eventTime) {
+        ... ...
+    InputMessage msg;
+    msg.header.type = InputMessage::TYPE_KEY;
+    msg.body.key.seq = seq;
+    msg.body.key.deviceId = deviceId;
+    msg.body.key.source = source;
+    msg.body.key.action = action;
+    msg.body.key.flags = flags;
+    msg.body.key.keyCode = keyCode;
+    msg.body.key.scanCode = scanCode;
+    msg.body.key.metaState = metaState;
+    msg.body.key.repeatCount = repeatCount;
+    msg.body.key.downTime = downTime;
+    msg.body.key.eventTime = eventTime;
+    return mChannel->sendMessage(&msg); // 🏁
+}
+```
+# Step9: InputChannel::sendMessage(...)
+``` c++
+//frameworks/native/libs/input/InputTransport.cpp:152
+status_t InputChannel::sendMessage(const InputMessage* msg) {
+    size_t msgLength = msg->size();
+    ssize_t nWrite;
+    do {
+        nWrite = ::send(mFd, msg, msgLength, MSG_DONTWAIT | MSG_NOSIGNAL);
+    } while (nWrite == -1 && errno == EINTR);
+    ... ...
+    return OK;
+}
+```
+此处的mFd来自需要接收键盘事件的应用窗口所保留的Server端的InputChannel，在《键盘消息处理学习笔记（八）》的[Step5](http://palanceli.com/2016/10/03/2016/1002KeyboardLearning8/#Step5-NativeInputEventReceiver-setFdEvents-…)中，该描述符被添加到了线程Looper中，并指定了回调函数：
+``` c++
+// frameworks/base/core/jni/android_view_InputEventReceiver.cpp:145
+void NativeInputEventReceiver::setFdEvents(int events) {
+    ... ...
+    mMessageQueue->getLooper()->addFd(fd, 0, events, this, NULL);
+    ... ...
+}
+```
+NativeInputEventReceiver继承自LooperCallback:
+``` c++
+// frameworks/base/core/jni/android_view_InputEventReceiver.cpp:50
+class NativeInputEventReceiver : public LooperCallback {
+... ...
+};
+```
+于是，当线程Looper监听到该描述符有内容写入后，将调用回调函数体NativeInputEventReceiver::handleEvent(...)。

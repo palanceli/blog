@@ -7,7 +7,7 @@ tags: 键盘消息处理学习笔记
 toc: true
 comments: true
 ---
-再回过头来看《键盘消息处理学习笔记（三）》中[InputReaderThread的启动](http://palanceli.com/2016/10/02/2016/1002KeyboardLearning3/#InputReaderThread的启动)。Step3中`mEventHub->getEvents(...)`从所有输入设备读取一轮IO事件，如果有IO事件发生，该函数中的循环就会中断，函数返回到Step2中的`InputReader::loopOnce()`，接着由`InputReader::processEventsLocked(...)`来处理这些IO事件。本文以该函数为起点研究键盘事件的处理。
+再回过头来看《键盘消息处理学习笔记（三）》中[InputReaderThread的启动](http://palanceli.com/2016/10/02/2016/1002KeyboardLearning3/#InputReaderThread的启动)。Step3中`mEventHub->getEvents(...)`从所有输入设备读取一轮IO事件，如果有IO事件发生，该函数中的循环就会终止，函数返回到Step2中的`InputReader::loopOnce()`，接着由`InputReader::processEventsLocked(...)`来处理这些IO事件。本文以该函数为起点研究键盘事件的处理。
 <!-- more -->
 ``` c++
 // frameworks/native/services/inputflinger/InputReader.cpp:272
