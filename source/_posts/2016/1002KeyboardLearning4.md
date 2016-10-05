@@ -1,6 +1,6 @@
 ---
 layout: post
-title: 键盘消息处理学习笔记（四）
+title: 键盘消息处理学习笔记（四）——Looper机制
 date: 2016-10-02 11:30:41 +0800
 categories: Android
 tags: 键盘消息处理学习笔记
@@ -33,7 +33,9 @@ int eventfd(unsigned int initval, int flags);
 * ssize_t read(int fd, void* buf, size_t count)
 读取计数器的值。如果计数器的值不为0，则读取成功返回该值；如果为0，非阻塞模式时直接返回失败，并把error置为EINVAL，阻塞模式则一直阻塞到计数器非0。
 
-mWakeEventFd正是这样一种对象。
+mWakeEventFd正是这样一种对象，Looper默认生成这么一个eventfd对象，Looper::pollOnce(...)等待该对象被写入内容，一旦被写入，Looper::pollOnce(...)函数就会返回。这就是组成消息泵的重要部件——消息的发送者发出消息后向mWakeEventFd写入内容，Looper::pollOnce(...)被唤醒，然后执行消息处理，处理完成后再次睡眠等待，直到下次再发来消息。Android应用程序的消息处理就采用了这种模式。
+
+Looper也支持多个描述符的同时监听，可以通过Looper::addFd(...)添加多个描述符，Looper使用一个数组mRequests保存这些描述符。任何一个描述符被写入数据，Looper::pollOnce(...)都会被唤醒，Android应用程序键盘消息处理就采用了这种模式。
 
 ## Looper::rebuildEpollLocked()
 ``` cpp
@@ -41,6 +43,8 @@ void Looper::rebuildEpollLocked() {
     ... ...
 
     // Allocate the new epoll instance and register the wake pipe.
+    // 创建一个epoll实例，该实例可以监控一组已注册的描述符，任何一个描述符发生了
+    // 写入，对该epoll实例的wait都会返回，否则会一直阻塞
     mEpollFd = epoll_create(EPOLL_SIZE_HINT);
     ... ...
 
@@ -48,6 +52,7 @@ void Looper::rebuildEpollLocked() {
     memset(& eventItem, 0, sizeof(epoll_event)); // zero out unused members of data field union
     eventItem.events = EPOLLIN;
     eventItem.data.fd = mWakeEventFd;
+    // mWakeEventFd注册到mEpollFd中，成为默认被监控的描述符
     int result = epoll_ctl(mEpollFd, EPOLL_CTL_ADD, mWakeEventFd, & eventItem);
     ... ...
 
@@ -61,23 +66,11 @@ void Looper::rebuildEpollLocked() {
     }
 }
 ```
-第5行创建一个epoll实例，该实例可以监控一组已注册的描述符，任何一个描述符发生了读写事件，对该epoll实例的wait都会返回，否则会一直阻塞。
-第12行将mWakeEventFd注册到mEpollFd中，成为一个被监控的描述符。
-
 # Looper::addFd(...)
 ``` cpp
-int Looper::addFd(int fd, int ident, int events, const sp<LooperCallback>& callback, void* data) {
-
-
-    if (!callback.get()) {
-        ... ...
-    } else {
-        ident = POLL_CALLBACK;
-    }
-
-    { // acquire lock
-        AutoMutex _l(mLock);
-
+int Looper::addFd(int fd, int ident, int events, 
+            const sp<LooperCallback>& callback, void* data) {
+    ... ...
         Request request;
         request.fd = fd;
         request.ident = ident;
@@ -85,20 +78,16 @@ int Looper::addFd(int fd, int ident, int events, const sp<LooperCallback>& callb
         request.seq = mNextRequestSeq++;
         request.callback = callback;
         request.data = data;
-        if (mNextRequestSeq == -1) mNextRequestSeq = 0; // reserve sequence number -1
-
+        ... ...
         struct epoll_event eventItem;
         request.initEventItem(&eventItem);
-
-        
+            // 注册描述符
             int epollResult = epoll_ctl(mEpollFd, EPOLL_CTL_ADD, fd, & eventItem);
             ... ...
-            mRequests.add(fd, request);
-            ... ...
-    } // release lock
+            mRequests.add(fd, request); // 保存到mRequests数组
+    ... ...
     return 1;
 }
-
 ```
 
 # Looper::pollOnce(...)
@@ -114,15 +103,12 @@ class Looper : public RefBase {
     }
 ... ...
 };
-```
 
-``` cpp
 // system/core/libutils/Looper.cpp:184
 int Looper::pollOnce(int timeoutMillis, int* outFd, int* outEvents, void** outData) {
     int result = 0;
     for (;;) {
 ... ...
-
         if (result != 0) {
 ... ...
             return result;
@@ -132,18 +118,15 @@ int Looper::pollOnce(int timeoutMillis, int* outFd, int* outEvents, void** outDa
     }
 }
 ```
-该函数不断调用pollInner(...)查询是否有新消息需要处理。如果有pollInner(...)返回非0，跳出循环。
+该函数不断调用pollInner(...)查询是否有新消息需要处理。如果有，pollInner(...)返回非0，跳出循环。
 
 ## Looper::pollInner(...)
 ``` cpp
 // system/core/libutils/Looper.cpp:220
 int Looper::pollInner(int timeoutMillis) {
     ... ...
-
-    int result = POLL_WAKE; // 该值定义在Looper.h中，为-1
-    ... ...
-
     struct epoll_event eventItems[EPOLL_MAX_EVENTS];
+    // 阻塞，等待在这里，直到有写入事件
     int eventCount = epoll_wait(mEpollFd, eventItems, EPOLL_MAX_EVENTS, timeoutMillis);
     ... ...
     // 检查是哪一个描述符发生了读写事件
@@ -152,7 +135,7 @@ int Looper::pollInner(int timeoutMillis) {
         uint32_t epollEvents = eventItems[i].events;
         if (fd == mWakeEventFd) {
             if (epollEvents & EPOLLIN) {
-                awoken();   // 🏁
+                awoken();   // 🏁把mWakeEventFd中的数据读出，以清空缓存
             } 
             ... ...
         } else {
@@ -168,10 +151,44 @@ int Looper::pollInner(int timeoutMillis) {
             ... ...
         }
     }
+Done: ;
+... ...
+    // Invoke all response callbacks.
+    // 如果通过addFd(...)注册的描述符还有附加的callback，则依次执行
+    for (size_t i = 0; i < mResponses.size(); i++) {
+        Response& response = mResponses.editItemAt(i);
+        if (response.request.ident == POLL_CALLBACK) {
+            int fd = response.request.fd;
+            int events = response.events;
+            void* data = response.request.data;
+... ...
+            // Invoke the callback.  Note that the file descriptor may be closed by
+            // the callback (and potentially even reused) before the function returns so
+            // we need to be a little careful when removing the file descriptor afterwards.
+            int callbackResult = response.request.callback->handleEvent(fd, events, data);
+            if (callbackResult == 0) {
+                removeFd(fd, response.request.seq);
+            }
+
+            // Clear the callback reference in the response structure promptly because we
+            // will not clear the response vector itself until the next poll.
+            response.request.callback.clear();
+            result = POLL_CALLBACK;
+        }
+    }
 ... ...
     return result;
 }
 ```
+如下面介绍，Looper::awoken()只不过把mWakeEventFd中的数据读出，具体是什么数据其实并不需要关心，因为mWakeEventFd的作用只是当一个信号灯，数据写入会让信号灯亮，亮了以后要做什么则是业务层的职责了。mWakeEventFd只负责等待灯亮后，放行业务层来处理。
+
+而mRequests中的描述符被写入，则不应该在这里读出数据，因为这些描述符是业务层创建、维护，只是注册到Looper中，利用了Looper阻塞、等待的机制，一旦信号灯亮，Looper会把这些描述符交给业务层处理。
+
+这就好比学校传达室的大爷，他自己定个闹钟，到点了，他会去敲学校的钟，告诉大家要上课了，当然敲钟之前他会自己把闹钟按掉。这就是mWakeEventFd机制。
+此外，他还会帮大家代收快递，这也相当于是等待的过程。一旦来了快递，他会通知收件人过来取件，而不会自己把包裹处理掉，这就是通过addFd(...)添加进来的描述符的机制。
+
+在`Done:`后面还有一大坨代码是更高级的机制：每个通过addFd(...)添加进来的描述符还可以指定一个回调函数，每次有信号发生时，先执行该回调，再通知业务层。这就好比我们提前跟传达室的大爷打好招呼，如果有人找我，先把他请到休息室，茶水招待上，再通知我过来接待。
+
 ## Looper::awoken()
 ``` cpp
 // system/core/libutils/Looper.cpp:418

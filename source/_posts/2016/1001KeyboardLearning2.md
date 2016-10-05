@@ -1,6 +1,6 @@
 ---
 layout: post
-title: 键盘消息处理学习笔记（二）
+title: 键盘消息处理学习笔记（二）——InputManagerService的启动
 date: 2016-10-01 22:28:50 +0800
 categories: Android
 tags: 键盘消息处理学习笔记
@@ -64,6 +64,5 @@ status_t InputManager::start() {
 mDispatcherThread和mReaderThread是InputManager在构造时创建的两个线程对象。他们均继承自Thread，当run(...)被调用时，实际进入了各自的线程函数threadLoop(...)。
 
 # 总结
-InputManagerService的启动过程如下：
-![InputManagerService的启动过程](1001KeyboardLearning2/img01.png)
+InputManagerService通过启动两个线程mDispatcherThread和mReaderThreader完成自身的启动。
 所以接下来就需要深入到InputDispatcherThread和InputReaderThread两个线程函数里去了。

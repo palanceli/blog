@@ -18,22 +18,13 @@ comments: true
                 ... ...
                 mAdded = true;
                 ... ...
-                if ((mWindowAttributes.inputFeatures
-                        & WindowManager.LayoutParams.INPUT_FEATURE_NO_INPUT_CHANNEL) == 0) {
                     mInputChannel = new InputChannel();
-                }
-                try {
-                    ... ...
+                ... ...
                     // 🏁将正在启动的应用程序窗口添加到WindowManagerService中
                     res = mWindowSession.addToDisplay(mWindow, mSeq, mWindowAttributes,
                             getHostVisibility(), mDisplay.getDisplayId(),
                             mAttachInfo.mContentInsets, mAttachInfo.mStableInsets,
                             mAttachInfo.mOutsets, mInputChannel);
-                } catch (RemoteException e) {
-                    ... ...
-                } finally {
-                    ... ...
-                }
                 ... ...
                 if (view instanceof RootViewSurfaceTaker) {
                     mInputQueueCallback =
@@ -67,7 +58,7 @@ WindowManagerGlobal.getWindowSession()是一个单例工厂方法：
     public static IWindowSession getWindowSession() {
         synchronized (WindowManagerGlobal.class) {
             if (sWindowSession == null) {
-                try {
+                ... ...
                     InputMethodManager imm = InputMethodManager.getInstance();
                     // 获得WindowManagerService的代理对象
                     IWindowManager windowManager = getWindowManagerService();
@@ -80,7 +71,7 @@ WindowManagerGlobal.getWindowSession()是一个单例工厂方法：
                                 }
                             },
                             imm.getClient(), imm.getInputContext());
-                } catch (RemoteException e) {...}
+                ... ...
             }
             return sWindowSession;
         }
@@ -100,7 +91,7 @@ WindowManagerGlobal.getWindowSession()是一个单例工厂方法：
                 outContentInsets, outStableInsets, outOutsets, outInputChannel);
     }
 ```
-其中mService类型为WindowManagerService。
+其中mService类型为WindowManagerService，由于跨着进程，显然它是WindowManagerService的Binder代理。
 
 # Step3: WindowManagerService::addWindow(...)
 ``` java
