@@ -156,7 +156,8 @@ sWindowSession是一个静态变量，getWindowManagerService()返回的是Windo
             ... ...
             // 如果当前活动窗口和正在启动的窗口不是同一个窗口，则当前焦点会发生改变
             if (focusChanged) {
-                // 🏁把正在启动的窗口注册到InputDispatcher中，以便InputDispatcher可以将键盘事件分发给它，在《键盘消息处理学习笔记（七）》中详细讨论
+                // 🏁把正在启动的窗口注册到InputDispatcher中，以便它可以将键盘
+                // 事件分发给窗口，在《键盘消息处理学习笔记（七）》中详细讨论
                 mInputMonitor.setInputFocusLw(mCurrentFocus, false /*updateInputWindows*/);
             }
             ... ...

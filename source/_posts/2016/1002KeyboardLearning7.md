@@ -11,11 +11,12 @@ comments: true
 ``` java
     // 如果当前活动窗口和正在启动的窗口不是同一个窗口，则当前焦点会发生改变
     if (focusChanged) {
-        // 🏁把正在启动的窗口注册到InputDispatcher中，以便InputDispatcher可以将键盘事件分发给它
+        // 🏁把正在启动的窗口注册到InputDispatcher中，以便它可以将键盘事件分发给窗口
         mInputMonitor.setInputFocusLw(mCurrentFocus, false /*updateInputWindows*/);
     }
 ```
-通过函数mInputMonitor.setInputFocusLw(...)，把当前活动窗口注册到InputDispatcher中，以便InputDispatcher可以将键盘分发给它，本文继续深入这个注册函数。
+通过函数mInputMonitor.setInputFocusLw(...)，把当前活动窗口注册到InputDispatcher中，以便它可以将键盘事件分发给窗口，本文继续深入这个注册函数。
+需要注意的是：该函数是应用程序创建Activi时，通过WindowSession代理向WindowManagerService发送跨进程请求时，WindowManagerService响应执行的代码，所以该段代码所在的进程空间是WindowManagerService所在的进程，而不是应用程序进程。
 <!-- more -->
 
 mInputMonitor在WindowManagerService的块中完成初始化：
@@ -28,10 +29,8 @@ mInputMonitor在WindowManagerService的块中完成初始化：
 // frameworks/base/services/core/java/com/android/server/wm/InputMontor.java:398
     public void setInputFocusLw(WindowState newWindow, boolean updateInputWindows) {
         ... ...
-
         if (newWindow != mInputFocus) {
             ... ...
-
             mInputFocus = newWindow;                    // 当前的活动窗口
             setUpdateInputWindowsNeededLw();
 
