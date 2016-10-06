@@ -1,14 +1,13 @@
 ---
 layout: post
-title: 键盘消息处理学习笔记（九）
+title: 键盘消息处理学习笔记（九）InputReader获得键盘事件
 date: 2016-10-03 23:17:40 +0800
 categories: Android
 tags: 键盘消息处理学习笔记
 toc: true
 comments: true
 ---
-再回过头来看《键盘消息处理学习笔记（三）》中[InputReaderThread的启动](http://palanceli.com/2016/10/02/2016/1002KeyboardLearning3/#InputReaderThread的启动)。Step3中`mEventHub->getEvents(...)`从所有输入设备读取一轮IO事件，如果有IO事件发生，该函数中的循环就会终止，函数返回到Step2中的`InputReader::loopOnce()`，接着由`InputReader::processEventsLocked(...)`来处理这些IO事件。本文以该函数为起点研究键盘事件的处理。
-<!-- more -->
+再回过头来看《键盘消息处理学习笔记（三）》中[InputReaderThread的启动Step2](http://palanceli.com/2016/10/02/2016/1002KeyboardLearning3/#Step2-InputReader-loopOnce)中，`mEventHub->getEvents(...)`从所有输入设备读取一轮IO事件，如果有IO事件发生，mEventHub->getEvents(...)就会返回，接着由`InputReader::processEventsLocked(...)`来处理这些IO事件。本文以该函数为起点研究键盘事件的处理。
 ``` c++
 // frameworks/native/services/inputflinger/InputReader.cpp:272
 void InputReader::loopOnce() {
@@ -23,16 +22,18 @@ void InputReader::loopOnce() {
     ... ...
 }
 ```
+<!-- more -->
 # Step1: InputReader::processEventsLocked(...)
 ``` c++
 // frameworks/native/services/inputflinger/InputReader.cpp:336
 void InputReader::processEventsLocked(const RawEvent* rawEvents, size_t count) {
     for (const RawEvent* rawEvent = rawEvents; count;) {
         int32_t type = rawEvent->type;
-        // 扫描rawEvent之后连续出现且和rawEvent->deviceId相同的，非设备增删查的事件个数
+        
         size_t batchSize = 1;
         if (type < EventHubInterface::FIRST_SYNTHETIC_EVENT) {
             int32_t deviceId = rawEvent->deviceId;
+            // 扫描rawEvent之后，相同设备id连续的键盘事件个数
             while (batchSize < count) {
                 if (rawEvent[batchSize].type >= EventHubInterface::FIRST_SYNTHETIC_EVENT
                         || rawEvent[batchSize].deviceId != deviceId) {
@@ -40,25 +41,12 @@ void InputReader::processEventsLocked(const RawEvent* rawEvents, size_t count) {
                 }
                 batchSize += 1;
             }
-... ...
+            ... ...
             // 🏁批量处理这些IO事件
             processEventsForDeviceLocked(deviceId, rawEvent, batchSize);
         } else {
-            // 处理设备的增、删、查请求
-            switch (rawEvent->type) {
-            case EventHubInterface::DEVICE_ADDED:
-                addDeviceLocked(rawEvent->when, rawEvent->deviceId);
-                break;
-            case EventHubInterface::DEVICE_REMOVED:
-                removeDeviceLocked(rawEvent->when, rawEvent->deviceId);
-                break;
-            case EventHubInterface::FINISHED_DEVICE_SCAN:
-                handleConfigurationChangedLocked(rawEvent->when);
-                break;
-            default:
-                ALOG_ASSERT(false); // can't happen
-                break;
-            }
+            // 处理非键盘事件，如设备的增、删、查事件
+            ... ...
         }
         count -= batchSize;
         rawEvent += batchSize;
@@ -81,11 +69,7 @@ void InputReader::processEventsForDeviceLocked(int32_t deviceId,
 ``` c++
 // frameworks/native/services/inputflinger/InputReader.cpp:1027
 void InputDevice::process(const RawEvent* rawEvents, size_t count) {
-    // Process all of the events in order for each mapper.
-    // We cannot simply ask each mapper to process them in bulk because mappers may
-    // have side-effects that must be interleaved.  For example, joystick movement events and
-    // gamepad button presses are handled by different mappers but they should be dispatched
-    // in the order received.
+    // 让本设备的所有InputMapper有机会处理每一个键盘事件
     size_t numMappers = mMappers.size();
     // 遍历每一个IO事件
     for (const RawEvent* rawEvent = rawEvents; count--; rawEvent++) {
@@ -112,7 +96,8 @@ void KeyboardInputMapper::process(const RawEvent* rawEvent) {
         mCurrentHidUsage = 0;
         // 检查该扫描码是否对应一个合法按键
         if (isKeyboardOrGamepadKey(scanCode)) {
-            processKey(rawEvent->when, rawEvent->value != 0, scanCode, usageCode);  // 🏁
+            processKey(rawEvent->when, rawEvent->value != 0, 
+                        scanCode, usageCode);  // 🏁
         }
         break;
     }
@@ -121,9 +106,9 @@ void KeyboardInputMapper::process(const RawEvent* rawEvent) {
 }
 ```
 简单介绍一下扫描码的概念：
->   当用户按下键盘上的一个键时，键盘内的芯片会检测到这个动作，并把这个信号传送到计算机。如何区别是哪一个键被按下了呢？键盘上的所有按键都有一个编码，称作键盘扫描码。当你按下一个键时，这个键的扫描码就被传给系统。扫描码是跟具体的硬件相关的，同一个键，在不同键盘上的扫描码有可能不同。键盘控制器就是将这个扫描码传给计算机，然后交给键盘驱动程序。键盘驱动程序会完成相关的工作，并把这个扫描码转换为键盘虚拟码。
->   与扫描码相对的还有一个虚拟码。因为扫描码与硬件相关，不具有通用性，为了统一键盘上所有键的编码，于是就提出了虚拟码概念。无论什么键盘，同一个按键的虚拟码总是相同的，这样程序就可以识别了。简单点说，虚拟码就是我们经常可以看到的像VK_A,VK_B这样的常数，比如键A的虚拟码是65，写成16进制就是0x41。
->   当键盘驱动程序把扫描码转换为虚拟码后，会把这个键盘操作的扫描码和虚拟码还有其它信息一起传递给操作系统。然后操作系统则会把这些信息封装在一个消息中，并把这个键盘消息插入到消息列队。
+>○ 当用户按下键盘上的一个键时，键盘内的芯片会检测到这个动作，并把这个信号传送到计算机。如何区别是哪一个键被按下了呢？键盘上的所有按键都有一个编码，称作键盘扫描码。当你按下一个键时，这个键的扫描码就被传给系统。扫描码是跟具体的硬件相关的，同一个键，在不同键盘上的扫描码有可能不同。键盘控制器就是将这个扫描码传给计算机，然后交给键盘驱动程序。键盘驱动程序会完成相关的工作，并把这个扫描码转换为键盘虚拟码。
+>○ 与扫描码相对的还有一个虚拟码。因为扫描码与硬件相关，不具有通用性，为了统一键盘上所有键的编码，于是就提出了虚拟码概念。无论什么键盘，同一个按键的虚拟码总是相同的，这样程序就可以识别了。简单点说，虚拟码就是我们经常可以看到的像VK_A,VK_B这样的常数，比如键A的虚拟码是65，写成16进制就是0x41。
+>○ 当键盘驱动程序把扫描码转换为虚拟码后，会把这个键盘操作的扫描码和虚拟码还有其它信息一起传递给操作系统。然后操作系统则会把这些信息封装在一个消息中，并把这个键盘消息插入到消息列队。
 
 # Step5: KeyboardInputMapper::processKey(...)
 ``` c++
@@ -220,7 +205,7 @@ appledeiMac:android-6.0.1_r11 palance$ find . -name "*.cpp" |xargs grep "::notif
 ./frameworks/native/services/inputflinger/InputListener.cpp:void QueuedInputListener::notifyKey(const NotifyKeyArgs* args) {
 ./system/core/fingerprintd/FingerprintDaemonProxy.cpp:void FingerprintDaemonProxy::notifyKeystore(const uint8_t *auth_token, const size_t auth_token_length) {
 ```
-找到比较靠谱的代码就是InputDispatcher.cpp了。
+找到比较靠谱的代码就是InputDispatcher.cpp了，进入InputDispatcher的地界说明：在这里从InputReader的接收键盘事件的阶段进入到了分发键盘事件阶段。
 # Step6: InputDispatcher::notifyKey(...)
 ``` c++
 // frameworks/native/services/inputflinger/InputDispatcher.cpp:2359
@@ -230,21 +215,18 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
     int32_t flags = args->flags;
     int32_t metaState = args->metaState;
     ... ...
-
     bool needWake;
         ... ...
-
         int32_t repeatCount = 0;
         KeyEntry* newEntry = new KeyEntry(args->eventTime,
                 args->deviceId, args->source, policyFlags,
                 args->action, flags, keyCode, args->scanCode,
                 metaState, repeatCount, args->downTime);
-
-        needWake = enqueueInboundEventLocked(newEntry); // 将键盘事件添加到待分发队列
+        // 将键盘事件添加到待分发队列
+        needWake = enqueueInboundEventLocked(newEntry); 
     ... ...
-
     if (needWake) {
-        mLooper->wake();
+        mLooper->wake(); // 见《笔记（四）》，向默认Fd写入信号
     }
 }
 ```
@@ -261,9 +243,7 @@ bool InputDispatcher::enqueueInboundEventLocked(EventEntry* entry) {
 
     switch (entry->type) {
     case EventEntry::TYPE_KEY: {
-        // Optimize app switch latency.
-        // If the application takes too long to catch up then we drop all events preceding
-        // the app switch key.
+        ... ...
         KeyEntry* keyEntry = static_cast<KeyEntry*>(entry);
         // 键盘事件与应用程序窗口切换操作相关，如Home键，
         // 在抬起时应立刻唤醒InputDispatcher来处理
@@ -272,7 +252,7 @@ bool InputDispatcher::enqueueInboundEventLocked(EventEntry* entry) {
                 mAppSwitchSawKeyDown = true;
             } else if (keyEntry->action == AKEY_EVENT_ACTION_UP) {
                 if (mAppSwitchSawKeyDown) {
-... ...
+                    ... ...
                     mAppSwitchDueTime = keyEntry->eventTime + APP_SWITCH_TIMEOUT;
                     mAppSwitchSawKeyDown = false;
                     needWake = true;
@@ -291,4 +271,4 @@ InputDispatcher::mInboundQueue维护一个待分发键盘事件队列，队列�
 如果需要唤醒InputDispatcher，则在InputDispatcher::notifyKey(...)的尾部调用mLooper()->wake()。
 
 # 总结
-本文的起点是任何一个输入设备有IO事件发生，这将会唤醒InputReader，它收到这个事件后，把事件做了简单封装，插入待分发队列中，然后唤醒Dispatcher。回顾《键盘消息处理学习笔记（三）》之[InputDispatcherThread的启动](http://palanceli.com/2016/10/02/2016/1002KeyboardLearning3/#InputDispatcherThread的启动)一节中，InputDispatcher启动后就等待在`mLooper->pollOnce(timeoutMillis);`，InputReader通过调用`mLooper()->wake()`就把InputDispatcher的等待唤醒了。
+本文的起点是任何一个输入设备有IO事件发生，这将会唤醒InputReader，它收到这个事件后，把事件做了简单封装，插入待分发队列中，然后唤醒Dispatcher。回顾《键盘消息处理学习笔记（三）》之[InputDispatcherThread的启动](http://palanceli.com/2016/10/02/2016/1002KeyboardLearning3/#InputDispatcherThread的启动)一节中，InputDispatcher启动后就等待在`mLooper->pollOnce(timeoutMillis);`，InputReader接收到键盘事件后，完成筛选、封装，交给InputDispatcher，在经过合法性检查，却是需要分发，就会调用`mLooper()->wake()`把InputDispatcher的等待唤醒。

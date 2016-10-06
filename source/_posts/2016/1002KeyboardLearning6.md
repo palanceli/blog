@@ -1,13 +1,13 @@
 ---
 layout: post
-title: 键盘消息处理学习笔记（六）注册Server端InputChannel
+title: 键盘消息处理学习笔记（六）——注册Server端InputChannel
 date: 2016-10-02 23:35:08 +0800
 categories: Android
 tags: 键盘消息处理学习笔记
 toc: true
 comments: true
 ---
-承接[《键盘消息处理学习笔记（五）》之Step3](http://localhost:4000/2016/10/02/2016/1002KeyboardLearning5/#Step3-WindowManagerService-addWindow-…)，在创建一对互联的InputChannel之后，通过函数mInputManager.registerInputChannel(...)，把Server端InputChannel注册到InputManager，本文继续深入这个注册函数。
+承接[《键盘消息处理学习笔记（五）》之Step3](http://palanceli.com/2016/10/02/2016/1002KeyboardLearning5/#Step3-WindowManagerService-addWindow-…)，在创建一对互联的InputChannel之后，通过函数mInputManager.registerInputChannel(...)，把Server端InputChannel注册到InputManager，本文继续深入这个注册函数。
 <!-- more -->
 # Step1: InputManagerService::registerInputChannel(...)
 ``` java
@@ -111,7 +111,7 @@ class InputChannel : public RefBase {
 本节和上一节是个关键，我初次学习的时候也是在这里首先晕掉的，因为Binder机制模糊了进程的边界，这给操作带来了很大便利，却也给理解蒙上一层迷雾，一不留神就搞不清楚当前是在哪个进程空间。
 
 当一个窗体创建时，它会向WindowManagerService发送请求，要求WindowManagerService为之创建一对用socket实现的InputChannel。本节把其中一个（Server端的）InputChannel的socket描述符注册到InputManagerService的InputDispatcher线程的mLooper中。
-还记得在《键盘消息处理学习笔记（三）》中[InputDispatcherThreader的启动](http://localhost:4000/2016/10/02/2016/1002KeyboardLearning3/#InputDispatcherThread的启动)一节我们探讨过的，当时这个线程通过`mLooper->pollOnce(...)`等待在了默认描述符mWakeEventFd处。结合本节的内容，**系统每创建一个可以接收键盘事件的Activity，就会向InputManagerService的InputDispatcher线程的mLooper注册一个InputChannel，以便纳入InputManagerService的监控。**“Server端Channel”的命名也是因此而来。具体怎么个用法，我们后面再探索。
+还记得在《键盘消息处理学习笔记（三）》中[InputDispatcherThreader的启动](http://palanceli.com/2016/10/02/2016/1002KeyboardLearning3/#InputDispatcherThread的启动)一节我们探讨过的，当时这个线程通过`mLooper->pollOnce(...)`等待在了默认描述符mWakeEventFd处。结合本节的内容，**系统每创建一个可以接收键盘事件的Activity，就会向InputManagerService的InputDispatcher线程的mLooper注册一个InputChannel，以便纳入InputManagerService的监控。**“Server端Channel”的命名也是因此而来。具体怎么个用法，我们后面再探索。
 
 ----
 # 疑问一：InputChannel如何能跨进程传输？

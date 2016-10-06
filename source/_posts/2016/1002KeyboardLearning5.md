@@ -124,7 +124,9 @@ sWindowSession是一个静态变量，getWindowManagerService()返回的是Windo
                 InputChannel[] inputChannels = InputChannel.openInputChannelPair(name);
                 // server端InputChannel     
                 win.setInputChannel(inputChannels[0]);
-                // client端InputChannel
+
+                // client端InputChannel，用inputChannels[1]初始化outInputChannel
+                // 即：将outInputChannel的C++层指针指向inputChannels[1]
                 inputChannels[1].transferTo(outInputChannel);
                 // 🏁把server端InputChannel注册到InputManager
                 // 详见《键盘消息处理学习笔记（六）》
@@ -165,6 +167,41 @@ sWindowSession是一个静态变量，getWindowManagerService()返回的是Windo
         ... ...
     }
 ```
+关于`inputChannels[1].transferTo(outInputChannel);`这句，后面还会关注，我们先把它背后做了什么得出个结论放在这：
+``` java
+// frameworks/base/core/java/android/view/InputChannel.java:121
+// 让outParameter的mPtr指向this，让this的mPtr废掉
+    public void transferTo(InputChannel outParameter) {
+        ... ...
+        nativeTransferTo(outParameter);
+    }
+```
+``` c++
+// frameworks/base/core/jni/android_view_InputChannel.cpp:178
+// 让otherObj的mPtr指向obj，让obj的mPtr指向空
+static void android_view_InputChannel_nativeTransferTo(JNIEnv* env, 
+        jobject obj, jobject otherObj) {
+    ... ...
+    NativeInputChannel* nativeInputChannel =
+            android_view_InputChannel_getNativeInputChannel(env, obj);
+    android_view_InputChannel_setNativeInputChannel(env, otherObj, nativeInputChannel);
+    android_view_InputChannel_setNativeInputChannel(env, obj, NULL);
+}
+```
+``` c++
+// frameworks/base/core/jni/android_view_InputChannel.cpp:90
+// 让inputChannelObj.mPtr指向nativeInputChannel.mPtr
+static void android_view_InputChannel_setNativeInputChannel(JNIEnv* env, 
+        jobject inputChannelObj, NativeInputChannel* nativeInputChannel) {
+    env->SetLongField(inputChannelObj, gInputChannelClassInfo.mPtr,
+             reinterpret_cast<jlong>(nativeInputChannel));
+}
+```
+综上所述，
+`inputChannels[1].transferTo(outInputChannel)`
+的含义就是让outInputChannel“变成”inputChannels[1]，所谓“变成”是指令其C++层实体对象指向后者。跟C++的引用很像：
+`InputChannel& outInputChannel = inputChannels[1];`
+
 # Step4: InputChannel::openInputChannelPair(...)
 ``` java
 // frameworks/base/core/java/android/view/InputChannel.java:86

@@ -1,6 +1,6 @@
 ---
 layout: post
-title: 键盘消息处理学习笔记（十）
+title: 键盘消息处理学习笔记（十）InputDispatcher分发键盘事件
 date: 2016-10-04 13:04:17 +0800
 categories: Android
 tags: 键盘消息处理学习笔记
@@ -37,28 +37,22 @@ void InputDispatcher::dispatchOnce() {
 void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
     nsecs_t currentTime = now();
     ... ...
-    // Optimize latency of app switches.
-    // Essentially we start a short timeout when an app switch key (HOME / ENDCALL) has
-    // been pressed.  When it expires, we preempt dispatch and drop all other pending events.
     // 通常我们会给应用程序切换（通过HOME键或结束通话键）留一小段超时时间，
-    // 如果时间过期，则需要立刻分发或者丢掉未完成的事件。
+    // 如果时间过期，则需要立刻分发或者丢掉未完成的事件，以便使切换优先
     bool isAppSwitchDue = mAppSwitchDueTime <= currentTime;
     if (mAppSwitchDueTime < *nextWakeupTime) { // 如果过期，把超时时间传出去，以便上层立即处理
         *nextWakeupTime = mAppSwitchDueTime;
     }
 
-    // Ready to start a new event.
-    // If we don't already have a pending event, go grab one.
-    // mPendingEvent指向上一个需要奋发的键盘事件，如果为空，表明上次已经成功分发
+    // mPendingEvent指向上一个需要分发的键盘事件，
+    // 如果为空，表明上次已成功分发，可继续本次分发
     if (! mPendingEvent) {
         // mInboundQueue维护着待分发的键盘事件队列
         if (mInboundQueue.isEmpty()) {
             ... ...
-
-            // Synthesize a key repeat if appropriate.
             // mKeyRepeatState描述当前重复键盘按键情况
             if (mKeyRepeatState.lastKeyEntry) { 
-                // 如果某个按键一直被按着没送，则需要在这里合成一个键盘事件
+                // 如果某个按键一直被按着没松，则需要在这里合成一个键盘事件
                 // 如果当前时间到了下次处理时间，则合成
                 if (currentTime >= mKeyRepeatState.nextRepeatTime) {
                     mPendingEvent = synthesizeKeyRepeatLocked(currentTime);
@@ -69,15 +63,13 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
                 }
             }
 
-            // Nothing to do if there is no pending event.
-            if (!mPendingEvent) { // 如果待处理队列为空，且不需要合成，则返回
+            if (!mPendingEvent) { // 如果待处理队列为空，则返回
                 return;
             }
         } else {
-            // Inbound queue has at least one entry.
             // 队列非空，则从头部取出元素，保存到mPendingEvent
             mPendingEvent = mInboundQueue.dequeueAtHead();
-            traceInboundQueueLengthLocked();
+            ... ...
         }
         ... ...
     }
@@ -95,7 +87,8 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
             } ... ...
         }
         ... ...
-        done = dispatchKeyLocked(currentTime, typedEntry, &dropReason, nextWakeupTime); // 🏁继续完成分发，如果成功分发则返回true
+        done = dispatchKeyLocked(currentTime, typedEntry, &dropReason, 
+                    nextWakeupTime); // 🏁继续执行分发，如果成功分发则返回true
         break;
     }
     ... ...
@@ -113,15 +106,12 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
 bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
         DropReason* dropReason, nsecs_t* nextWakeupTime) {
     ... ...
-
-    // Identify targets.
-    // 🏁Step3将当前活动窗口mFocusedWindow封装成InputTarget对象，保存到inputTargets中
+    // 🏁Step3将当前活动窗口mFocusedWindow封装成InputTarget对象，
+    // 保存到inputTargets中
     Vector<InputTarget> inputTargets;
     int32_t injectionResult = findFocusedWindowTargetsLocked(currentTime,
             entry, inputTargets, nextWakeupTime);
     ... ...
-
-    // Dispatch the key.
     // 🏁Step4将键盘事件分发给当前的活动窗口
     dispatchEventLocked(currentTime, entry, inputTargets);
     return true;
@@ -136,11 +126,8 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
     int32_t injectionResult;
     String8 reason;
 
-    // If there is no currently focused window and no focused application
-    // then drop the event.
+    // 如果InputManagerService还没有把当前活动窗口注册到InputDispatcher中，分发失败
     if (mFocusedWindowHandle == NULL) {
-        // 如果InputManagerService还没有把当前活动窗口注册到InputDispatcher中，
-        // entry所描述的键盘事件分发失败
         if (mFocusedApplicationHandle != NULL) {
             ... ...
             goto Unresponsive;
@@ -149,29 +136,27 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
         goto Failed;
     }
 
-    // Check permissions.
-    // 如果键盘事件由应用程序注入进来，而非硬件产生，
-    // 检查该应用程序是否有权限向当前活动窗口注入键盘事件，如果没有则分发失败
+    // 键盘事件由程序注入，而非硬件产生，如果没有权限向当前活动窗口注入，则分发失败
     if (! checkInjectionPermission(mFocusedWindowHandle, entry->injectionState)) {
         injectionResult = INPUT_EVENT_INJECTION_PERMISSION_DENIED;
         goto Failed;
     }
 
-    // Check whether the window is ready for more input.
     // 应用程序是否已经处理完上次分发给他的键盘事件，如果没有则分发失败
     reason = checkWindowReadyForMoreInputLocked(currentTime,
             mFocusedWindowHandle, entry, "focused");
     if (!reason.isEmpty()) {
         injectionResult = handleTargetsNotReadyLocked(currentTime, entry,
-                mFocusedApplicationHandle, mFocusedWindowHandle, nextWakeupTime, reason.string());
+                mFocusedApplicationHandle, mFocusedWindowHandle, 
+                nextWakeupTime, reason.string());
         goto Unresponsive;
     }
 
-    // Success!  Output targets.
+    // 把当前的活动窗口封装成InputTarget，保存到inputTargets中
     injectionResult = INPUT_EVENT_INJECTION_SUCCEEDED;
     addWindowTargetLocked(mFocusedWindowHandle,
-            InputTarget::FLAG_FOREGROUND | InputTarget::FLAG_DISPATCH_AS_IS, BitSet32(0),
-            inputTargets); // 把当前的活动窗口封装成InputTarget，保存到inputTargets中
+            InputTarget::FLAG_FOREGROUND | InputTarget::FLAG_DISPATCH_AS_IS, 
+            BitSet32(0), inputTargets); 
     ... ...
     return injectionResult;
 }
@@ -179,8 +164,9 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
 InputDispatcher::addWindowTargetLocked(...)函数很简单，向inputTargets中添加一个元素，并编辑：
 ``` c++
 // frameworks/native/services/inputflinger/InputDispatcher.cpp:1565
-void InputDispatcher::addWindowTargetLocked(const sp<InputWindowHandle>& windowHandle,
-        int32_t targetFlags, BitSet32 pointerIds, Vector<InputTarget>& inputTargets) {
+void InputDispatcher::addWindowTargetLocked(
+        const sp<InputWindowHandle>& windowHandle, int32_t targetFlags, 
+        BitSet32 pointerIds, Vector<InputTarget>& inputTargets) {
     inputTargets.push();
 
     const InputWindowInfo* windowInfo = windowHandle->getInfo();
@@ -195,24 +181,25 @@ void InputDispatcher::addWindowTargetLocked(const sp<InputWindowHandle>& windowH
     target.pointerIds = pointerIds;
 }
 ```
-回到Step2中，完成了inputTargets的封装，继续把键盘事件分发给活动窗口。
+回到Step2中，完成了inputTargets的封装，继续调用`dispatchEventLocked(...)`把键盘事件分发给活动窗口。
 # Step4: InputDispatcher::dispatchEventLocked(...)
 ``` c++
 // frameworks/native/services/inputflinger/InputDispatcher.cpp:921
 void InputDispatcher::dispatchEventLocked(nsecs_t currentTime,
         EventEntry* eventEntry, const Vector<InputTarget>& inputTargets) {
 ... ...
-    // 系统需要接收键盘事件的窗口都保存在inputTargets中，
+    // 需要接收键盘事件的窗口都保存在inputTargets中，
     // 对于向InputManagerService注册过Connection的窗口，依次向他们分发键盘事件
     for (size_t i = 0; i < inputTargets.size(); i++) {
         const InputTarget& inputTarget = inputTargets.itemAt(i);
 
         // 从mConnectionsByFd中根据关键字找到Connection对象
         ssize_t connectionIndex = getConnectionIndexLocked(inputTarget.inputChannel); 
-        if (connectionIndex >= 0) { // 注册过Connection的窗口，找到其Connection对象
+        if (connectionIndex >= 0) { 
+            // 注册过Connection的窗口，找到其Connection对象
             sp<Connection> connection = mConnectionsByFd.valueAt(connectionIndex);
             prepareDispatchCycleLocked(currentTime, connection, eventEntry, 
-                &inputTarget);  // 🏁
+                                        &inputTarget);  // 🏁
         } ... ...
     }
 }
@@ -225,10 +212,8 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime,
 void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
         const sp<Connection>& connection, EventEntry* eventEntry, const InputTarget* inputTarget) {
 ... ...
-
-    // Not splitting.  Enqueue dispatch entries for the event as is.
     enqueueDispatchEntriesLocked(currentTime, connection, eventEntry, 
-        inputTarget); // 🏁
+                                inputTarget); // 🏁
 }
 ```
 # Step6: InputDispatcher::enqueueDispatchEntriesLocked(...)
@@ -255,7 +240,6 @@ void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
     enqueueDispatchEntryLocked(connection, eventEntry, inputTarget,
             InputTarget::FLAG_DISPATCH_AS_SLIPPERY_ENTER);
 
-    // If the outbound queue was previously empty, start the dispatch cycle going.
     // 如果之前队列为空，本次进队后非空，则可以将分发继续向窗口推进，
     // 否则说明上一次分发还没被处理完，本次分发不能马上进行
     if (wasEmpty && !connection->outboundQueue.isEmpty()) {
@@ -272,9 +256,8 @@ void InputDispatcher::enqueueDispatchEntryLocked(
     }
     inputTargetFlags = (inputTargetFlags & ~InputTarget::FLAG_DISPATCH_MASK) | dispatchMode;
 
-    // This is a new event.
-    // Enqueue a new dispatch entry onto the outbound queue for this connection.
-    DispatchEntry* dispatchEntry = new DispatchEntry(eventEntry, // increments ref
+    // 把待分发的键盘事件封装成DispatchEntry对象
+    DispatchEntry* dispatchEntry = new DispatchEntry(eventEntry,
             inputTargetFlags, inputTarget->xOffset, inputTarget->yOffset,
             inputTarget->scaleFactor);
 
@@ -290,9 +273,9 @@ void InputDispatcher::enqueueDispatchEntryLocked(
     ... ...
     }
     ... ...
-    // Enqueue the dispatch entry.将待分发的键盘事件入队
+    // 将待分发的键盘事件入队
     connection->outboundQueue.enqueueAtTail(dispatchEntry);
-    traceOutboundQueueLengthLocked(connection);
+    ... ...
 }
 ```
 # Step7: InputDispatcher::startDispatchCycleLocked(...)
@@ -306,20 +289,20 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
         DispatchEntry* dispatchEntry = connection->outboundQueue.head;
         dispatchEntry->deliveryTime = currentTime;
 
-        // Publish the event.
+        
         status_t status;
         EventEntry* eventEntry = dispatchEntry->eventEntry;
         switch (eventEntry->type) {
         case EventEntry::TYPE_KEY: {
             KeyEntry* keyEntry = static_cast<KeyEntry*>(eventEntry);
 
-            // Publish the key event.
+            // InputConnection是通过其内部InputPublisher对象向活动窗口分发键盘消息
             status = connection->inputPublisher.publishKeyEvent(dispatchEntry->seq,
                     keyEntry->deviceId, keyEntry->source,
                     dispatchEntry->resolvedAction, dispatchEntry->resolvedFlags,
                     keyEntry->keyCode, keyEntry->scanCode,
                     keyEntry->metaState, keyEntry->repeatCount, keyEntry->downTime,
-                    keyEntry->eventTime);   // 🏁
+                    keyEntry->eventTime); // 🏁将键盘事件写入InputPublisher并发送
             break;
         }
 
@@ -397,7 +380,8 @@ status_t InputChannel::sendMessage(const InputMessage* msg) {
     return OK;
 }
 ```
-此处的mFd来自需要接收键盘事件的应用窗口所保留的Server端的InputChannel，在《键盘消息处理学习笔记（八）》的[Step5](http://palanceli.com/2016/10/03/2016/1002KeyboardLearning8/#Step5-NativeInputEventReceiver-setFdEvents-…)中，该描述符被添加到了线程Looper中，并指定了回调函数：
+此处的mFd来自需InputDispatcher为每个注册的应用程序保存的Server端InputChannel，在该InputChannel的对端则是保存在应用程序中的Client端InputChannel。InputDispatcher把要分发的键盘事件写入Server端InputChannel，在应用程序的消息循环中，通过Client端InputChannel就能接收到了。
+在《键盘消息处理学习笔记（八）》的[Step5](http://palanceli.com/2016/10/03/2016/1002KeyboardLearning8/#Step5-NativeInputEventReceiver-setFdEvents-…)中，该描述符被添加到了应用程序主线程Looper中，并指定了回调函数：
 ``` c++
 // frameworks/base/core/jni/android_view_InputEventReceiver.cpp:145
 void NativeInputEventReceiver::setFdEvents(int events) {
@@ -414,3 +398,8 @@ class NativeInputEventReceiver : public LooperCallback {
 };
 ```
 于是，当线程Looper监听到该描述符有内容写入后，将调用回调函数体NativeInputEventReceiver::handleEvent(...)。
+
+# 总结
+本节虽然过程略长，逻辑还是比较清晰的：InputDispatcher把InputReader接收到的键盘事件经过筛选、过滤、封装，通过注册的InputChannel把分发事件发送给应用程序窗口，本质上就是通过InputChannel中的socket把数据发送出去，接下来在应用程序的一侧等待到该事件，会导致消息循环运转起来，解析事件，调用相关函数来处理。这应该是下一节的主要逻辑。
+
+<font color='red'>不过本节也有一处存疑：一个键盘事件难道不是交给当前的活动窗口来处理么？在Step4中，为什么有一堆需要接收键盘事件的窗口呢？</font>

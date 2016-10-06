@@ -108,7 +108,7 @@ void InputReader::loopOnce() {
     ... ...
 }
 ```
-mEventHub是在NativeInputManager构造函数里创建，并通过mInputManager一路传递给InputReader。参见《键盘消息处理学习笔记（一）》的[总结](http://localhost:4000/2016/10/01/2016/0904KeyboardLearning1/#总结)可以复习这部分内容。键盘事件的处理后面讨论，在深入讨论EventHub::getEvents(...)函数之前，先来看一下EventHub的创建：
+mEventHub是在NativeInputManager构造函数里创建，并通过mInputManager一路传递给InputReader。参见《键盘消息处理学习笔记（一）》的[总结](http://palanceli.com/2016/10/01/2016/0904KeyboardLearning1/#总结)可以复习这部分内容。键盘事件的处理后面讨论，在深入讨论EventHub::getEvents(...)函数之前，先来看一下EventHub的创建：
 ``` c++
 // frameworks/native/services/inputflinger/EventHub.cpp:184
 EventHub::EventHub(void) :
