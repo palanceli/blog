@@ -1,6 +1,6 @@
 ---
 layout: post
-title: 键盘消息处理学习笔记（七）
+title: 键盘消息处理学习笔记（七）——创建新窗口在InputDispatcher更新的注册信息
 date: 2016-10-03 20:09:28 +0800
 categories: Android
 tags: 键盘消息处理学习笔记
@@ -31,11 +31,13 @@ mInputMonitor在WindowManagerService的块中完成初始化：
         ... ...
         if (newWindow != mInputFocus) {
             ... ...
-            mInputFocus = newWindow;                    // 当前的活动窗口
+            // mInputFocus用来描述当前活动窗口
+            mInputFocus = newWindow;
             setUpdateInputWindowsNeededLw();
 
             if (updateInputWindows) {
-                updateInputWindowsLw(false /*force*/);  // 🏁
+                // 🏁将mInputFocus注册到InputDispatcher
+                updateInputWindowsLw(false /*force*/);  
             }
         }
     }
@@ -49,9 +51,11 @@ mInputMonitor在WindowManagerService的块中完成初始化：
         mUpdateInputWindowsNeeded = false;
         ... ...
         // Add all windows on the default display.
+        // mDisplayContents中保存了所有的显示设备
         final int numDisplays = mService.mDisplayContents.size();
         for (int displayNdx = 0; displayNdx < numDisplays; ++displayNdx) {
             WindowList windows = mService.mDisplayContents.valueAt(displayNdx).getWindowList();
+            // windows中保存了所有需要接收键盘事件的窗口
             for (int winNdx = windows.size() - 1; winNdx >= 0; --winNdx) {
                 final WindowState child = windows.get(winNdx);
                 final InputChannel inputChannel = child.mInputChannel;
@@ -63,21 +67,24 @@ mInputMonitor在WindowManagerService的块中完成初始化：
                     addInputConsumerHandle = false;
                 }
                 ... ...
+                // 遍历所有现实设备下所有需要接收键盘事件的窗口，把他们添加到
+                // mInputWindowHandles中
                 addInputWindowHandleLw(inputWindowHandle, child, flags, type, isVisible, hasFocus,
                         hasWallpaper);
             }
         }
 
         // Send windows to native code.
-        mService.mInputManager.setInputWindows(mInputWindowHandles); // 🏁
+        // 🏁把mInputWindowHandles中的窗口重新注册到InputDispatcher中
+        mService.mInputManager.setInputWindows(mInputWindowHandles); 
 
         // Clear the list in preparation for the next round.
         clearInputWindowHandlesLw();
-
         ... ...
     }
 ```
-此处应该是把所有需要接收键盘事件的应用窗口都添加到mInputWindowHandles中了。mInputWindowHandles是一个InputWindowHandle数组，函数`addInputWindowHandleLw`把第一个参数添加到该数组中，待mService.mInputManager.setInputWindows(...)函数将该数组注册到InputDispatcher中。<font color='red'>这段代码的疑问比较多，比如mService.mDisplayContents是什么？被省略的代码也调用了addInputWindowHandleLw(...)，为什么要添加？这些问题暂时搁置，后面再研究。</font>先进入InputManagerService::setInputWindows(...)。
+InputMonitor::mService的类型为WindowManagerService。
+此处把所有需要接收键盘事件的应用窗口都添加到mInputWindowHandles中了。mInputWindowHandles是一个InputWindowHandle数组，函数`addInputWindowHandleLw`把参数所代表的窗口添加到该数组中。InputManagerService::setInputWindows(...)负责把这些窗口重新注册到InputDispatcher中，以便InputDispatcher知道哪些窗口需要接收键盘事件，那个窗口是当前活动窗口。
 # Step3: InputManagerService::setInputWindows(...)
 ``` java
 // frameworks/base/services/core/java/com/android/server/input/InputManagerService.java:1249
@@ -119,8 +126,8 @@ void NativeInputManager::setInputWindows(JNIEnv* env,
             env->DeleteLocalRef(windowHandleObj);
         }
     }
-
-    mInputManager->getDispatcher()->setInputWindows(windowHandles);     // 🏁
+    // 🏁前面把JAVA对象们转换成C++对象，然后在C++层执行注册操作
+    mInputManager->getDispatcher()->setInputWindows(windowHandles);     
     ... ...
 }
 ```
@@ -131,10 +138,11 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle> >&
                                         inputWindowHandles) {
 ... ...
         Vector<sp<InputWindowHandle> > oldWindowHandles = mWindowHandles;
-        mWindowHandles = inputWindowHandles;
+        mWindowHandles = inputWindowHandles; // 重新保存所有需要接收键盘事件的窗口
 
         sp<InputWindowHandle> newFocusedWindowHandle;
         bool foundHoveredWindow = false;
+        // 重新检查一遍，把不需要接收键盘事件的窗口删除，顺便获得当前焦点窗口
         for (size_t i = 0; i < mWindowHandles.size(); i++) {
             const sp<InputWindowHandle>& windowHandle = mWindowHandles.itemAt(i);
             if (!windowHandle->updateInfo() || windowHandle->getInputChannel() == NULL) {
@@ -155,54 +163,16 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle> >&
 
         if (mFocusedWindowHandle != newFocusedWindowHandle) {
             if (mFocusedWindowHandle != NULL) {
-... ...
-                sp<InputChannel> focusedInputChannel = mFocusedWindowHandle->getInputChannel();
-                if (focusedInputChannel != NULL) {
-                    CancelationOptions options(CancelationOptions::CANCEL_NON_POINTER_EVENTS,
-                            "focus left window");
-                    synthesizeCancelationEventsForInputChannelLocked(
-                            focusedInputChannel, options);
-                }
-            }
-... ...
+            ... ...
             mFocusedWindowHandle = newFocusedWindowHandle;
         }
-        // 从for循环到这里，找到当前新的活动窗口
-
-        for (size_t d = 0; d < mTouchStatesByDisplay.size(); d++) {
-            TouchState& state = mTouchStatesByDisplay.editValueAt(d);
-            for (size_t i = 0; i < state.windows.size(); i++) {
-                TouchedWindow& touchedWindow = state.windows.editItemAt(i);
-                if (!hasWindowHandleLocked(touchedWindow.windowHandle)) {
-... ...
-                    sp<InputChannel> touchedInputChannel =
-                            touchedWindow.windowHandle->getInputChannel();
-                    if (touchedInputChannel != NULL) {
-                        CancelationOptions options(CancelationOptions::CANCEL_POINTER_EVENTS,
-                                "touched window was removed");
-                        synthesizeCancelationEventsForInputChannelLocked(
-                                touchedInputChannel, options);
-                    }
-                    state.windows.removeAt(i--);
-                }
-            }
-        }
-
-        // Release information for windows that are no longer present.
-        // This ensures that unused input channels are released promptly.
-        // Otherwise, they might stick around until the window handle is destroyed
-        // which might not happen until the next GC.
-        for (size_t i = 0; i < oldWindowHandles.size(); i++) {
-            const sp<InputWindowHandle>& oldWindowHandle = oldWindowHandles.itemAt(i);
-            if (!hasWindowHandleLocked(oldWindowHandle)) {
-... ...
-                oldWindowHandle->releaseInfo();
-            }
-        }
+        // ↑从for循环到这里，收集到所有需要接收键盘事件的应用窗口并找到当前新的活动窗口
     ... ...
-
     // Wake up poll loop since it may need to make new input dispatching choices.
     mLooper->wake();
 }
 ```
-在《Android系统源码情景分析》中就没有把这一小节看得很明白，费这么大劲只是为了记录当前活动窗口？而且Android6的代码多了一坨对Hover窗口的处理，不知道具体目的是什么。先不管，往后看。
+费这么大劲，只是为了把当前所有需要接收键盘事件的窗口重新记录一遍，同时也重新记录当前活动窗口的信息。而且Android6的代码多了一坨对Hover窗口的处理，不知道具体目的是什么。先不管，往后看。
+# 总结
+这段代码是在系统中有新的Activity创建时被调用的，以后如果研究Activity的启动过程应该还会遇到。这里遇到的疑问比较多：为什么每创建一个新Activity，都要让InputDispatcher更新一遍系统中所有接收键盘事件的窗口信息？没有更便捷的方式么？这让Activity的启动成本挺高的，而且这段在键盘消息处理机制中起了什么作用呢？
+我猜测应该就是InputDispatcher保留了系统所有需要接收键盘事件的应用程序窗口列表，以及知道当前的活动窗口是谁。InputDispatcher的主要职责就是分发键盘事件，未来当它需要履行该指责的时候，就可以根据这张列表决定事件分发的目的地。
