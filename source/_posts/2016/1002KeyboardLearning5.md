@@ -1,13 +1,13 @@
 ---
 layout: post
-title: 键盘消息处理学习笔记（五）
+title: 键盘消息处理学习笔记（五）——InputChannel的创建
 date: 2016-10-02 21:17:38 +0800
 categories: Android
 tags: 键盘消息处理学习笔记
 toc: true
 comments: true
 ---
-本文的起点是ViewRootImpl的setView(...)函数，先不管Android系统中它和Activity之间的关系，本文的目标是探索InputChannel的注册过程，等这个过程捋顺了，InputChannel和窗口之间的关系自然会清晰。
+本文的起点是ViewRootImpl的setView(...)函数，先不管Android系统中它和Activity之间的关系，只需要知道它是Activity创建的必经之路。本文的目标是探索InputChannel的创建过程，等这个过程捋顺了，以后再探索窗体的创建过程。
 <!-- more -->
 # Step1: ViewRootImpl::setView(...)
 ``` java
@@ -77,9 +77,14 @@ WindowManagerGlobal.getWindowSession()是一个单例工厂方法：
         }
     }
 ```
+sWindowSession是一个静态变量，getWindowManagerService()返回的是WindowManagerService的代理对象，通过它的openSession(...)得到的当然也是WindowSession的代理对象。
+> 注意，由于它们都是Binder代理对象，以后对他们的调用都是跨进程的请求，实际执行是在WindowManagerService所在的进程中完成。
+> Binder是Android下一个神奇的机制，它弱化了进程之间的边界。在我的《Binder学习笔记》和《深度探索Binder》系列中有深入的讨论。
+
 回到ViewRootImpl::setView(...)中，它调用mWindowSession.addToDisplay(...)向运行在WindowManagerService中的一个Session发送进程间通信请求，将正在启动的应用程序窗口添加到WindowManagerService中。
 
 # Step2: Session::addToDisplay(...)
+接下来的代码就是在WindowManagerService进程内完成的了。
 ``` java
 // frameworks/base/services/core/java/com/android/server/wm/Session.java:69
     // outInputChannel  ViewRootImpl::mInputChannel
@@ -91,7 +96,7 @@ WindowManagerGlobal.getWindowSession()是一个单例工厂方法：
                 outContentInsets, outStableInsets, outOutsets, outInputChannel);
     }
 ```
-其中mService类型为WindowManagerService，由于跨着进程，显然它是WindowManagerService的Binder代理。
+其中mService类型为WindowManagerService。
 
 # Step3: WindowManagerService::addWindow(...)
 ``` java
@@ -227,4 +232,4 @@ status_t InputChannel::openInputChannelPair(const String8& name,
 Server端的InputChannel和Client端的InputChannel实际上是两个相互连接的socket。
 
 # 总结
-窗体在创建的时候会将自己添加到Window管理服务WindowManagerService中（如Step1所示），在添加的同时WindowManagerService会创建一对相互连接的InputChannel，一个用于Server端，一个用于Client端，并把Server端的InputChannel注册到InputManager（如Step3所示）。
+窗体在创建的时候会向WindowManagerService发送跨进程请求，将自己添加到WindowManagerService中。WindowManagerService收到请求后会创建一对相互连接的InputChannel，一个用于Server端，一个用于Client端，这一对互联的InputChannel是通过socket来实现的。
