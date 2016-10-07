@@ -363,3 +363,4 @@ static jlong nativeSendKeyEvent(JNIEnv* env, jobject clazz, jlong ptr, jobject e
         }
 
 ```
+<font color="red">未完待续，此处似乎走进了死胡同，KeyEvent被吃掉了！</font>
