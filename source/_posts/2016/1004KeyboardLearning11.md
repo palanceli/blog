@@ -48,6 +48,9 @@ int NativeInputEventReceiver::handleEvent(int receiveFd, int events, void* data)
 // frameworks/base/core/jni/android_view_InputEventReceiver.cpp:217
 status_t NativeInputEventReceiver::consumeEvents(JNIEnv* env,
         bool consumeBatches, nsecs_t frameTime, bool* outConsumedBatch) {
+        // consumeBatches   false
+        // frameTime        -1
+        // outConsumedBatch NULL
     ... ...
     ScopedLocalRef<jobject> receiverObj(env, NULL);
     bool skipCallbacks = false;
@@ -57,38 +60,12 @@ status_t NativeInputEventReceiver::consumeEvents(JNIEnv* env,
         // 🏁Step3: 将InputDispatcher分发过来的键盘事件读取到inputEvent
         status_t status = mInputConsumer.consume(&mInputEventFactory,
                 consumeBatches, frameTime, &seq, &inputEvent);
-        if (status) {
-            if (status == WOULD_BLOCK) {
-                if (!skipCallbacks && !mBatchedInputEventPending
-                        && mInputConsumer.hasPendingBatch()) {
-                    // There is a pending batch.  Come back later.
-                    if (!receiverObj.get()) {
-                        // 此处得到的是java层InputEventReceiver的弱引用指针
-                        // 见《键盘消息处理学习笔记（八）》Step2
-                        receiverObj.reset(jniGetReferent(env, mReceiverWeakGlobal));
-                        ... ...
-                    }
-
-                    mBatchedInputEventPending = true;
-                    ... ...
-                    // 🏁Step4:调用java层
-                    // InputEventReceiver::dispatchBatchedInputEventPending(...)函数
-                    env->CallVoidMethod(receiverObj.get(),
-                            gInputEventReceiverClassInfo.dispatchBatchedInputEventPending);
-                    if (env->ExceptionCheck()) {
-                        ALOGE("Exception dispatching batched input events.");
-                        mBatchedInputEventPending = false; // try again later
-                    }
-                }
-                return OK;
-            }
-            ... ...
-            return status;
-        }
-        assert(inputEvent);
-
-        if (!skipCallbacks) {
+        ... ...
+        if (!skipCallbacks) { // 为真
+            // 前面读取到了合法数据，接下来在窗口消息组织合适的分发函数，完成分发
             if (!receiverObj.get()) {
+                // 此处得到的是java层InputEventReceiver的弱引用指针
+                // 见《键盘消息处理学习笔记（八）》Step2
                 receiverObj.reset(jniGetReferent(env, mReceiverWeakGlobal));
                 ... ...
             }
@@ -97,6 +74,7 @@ status_t NativeInputEventReceiver::consumeEvents(JNIEnv* env,
             switch (inputEvent->getType()) {
             case AINPUT_EVENT_TYPE_KEY:
                 ... ...
+                // 把C++层InputEvent对象转成Java层InputEvent对象
                 inputEventObj = android_view_KeyEvent_fromNative(env,
                         static_cast<KeyEvent*>(inputEvent));
                 break;
@@ -105,15 +83,17 @@ status_t NativeInputEventReceiver::consumeEvents(JNIEnv* env,
 
             if (inputEventObj) {
                 ... ...
+                // 🏁Step5:调用java层
+                // InputEventReceiver::dispatchInputEvent(...)函数
                 env->CallVoidMethod(receiverObj.get(),
                         gInputEventReceiverClassInfo.dispatchInputEvent, seq, inputEventObj);
                 if (env->ExceptionCheck()) {
-                    ALOGE("Exception dispatching input event.");
+                    ... ...
                     skipCallbacks = true;
                 }
                 env->DeleteLocalRef(inputEventObj);
             } else {
-                ALOGW("channel '%s' ~ Failed to obtain event object.", getInputChannelName());
+                ... ...
                 skipCallbacks = true;
             }
         }
@@ -127,8 +107,11 @@ status_t NativeInputEventReceiver::consumeEvents(JNIEnv* env,
 # Step3: InputConsumer::consume(...)
 ``` c++
 // frameworks/native/libs/input/InputTransport.cpp:399
+// 从InputChannel读出数据，返回到outEvent
 status_t InputConsumer::consume(InputEventFactoryInterface* factory,
         bool consumeBatches, nsecs_t frameTime, uint32_t* outSeq, InputEvent** outEvent) {
+        // consumeBatches   false
+        // frameTime        -1
     ... ...
     *outSeq = 0;
     *outEvent = NULL;
@@ -138,6 +121,35 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory,
     while (!*outEvent) {
         ... ...
             // 此处应该对照《键盘消息处理学习笔记（十）》之Step8
+            status_t result = mChannel->receiveMessage(&mMsg); // 🏁
+            ... ...
+        switch (mMsg.header.type) {
+        case InputMessage::TYPE_KEY: {
+            KeyEvent* keyEvent = factory->createKeyEvent();
+            if (!keyEvent) return NO_MEMORY;
+            // 用读出的数据初始化KeyEvent对象
+            initializeKeyEvent(keyEvent, &mMsg);  
+            *outSeq = mMsg.body.key.seq;
+            *outEvent = keyEvent;
+            ... ...
+            break;
+        }
+        ... ...
+    }
+    return OK;
+}
+
+status_t InputConsumer::consume(InputEventFactoryInterface* factory,
+        bool consumeBatches, nsecs_t frameTime, uint32_t* outSeq, InputEvent** outEvent) {
+        ... ...
+    *outSeq = 0;
+    *outEvent = NULL;
+
+    // Fetch the next input message.
+    // Loop until an event can be returned or no additional events are received.
+    while (!*outEvent) {
+        ... ...
+            // Receive a fresh message.
             status_t result = mChannel->receiveMessage(&mMsg);
             if (result) {
                 // Consume the next batched event unless batches are being held for later.
@@ -150,7 +162,7 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory,
                 }
                 return result;
             }
-
+        ... ...
         switch (mMsg.header.type) {
         case InputMessage::TYPE_KEY: {
             KeyEvent* keyEvent = factory->createKeyEvent();
@@ -162,9 +174,115 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory,
             ... ...
             break;
         }
+
         ... ...
     }
     return OK;
 }
+
 ```
-<font color="red">未完待续</font>
+# Step4: InputChannel::receiveMessage(...)
+``` c++
+// frameworks/native/libs/input/InputTransport.cpp:188
+status_t InputChannel::receiveMessage(InputMessage* msg) {
+    ssize_t nRead;
+    do {
+        nRead = ::recv(mFd, msg, sizeof(InputMessage), MSG_DONTWAIT);
+    } while (nRead == -1 && errno == EINTR);
+
+    if (nRead < 0) {
+        int error = errno;
+        ... ...
+        if (error == EAGAIN || error == EWOULDBLOCK) {
+            return WOULD_BLOCK;
+        }
+        ... ...
+        return -error;
+    }
+    ... ...
+    return OK;  // system/core/include/utils/Errors.h 中定义为0
+}
+status_t InputChannel::receiveMessage(InputMessage* msg) {
+    ssize_t nRead;
+    do {    // 非阻塞式接收
+        nRead = ::recv(mFd, msg, sizeof(InputMessage), MSG_DONTWAIT); 
+    } while (nRead == -1 && errno == EINTR);
+
+    if (nRead < 0) {
+        int error = errno;
+        ... ...
+        if (error == EAGAIN || error == EWOULDBLOCK) {
+            return WOULD_BLOCK;
+        }
+        if (error == EPIPE || error == ENOTCONN || error == ECONNREFUSED) {
+            return DEAD_OBJECT;
+        }
+        return -error;
+    }
+
+    if (nRead == 0) { // check for EOF
+        ... ...
+        return DEAD_OBJECT;
+    }
+
+    if (!msg->isValid(nRead)) {
+        ... ...
+        return BAD_VALUE;
+    }
+    ... ...
+    return OK;
+}
+
+```
+# Step5: InputEventReceiver::dispatchInputEvent(...)
+``` java
+// frameworks/base/core/java/android/view/InputEventReceiver.java:183
+    private void dispatchInputEvent(int seq, InputEvent event) {
+        mSeqMap.put(event.getSequenceNumber(), seq);
+        onInputEvent(event);
+    }
+```
+# Step6: InputEventReceiver::onInputEvent(...)
+``` java
+// frameworks/base/core/java/android/view/InputEventReceiver.java:116
+    public void onInputEvent(InputEvent event) {
+        finishInputEvent(event, false);
+    }
+```
+# Step7: InputEventReceiver::finishInputEvent(...)
+``` java
+// frameworks/base/core/java/android/view/InputEventReceiver.java:139
+    public final void finishInputEvent(InputEvent event, boolean handled) {
+        ... ...
+        if (mReceiverPtr == 0) {
+            ... ...
+        } else {
+            int index = mSeqMap.indexOfKey(event.getSequenceNumber());
+            if (index < 0) {
+                ... ...
+            } else {
+                int seq = mSeqMap.valueAt(index);
+                mSeqMap.removeAt(index);
+                nativeFinishInputEvent(mReceiverPtr, seq, handled);
+            }
+        }
+        event.recycleIfNeededAfterDispatch();
+    }
+```
+# Step8: nativeFinishInputEvent(...)
+// frameworks/base/core/jni/android_view_InputEventReceiver.cpp:369
+``` c++
+static void nativeFinishInputEvent(JNIEnv* env, jclass clazz, jlong receiverPtr,
+        jint seq, jboolean handled) {
+    sp<NativeInputEventReceiver> receiver =
+            reinterpret_cast<NativeInputEventReceiver*>(receiverPtr);
+    status_t status = receiver->finishInputEvent(seq, handled);
+    if (status && status != DEAD_OBJECT) {
+        String8 message;
+        message.appendFormat("Failed to finish input event.  status=%d", status);
+        jniThrowRuntimeException(env, message.string());
+    }
+}
+```
+
+
