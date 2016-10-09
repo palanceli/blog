@@ -39,6 +39,10 @@ More info: [Generating](https://hexo.io/docs/generating.html)
 ``` bash
 $ hexo deploy
 ```
+日期|时长|数值
+---|----|----
+2016/10/03|32:03|5.04
+2016/10/02|32:25|5.05
 
 More info: [Deployment](https://hexo.io/docs/deployment.html)
 
