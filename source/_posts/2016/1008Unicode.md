@@ -77,7 +77,7 @@ CJK Compatibility Ideographs Supplement|2F800–2FA1F|543|变体字
 还有UTF-16，长期以来我以为Windows默认采用的UNCIODE编码就是UTF-16，其实正宗的UTF-16也是类似UTF-8的变长编码方式，以后有空再详细介绍。而Windows采用的只是它的阉割版，用定长的2字节表示BMP中的字符，至于其他平面大于等于0x10000的字符，就不能支持了。
 
 # 几个平台下的字体支持
-编码规范收录了，编码实现方案支持了，还需要有字体支持才能显示出来。拿python+[fonttools](https://github.com/fonttools/fonttools)写段脚本，可以跑出来每个平台下的字体文件各自包含什么区域的多少汉字。
+编码规范收录了，编码实现方案支持了，还需要有字体支持才能显示出来。拿python+[fonttools](https://github.com/fonttools/fonttools)写段脚本，可以跑出来每个平台下的字体文件各自包含什么区域的多少汉字。我把代码放在[这里](https://github.com/palanceli/blog/blob/master/source/_posts/2016/1008Unicode/ParseFont.py)了。
 
 <font color="red">未完待续……</font>
 
