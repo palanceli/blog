@@ -89,5 +89,25 @@ Android|Droid Sans Fall back|16502|0|0|0|0|0|290|0
 macOS|苹方|20,929|6,582|1,088|0|0|0|95|11
 iOS9|苹方|20,929|6,582|1,088|0|0|0|95|11
 
-<font color="red">未完待续……</font>
+貌似各自在ExtB上区别不大，反而苹方还有一千多个字，Windows下宋体字库完全没有对ExtB上的支持，为什么Win7可以正常显示这个字呢？
+
+# Windows的字体链接对生僻字的支持
+## 字体链接
+在Windows下有种技术叫做字体链接。可以给指定的字体注册一串链接字体，当该字体不支持某个字形的时候，系统会依次尝试链接串上的其它字体，直到找出能支持的字体把他显示出来，或者把一串链接字体都遍历完后依然找不到，才不显示。
+在注册表位置`HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\FontLink\SystemLink`，找到某一字体，比如宋体`SimSun`，发现该项的值为：
+```
+MICROSS.TTF,108,122
+MICROSS.TTF
+MINGLIU.TTC,PMingLiU
+MSMINCHO.TTC,MS PMincho
+BATANG.TTC,Batang
+```
+可是我把这些字体遍历之后发现他们也没有ExtB的字体。
+## SurrogateFallback
+还有一个注册表项专门记录了ExtB的字体位置：`HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\LanguagePack\SurrogateFallback`，`Plane2`下的值为`SimSun-ExtB`。然后去到`C:\Windows\Fonts`下找到`SimSun-ExtB`，发现其对应的字体文件为`simsunb.ttf`。跑一下这个文件结果如下：
+
+字体|CJK UI|ExtA|ExtB|ExtC|ExtD|ExtE|CJK CI|CJK CIS
+----|----|----|----|----|----|----|----|----
+simsunb|0|0|42,711|0|0|0|0|0
+
 
