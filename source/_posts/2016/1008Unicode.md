@@ -77,7 +77,37 @@ CJK Compatibility Ideographs Supplement|2F800–2FA1F|543|变体字
 还有UTF-16，长期以来我以为Windows默认采用的UNCIODE编码就是UTF-16，其实正宗的UTF-16也是类似UTF-8的变长编码方式，以后有空再详细介绍。而Windows采用的只是它的阉割版，用定长的2字节表示BMP中的字符，至于其他平面大于等于0x10000的字符，就不能支持了。
 
 # 几个平台下的字体支持
-编码规范收录了，编码实现方案支持了，还需要有字体支持才能显示出来。拿python+[fonttools](https://github.com/fonttools/fonttools)写段脚本，可以跑出来每个平台下的字体文件各自包含什么区域的多少汉字。我把代码放在[这里](https://github.com/palanceli/blog/blob/master/source/_posts/2016/1008Unicode/ParseFont.py)了。
+编码规范收录了，编码实现方案支持了，还需要有字体支持才能显示出来。拿python+[fonttools](https://github.com/fonttools/fonttools)写段脚本，可以跑出来每个平台下的字体文件各自包含什么区域的多少汉字。我把代码放在[这里](https://github.com/palanceli/blog/blob/master/source/_posts/2016/1008Unicode/ParseFont.py)了。结果如下：
 
-<font color="red">未完待续……</font>
+系统|字体|CJK UI|ExtA|ExtB|ExtC|ExtD|ExtE|CJK CI|CJK CIS
+----|----|----|----|----|----|----|----|----|----
+WinXP|微软雅黑|20,909|6,582|8|0|0|0|21|0
+WinXP|宋体|20,902|52|0|0|0|0|21|0
+Win7|微软雅黑|20,909|6,582|8|0|0|0|21|0
+Win7|宋体|20,910|6,582|0|0|0|0|21|0
+Android|Droid Sans Fall back|16502|0|0|0|0|0|290|0
+macOS|苹方|20,929|6,582|1,088|0|0|0|95|11
+iOS9|苹方|20,929|6,582|1,088|0|0|0|95|11
+
+貌似各自在ExtB上区别不大，反而苹方还有一千多个字，Windows下宋体字库完全没有对ExtB上的支持，为什么Win7可以正常显示这个字呢？
+
+# Windows的字体链接对生僻字的支持
+## 字体链接
+在Windows下有种技术叫做字体链接。可以给指定的字体注册一串链接字体，当该字体不支持某个字形的时候，系统会依次尝试链接串上的其它字体，直到找出能支持的字体把他显示出来，或者把一串链接字体都遍历完后依然找不到，才不显示。
+在注册表位置`HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\FontLink\SystemLink`，找到某一字体，比如宋体`SimSun`，发现该项的值为：
+```
+MICROSS.TTF,108,122
+MICROSS.TTF
+MINGLIU.TTC,PMingLiU
+MSMINCHO.TTC,MS PMincho
+BATANG.TTC,Batang
+```
+可是我把这些字体遍历之后发现他们也没有ExtB的字体。
+## SurrogateFallback
+还有一个注册表项专门记录了ExtB的字体位置：`HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\LanguagePack\SurrogateFallback`，`Plane2`下的值为`SimSun-ExtB`。然后去到`C:\Windows\Fonts`下找到`SimSun-ExtB`，发现其对应的字体文件为`simsunb.ttf`。跑一下这个文件结果如下：
+
+字体|CJK UI|ExtA|ExtB|ExtC|ExtD|ExtE|CJK CI|CJK CIS
+----|----|----|----|----|----|----|----|----
+simsunb|0|0|42,711|0|0|0|0|0
+
 
