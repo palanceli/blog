@@ -57,10 +57,10 @@ Unicode的目的就写在Unicode[官网首页](http://www.unicode.org/)：让世
 ---|----|----|----
 CJK Unified Ideographs|4E00–9FFF|20,991|常用字
 CJK Unified Ideographs Extension A|3400–4DBF|6591|生僻字
-CJK Unified Ideographs Extension B|20000–2A6DF|42,719|历史遗留的生僻字
-CJK Unified Ideographs Extension C|2A700–2B73F|4,159|历史遗留的生僻字
+CJK Unified Ideographs Extension B|20000–2A6DF|42,719|古汉字遗留的生僻字
+CJK Unified Ideographs Extension C|2A700–2B73F|4,159|古汉字遗留的生僻字
 CJK Unified Ideographs Extension D|2B740–2B81F|223|现在还在用，但使用较少
-CJK Unified Ideographs Extension E|2B820–2CEAF|5,775|历史遗留的生僻字
+CJK Unified Ideographs Extension E|2B820–2CEAF|5,775|古汉字遗留的生僻字
 CJK Compatibility Ideographs|F900–FAFF|511|重复的变体字
 CJK Compatibility Ideographs Supplement|2F800–2FA1F|543|变体字
 总计||81,432|
