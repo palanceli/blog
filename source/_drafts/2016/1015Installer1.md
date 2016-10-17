@@ -524,7 +524,7 @@ public static PackageManagerService main(Context context, Installer installer,
         final File[] files = dir.listFiles();
         ... ...
 
-        for (File file : files) {
+        for (File file : files) { // 遍历dir下的每个文件
             final boolean isPackage = (isApkFile(file) || file.isDirectory())
                     && !PackageInstallerService.isStageName(file.getName());
             if (!isPackage) {
@@ -533,10 +533,11 @@ public static PackageManagerService main(Context context, Installer installer,
             }
             try {
                 scanPackageLI(file, parseFlags | PackageParser.PARSE_MUST_BE_APK,
-                        scanFlags, currentTime, null);
+                        scanFlags, currentTime, null); // 🏁继续解析Package
             } catch (PackageManagerException e) {
                 ... ...
                 // Delete invalid userdata apps
+                // 如果解析失败则表明不是真正的应用程序文件，如果不在系统目录下，则删除
                 if ((parseFlags & PackageParser.PARSE_IS_SYSTEM) == 0 &&
                         e.error == PackageManager.INSTALL_FAILED_INVALID_APK) {
                     ... ...
@@ -550,4 +551,173 @@ public static PackageManagerService main(Context context, Installer installer,
         }
     }
 ```
+# Step11: PackageManagerService::scanPackageLI(...)
+``` java
+// frameworks/base/services/core/java/com/android/server/pm/PackageManagerService.java:5735
+    private PackageParser.Package scanPackageLI(File scanFile, int parseFlags, int scanFlags,
+            long currentTime, UserHandle user) throws PackageManagerException {
+        ... ...
+        parseFlags |= mDefParseFlags;
+        PackageParser pp = new PackageParser();
+        pp.setSeparateProcesses(mSeparateProcesses);
+        pp.setOnlyCoreApps(mOnlyCore);
+        pp.setDisplayMetrics(mMetrics);
+        ... ...
+        final PackageParser.Package pkg;
+        ... ...
+        // 🏁Step12: 解析scanFile所描述的文件
+        pkg = pp.parsePackage(scanFile, parseFlags); 
+        ... ...
+        // 🏁安装pkg描述的应用程序文件，以便获得它的组件信息，并为它分配LinuxUID
+        PackageParser.Package scannedPkg = scanPackageLI(pkg, parseFlags, scanFlags
+                | SCAN_UPDATE_SIGNATURE, currentTime, user);
 
+        ... ...
+        return scannedPkg;
+    }
+```
+# Step12: PackageParser::parsePackage(...)
+``` java
+// frameworks/base/core/java/android/content/pm/PackageParser.java:752
+    public Package parsePackage(File packageFile, int flags) throws PackageParserException {
+        if (packageFile.isDirectory()) {
+            // 解析该目录中的所有APK文件，把他们当做一个单独的package来处理
+            return parseClusterPackage(packageFile, flags);
+        } else {
+            return parseMonolithicPackage(packageFile, flags); // 🏁
+        }
+    }
+```
+根据要解析的是一个目录还是一个文件，这里分了两枝来处理。如果是一个文件，`parseClusterPackage(...)`会解析其中的所有APK文件，把目录当做一个package来处理。我们假设待处理的是单个apk文件，进入`parseMonolithicPackage(...)`。
+
+# Step13: PackageParser::parseMonollithicPackage(...)
+``` java
+// frameworks/base/core/java/android/content/pm/PackageParser.java:827
+    public Package parseMonolithicPackage(File apkFile, int flags) throws PackageParserException {
+        if (mOnlyCoreApps) {
+            final PackageLite lite = parseMonolithicPackageLite(apkFile, flags);
+            ... ...
+        }
+
+        final AssetManager assets = new AssetManager();
+        ... ...
+            final Package pkg = parseBaseApk(apkFile, assets, flags);
+            pkg.codePath = apkFile.getAbsolutePath();
+            return pkg;
+        ... ...
+    }
+```
+# Step14: PackageParser::parseMonolithicPackageLite(...)
+``` java
+// frameworks/base/core/java/android/content/pm/PackageParser.java:657
+    private static PackageLite parseMonolithicPackageLite(File packageFile, int flags)
+            throws PackageParserException {
+        final ApkLite baseApk = parseApkLite(packageFile, flags); // 🏁
+        final String packagePath = packageFile.getAbsolutePath();
+        return new PackageLite(packagePath, baseApk, null, null, null);
+    }
+```
+`parseApkLite(...)`是一个获取APK轻量级信息的方法，比如package name, split name, install location等。
+# Step15: PackageParser::parseApkLite(...)
+``` java
+// frameworks/base/core/java/android/content/pm/PackageParser.java:1155
+    public static ApkLite parseApkLite(File apkFile, int flags)
+            throws PackageParserException {
+        final String apkPath = apkFile.getAbsolutePath();
+
+        AssetManager assets = null;
+        XmlResourceParser parser = null;
+        ... ...
+            assets = new AssetManager();
+            assets.setConfiguration(0, 0, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    Build.VERSION.RESOURCES_SDK_INT);
+
+            int cookie = assets.addAssetPath(apkPath);
+            ... ...
+
+            final DisplayMetrics metrics = new DisplayMetrics();
+            metrics.setToDefaults();
+
+            final Resources res = new Resources(assets, metrics, null);
+            parser = assets.openXmlResourceParser(cookie, ANDROID_MANIFEST_FILENAME);
+
+            final Signature[] signatures;
+            if ((flags & PARSE_COLLECT_CERTIFICATES) != 0) {
+                // TODO: factor signature related items out of Package object
+                final Package tempPkg = new Package(null);
+                collectCertificates(tempPkg, apkFile, 0);
+                signatures = tempPkg.mSignatures;
+            } else {
+                signatures = null;
+            }
+
+            final AttributeSet attrs = parser;
+            return parseApkLite(apkPath, res, parser, attrs, flags, signatures);
+        ... ...
+    }
+```
+# Step16: PackageParser::parseApkLite(...)
+``` java
+// frameworks/base/core/java/android/content/pm/PackageParser.java:1155
+    private static ApkLite parseApkLite(String codePath, Resources res, XmlPullParser parser,
+            AttributeSet attrs, int flags, Signature[] signatures) throws IOException,
+            XmlPullParserException, PackageParserException {
+        final Pair<String, String> packageSplit = parsePackageSplitNames(parser, attrs, flags);
+
+        int installLocation = PARSE_DEFAULT_INSTALL_LOCATION;
+        int versionCode = 0;
+        int revisionCode = 0;
+        boolean coreApp = false;
+        boolean multiArch = false;
+        boolean extractNativeLibs = true;
+
+        for (int i = 0; i < attrs.getAttributeCount(); i++) {
+            final String attr = attrs.getAttributeName(i);
+            if (attr.equals("installLocation")) {
+                installLocation = attrs.getAttributeIntValue(i,
+                        PARSE_DEFAULT_INSTALL_LOCATION);
+            } else if (attr.equals("versionCode")) {
+                versionCode = attrs.getAttributeIntValue(i, 0);
+            } else if (attr.equals("revisionCode")) {
+                revisionCode = attrs.getAttributeIntValue(i, 0);
+            } else if (attr.equals("coreApp")) {
+                coreApp = attrs.getAttributeBooleanValue(i, false);
+            }
+        }
+
+        // Only search the tree when the tag is directly below <manifest>
+        int type;
+        final int searchDepth = parser.getDepth() + 1;
+
+        final List<VerifierInfo> verifiers = new ArrayList<VerifierInfo>();
+        while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
+                && (type != XmlPullParser.END_TAG || parser.getDepth() >= searchDepth)) {
+            if (type == XmlPullParser.END_TAG || type == XmlPullParser.TEXT) {
+                continue;
+            }
+
+            if (parser.getDepth() == searchDepth && "package-verifier".equals(parser.getName())) {
+                final VerifierInfo verifier = parseVerifier(res, parser, attrs, flags);
+                if (verifier != null) {
+                    verifiers.add(verifier);
+                }
+            }
+
+            if (parser.getDepth() == searchDepth && "application".equals(parser.getName())) {
+                for (int i = 0; i < attrs.getAttributeCount(); ++i) {
+                    final String attr = attrs.getAttributeName(i);
+                    if ("multiArch".equals(attr)) {
+                        multiArch = attrs.getAttributeBooleanValue(i, false);
+                    }
+                    if ("extractNativeLibs".equals(attr)) {
+                        extractNativeLibs = attrs.getAttributeBooleanValue(i, true);
+                    }
+                }
+            }
+        }
+
+        return new ApkLite(codePath, packageSplit.first, packageSplit.second, versionCode,
+                revisionCode, installLocation, verifiers, signatures, coreApp, multiArch,
+                extractNativeLibs);
+    }
+```
