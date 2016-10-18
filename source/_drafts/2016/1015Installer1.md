@@ -568,7 +568,7 @@ public static PackageManagerService main(Context context, Installer installer,
         // 🏁Step12: 解析scanFile所描述的文件
         pkg = pp.parsePackage(scanFile, parseFlags); 
         ... ...
-        // 🏁安装pkg描述的应用程序文件，以便获得它的组件信息，并为它分配LinuxUID
+        // 🏁Step19: 安装pkg描述的应用程序文件，以便获得它的组件信息，并为它分配LinuxUID
         PackageParser.Package scannedPkg = scanPackageLI(pkg, parseFlags, scanFlags
                 | SCAN_UPDATE_SIGNATURE, currentTime, user);
 
@@ -602,7 +602,7 @@ public static PackageManagerService main(Context context, Installer installer,
         final AssetManager assets = new AssetManager();
         ... ...
             final Package pkg = parseBaseApk(apkFile, assets, flags);
-            pkg.codePath = apkFile.getAbsolutePath();
+            pkg.codePath = apkFile.getAbsolutePath(); // 🏁Step16
             return pkg;
         ... ...
     }
@@ -612,57 +612,31 @@ public static PackageManagerService main(Context context, Installer installer,
 // frameworks/base/core/java/android/content/pm/PackageParser.java:657
     private static PackageLite parseMonolithicPackageLite(File packageFile, int flags)
             throws PackageParserException {
-        final ApkLite baseApk = parseApkLite(packageFile, flags); // 🏁
+        // 🏁解析Apk的轻量级数据，并封装成PackageLite对象
+        final ApkLite baseApk = parseApkLite(packageFile, flags); 
         final String packagePath = packageFile.getAbsolutePath();
         return new PackageLite(packagePath, baseApk, null, null, null);
     }
 ```
+## Step14.1: PackageParser::parseApkLite(...)
 `parseApkLite(...)`是一个获取APK轻量级信息的方法，比如package name, split name, install location等。
-# Step15: PackageParser::parseApkLite(...)
 ``` java
 // frameworks/base/core/java/android/content/pm/PackageParser.java:1155
     public static ApkLite parseApkLite(File apkFile, int flags)
             throws PackageParserException {
         final String apkPath = apkFile.getAbsolutePath();
-
-        AssetManager assets = null;
-        XmlResourceParser parser = null;
-        ... ...
-            assets = new AssetManager();
-            assets.setConfiguration(0, 0, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    Build.VERSION.RESOURCES_SDK_INT);
-
-            int cookie = assets.addAssetPath(apkPath);
-            ... ...
-
-            final DisplayMetrics metrics = new DisplayMetrics();
-            metrics.setToDefaults();
-
-            final Resources res = new Resources(assets, metrics, null);
-            parser = assets.openXmlResourceParser(cookie, ANDROID_MANIFEST_FILENAME);
-
-            final Signature[] signatures;
-            if ((flags & PARSE_COLLECT_CERTIFICATES) != 0) {
-                // TODO: factor signature related items out of Package object
-                final Package tempPkg = new Package(null);
-                collectCertificates(tempPkg, apkFile, 0);
-                signatures = tempPkg.mSignatures;
-            } else {
-                signatures = null;
-            }
-
-            final AttributeSet attrs = parser;
+        ... ... // 将解析到的轻量级数据封装成ApkLite对象并返回
             return parseApkLite(apkPath, res, parser, attrs, flags, signatures);
         ... ...
     }
 ```
-# Step16: PackageParser::parseApkLite(...)
+## Step14.2: PackageParser::parseApkLite(...)
 ``` java
 // frameworks/base/core/java/android/content/pm/PackageParser.java:1155
     private static ApkLite parseApkLite(String codePath, Resources res, XmlPullParser parser,
             AttributeSet attrs, int flags, Signature[] signatures) throws IOException,
             XmlPullParserException, PackageParserException {
-        final Pair<String, String> packageSplit = parsePackageSplitNames(parser, attrs, flags);
+        final Pair<String, String> packageSplit = parsePackageSplitNames(parser, attrs, flags); // 🏁解析并生成<package, split>的pair
 
         int installLocation = PARSE_DEFAULT_INSTALL_LOCATION;
         int versionCode = 0;
@@ -670,7 +644,7 @@ public static PackageManagerService main(Context context, Installer installer,
         boolean coreApp = false;
         boolean multiArch = false;
         boolean extractNativeLibs = true;
-
+        // 解析这些标签
         for (int i = 0; i < attrs.getAttributeCount(); i++) {
             final String attr = attrs.getAttributeName(i);
             if (attr.equals("installLocation")) {
@@ -684,40 +658,563 @@ public static PackageManagerService main(Context context, Installer installer,
                 coreApp = attrs.getAttributeBooleanValue(i, false);
             }
         }
-
-        // Only search the tree when the tag is directly below <manifest>
-        int type;
-        final int searchDepth = parser.getDepth() + 1;
-
-        final List<VerifierInfo> verifiers = new ArrayList<VerifierInfo>();
-        while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
-                && (type != XmlPullParser.END_TAG || parser.getDepth() >= searchDepth)) {
-            if (type == XmlPullParser.END_TAG || type == XmlPullParser.TEXT) {
-                continue;
-            }
-
-            if (parser.getDepth() == searchDepth && "package-verifier".equals(parser.getName())) {
-                final VerifierInfo verifier = parseVerifier(res, parser, attrs, flags);
-                if (verifier != null) {
-                    verifiers.add(verifier);
-                }
-            }
-
-            if (parser.getDepth() == searchDepth && "application".equals(parser.getName())) {
-                for (int i = 0; i < attrs.getAttributeCount(); ++i) {
-                    final String attr = attrs.getAttributeName(i);
-                    if ("multiArch".equals(attr)) {
-                        multiArch = attrs.getAttributeBooleanValue(i, false);
-                    }
-                    if ("extractNativeLibs".equals(attr)) {
-                        extractNativeLibs = attrs.getAttributeBooleanValue(i, true);
-                    }
-                }
-            }
-        }
-
+        ... ...
+        // 将解析到的数据封装成ApkLite对象
         return new ApkLite(codePath, packageSplit.first, packageSplit.second, versionCode,
                 revisionCode, installLocation, verifiers, signatures, coreApp, multiArch,
                 extractNativeLibs);
+    }
+```
+## Step 14.3: PackageParser::parsePackageSplitNames(...)
+``` java
+// frameworks/base/core/java/android/content/pm/PackageParser.java:123
+    private static Pair<String, String> parsePackageSplitNames(XmlPullParser parser,
+            AttributeSet attrs, int flags) throws IOException, XmlPullParserException,
+            PackageParserException {
+
+        int type;
+        while ((type = parser.next()) != XmlPullParser.START_TAG
+                && type != XmlPullParser.END_DOCUMENT) {
+        }
+
+        if (type != XmlPullParser.START_TAG) {...}
+        if (!parser.getName().equals("manifest")) {... }
+        // 找到manifest/package
+        final String packageName = attrs.getAttributeValue(null, "package");
+        if (!"android".equals(packageName)) {
+            final String error = validateName(packageName, true, true);
+            if (error != null) {...}
+        }
+        // 找到manifest/split
+        String splitName = attrs.getAttributeValue(null, "split");
+        if (splitName != null) {
+            if (splitName.length() == 0) {
+                splitName = null;
+            } else {
+                final String error = validateName(splitName, false, false);
+                if (error != null) {...}
+            }
+        }
+        // 生成<package, split>的pair
+        return Pair.create(packageName.intern(),
+                (splitName != null) ? splitName.intern() : splitName);
+    }
+```
+# 一个AndroidManifest.xml的样例
+有必要抓一个AndroidManifest.xml拿来看一眼，一般的apk解压后，AndroidManifest.xml文件是需要反编译的，可以下一个AXMLPrinter2.jar，执行：
+``` bash
+java -jar AXMLPrinter2.jar AndroidManifest.xml
+```
+即可打印明文：
+``` xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:versionCode="590"
+    android:versionName="8.5"
+    android:installLocation="1"
+    package="com.sohu.inputmethod.sogou"
+    platformBuildVersionCode="23"
+    platformBuildVersionName="6.0-2704002"
+    >
+    <uses-sdk
+        android:minSdkVersion="11"
+        android:targetSdkVersion="23"
+        >
+    </uses-sdk>
+    <supports-screens
+        android:anyDensity="true"
+        android:smallScreens="true"
+        android:normalScreens="true"
+        android:largeScreens="true"
+        android:xlargeScreens="true"
+        >
+    </supports-screens>
+    <uses-permission
+        android:name="com.xiaomi.permission.AUTH_SERVICE"
+        >
+    </uses-permission>
+    ... ...
+    <uses-feature
+        android:name="android.hardware.telephony.gsm"
+        android:required="false"
+        >
+    </uses-feature>
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        >
+    </uses-permission>
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false"
+        >
+    </uses-feature>
+    <application
+        android:label="@7F0B0329"
+        android:icon="@7F02041F"
+        android:name="com.sohu.inputmethod.sogou.SogouAppApplication"
+        android:process="com.sohu.inputmethod.sogou"
+        android:allowBackup="false"
+        >
+        <service
+            android:label="@7F0B0329"
+            android:icon="@7F02041F"
+            android:name="com.sohu.inputmethod.sogou.SogouIME"
+            android:permission="android.permission.BIND_INPUT_METHOD"
+            >
+            <intent-filter
+                android:priority="100"
+                >
+                <action
+                    android:name="android.view.InputMethod"
+                    >
+                </action>
+                <category
+                    android:name="android.intent.category.DEFAULT"
+                    >
+                </category>
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@7F060009"
+                >
+            </meta-data>
+        </service>
+        ... ...
+        <receiver
+            android:name="com.sohu.inputmethod.multimedia.MultiMediaTransferReceiver"
+            >
+        </receiver>
+        <activity
+            android:label="@7F0B039E"
+            android:name="com.sohu.inputmethod.settings.AccountList"
+            android:excludeFromRecents="true"
+            android:configChanges="0x000000A0"
+            >
+            <intent-filter
+                >
+                <action
+                    android:name="android.intent.action.MAIN"
+                    >
+                </action>
+            </intent-filter>
+        </activity>
+        ... ...
+        <activity
+            android:label="@7F0B0329"
+            android:name="com.sohu.inputmethod.sogou.SogouIMESettings"
+            android:excludeFromRecents="true"
+            android:configChanges="0x000004A0"
+            >
+            <intent-filter
+                >
+                <action
+                    android:name="android.intent.action.MAIN"
+                    >
+                </action>
+            </intent-filter>
+        </activity>
+        <service
+            android:name="com.sohu.inputmethod.sogou.push.PushReceiveService"
+            >
+            <intent-filter
+                >
+                <action
+                    android:name="com.sogou.pushservice.action.message.RECEIVE"
+                    >
+                </action>
+                ... ...
+            </intent-filter>
+        </service>
+        <receiver
+            android:name="com.sogou.udp.push.SystemReceiver"
+            >
+        </receiver>
+        ... ...
+        <service
+            android:name="sogou.mobile.explorer.hotwords.floatingpopup.PushFloatingWindowService"
+            android:exported="false"
+            android:process="sogou.mobile.explorer.hotwords"
+            >
+        </service>
+        <meta-data
+            android:name="SdkVersion"
+            android:value="3.7"
+            >
+        </meta-data>
+        ... ...
+        <meta-data
+            android:name="QBSDKAppKey"
+            android:value="ACR8D+367NCAy7ZECvRBVmMC"
+            >
+        </meta-data>
+    </application>
+</manifest>
+```
+# Step16: PackageParser::parseBaseApk(...)
+``` java
+// frameworks/base/core/java/android/content/pm/PackageParser.java:864
+    private Package parseBaseApk(File apkFile, AssetManager assets, int flags)
+            throws PackageParserException {
+        final String apkPath = apkFile.getAbsolutePath();
+
+        String volumeUuid = null;
+        if (apkPath.startsWith(MNT_EXPAND)) {
+            final int end = apkPath.indexOf('/', MNT_EXPAND.length());
+            volumeUuid = apkPath.substring(MNT_EXPAND.length(), end);
+        }
+        ... ...
+        final int cookie = loadApkIntoAssetManager(assets, apkPath, flags);
+
+        Resources res = null;
+        XmlResourceParser parser = null;
+        ... ...
+            res = new Resources(assets, mMetrics, null);
+            assets.setConfiguration(0, 0, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    Build.VERSION.RESOURCES_SDK_INT);
+            parser = assets.openXmlResourceParser(cookie, ANDROID_MANIFEST_FILENAME);
+
+            final String[] outError = new String[1];
+            // 🏁调用重载函数继续解析
+            final Package pkg = parseBaseApk(res, parser, flags, outError); 
+            ... ...
+            pkg.volumeUuid = volumeUuid;
+            pkg.applicationInfo.volumeUuid = volumeUuid;
+            pkg.baseCodePath = apkPath;
+            pkg.mSignatures = null;
+
+            return pkg;
+        ... ...
+    }
+```
+# Step17: PackageParser::parseBaseApk(...)
+``` java
+// frameworks/base/core/java/android/content/pm/PackageParser.java:1354
+    private Package parseBaseApk(Resources res, XmlResourceParser parser, int flags,
+            String[] outError) throws XmlPullParserException, IOException {
+        ... ...
+            Pair<String, String> packageSplit = parsePackageSplitNames(parser, attrs, flags);
+            pkgName = packageSplit.first;
+            splitName = packageSplit.second;
+        ... ...
+        int type;
+        ... ...
+        final Package pkg = new Package(pkgName);
+        boolean foundApp = false;
+        // 解析manifest标签中的android:sharedUserId属性。如果设置了该属性，表示app
+        // 要与其它应用程序共享一个LinuxUID。
+        TypedArray sa = res.obtainAttributes(attrs,
+                com.android.internal.R.styleable.AndroidManifest);
+        pkg.mVersionCode = pkg.applicationInfo.versionCode = sa.getInteger(
+                com.android.internal.R.styleable.AndroidManifest_versionCode, 0);
+        pkg.baseRevisionCode = sa.getInteger(
+                com.android.internal.R.styleable.AndroidManifest_revisionCode, 0);
+        pkg.mVersionName = sa.getNonConfigurationString(
+                com.android.internal.R.styleable.AndroidManifest_versionName, 0);
+        if (pkg.mVersionName != null) {
+            pkg.mVersionName = pkg.mVersionName.intern();
+        }
+        String str = sa.getNonConfigurationString(
+                com.android.internal.R.styleable.AndroidManifest_sharedUserId, 0);
+        if (str != null && str.length() > 0) {
+            ... ...
+            pkg.mSharedUserId = str.intern(); // 将共享UID提取出来
+            ... ...
+        }
+        ... ...
+        sa.recycle();
+        ... ...
+        int outerDepth = parser.getDepth();
+        // 解析uses-permission和application标签，它们均未manifest子标签
+        while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
+                && (type != XmlPullParser.END_TAG || parser.getDepth() > outerDepth)) {
+            ... ...
+            String tagName = parser.getName();
+            if (tagName.equals("application")) {
+                ... ...
+                if (!parseBaseApplication(pkg, res, parser, attrs, flags, 
+                outError)) { // 🏁解析每个app必须存在的application标签
+                    return null;
+                }
+            } ... ...
+            else if (tagName.equals("uses-permission")) {
+                // uses-permission对应资源访问权限，如果一个app申请了某资源访问权限，
+                // 它就会获得一个对应的Linux用户组ID。一个app可以申请多个资源访问权限，
+                // 故它的配置文件中可以存在多个uses-permission标签，这些标签有一个
+                // name属性，用来描述对应的资源访问权限的名称。
+                if (!parseUsesPermission(pkg, res, parser, attrs)) {
+                    return null;
+                }
+            } else if (tagName.equals("uses-permission-sdk-m")
+                    || tagName.equals("uses-permission-sdk-23")) {
+                if (!parseUsesPermission(pkg, res, parser, attrs)) {
+                    return null;
+                }
+            } ... ...
+        }
+        ... ...
+        final int NP = PackageParser.NEW_PERMISSIONS.length;
+        StringBuilder implicitPerms = null;
+        for (int ip=0; ip<NP; ip++) {
+            final PackageParser.NewPermissionInfo npi
+                    = PackageParser.NEW_PERMISSIONS[ip];
+            if (pkg.applicationInfo.targetSdkVersion >= npi.sdkVersion) {
+                break;
+            }
+            if (!pkg.requestedPermissions.contains(npi.name)) {
+                if (implicitPerms == null) {
+                    implicitPerms = new StringBuilder(128);
+                    implicitPerms.append(pkg.packageName);
+                    implicitPerms.append(": compat added ");
+                } else {
+                    implicitPerms.append(' ');
+                }
+                implicitPerms.append(npi.name);
+                pkg.requestedPermissions.add(npi.name);
+            }
+        }
+        if (implicitPerms != null) {
+            Slog.i(TAG, implicitPerms.toString());
+        }
+
+        final int NS = PackageParser.SPLIT_PERMISSIONS.length;
+        for (int is=0; is<NS; is++) {
+            final PackageParser.SplitPermissionInfo spi
+                    = PackageParser.SPLIT_PERMISSIONS[is];
+            if (pkg.applicationInfo.targetSdkVersion >= spi.targetSdk
+                    || !pkg.requestedPermissions.contains(spi.rootPerm)) {
+                continue;
+            }
+            for (int in=0; in<spi.newPerms.length; in++) {
+                final String perm = spi.newPerms[in];
+                if (!pkg.requestedPermissions.contains(perm)) {
+                    pkg.requestedPermissions.add(perm);
+                }
+            }
+        }
+        ... ...
+        return pkg;
+    }
+```
+# Step18: PackageParser::parseBaseApplication(...)
+``` java
+// frameworks/base/core/java/android/content/pm/PackageParser.java:2406
+    private boolean parseBaseApplication(Package owner, Resources res,
+            XmlPullParser parser, AttributeSet attrs, int flags, String[] outError)
+        throws XmlPullParserException, IOException {
+        ... ...
+        final int innerDepth = parser.getDepth();
+        int type;
+        while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
+                && (type != XmlPullParser.END_TAG || parser.getDepth() > innerDepth)) {
+            ... ...
+            // 分别获得四大组件的配置信息
+            String tagName = parser.getName();
+            if (tagName.equals("activity")) {
+                Activity a = parseActivity(owner, res, parser, attrs, flags, outError, false,
+                        owner.baseHardwareAccelerated);
+                ... ...
+                owner.activities.add(a);
+
+            } else if (tagName.equals("receiver")) {
+                Activity a = parseActivity(owner, res, parser, attrs, flags, outError, true, false);
+                ... ...
+                owner.receivers.add(a);
+
+            } else if (tagName.equals("service")) {
+                Service s = parseService(owner, res, parser, attrs, flags, outError);
+                ... ...
+                owner.services.add(s);
+
+            } else if (tagName.equals("provider")) {
+                Provider p = parseProvider(owner, res, parser, attrs, flags, outError);
+                ... ...
+                owner.providers.add(p);
+
+            } ... ...
+        }
+        ... ...
+        return true;
+    }
+```
+回到Step11中，在调用PackageParser::parsePackage(...)解析完应用程序后，接下来调用PackageManagerService::scanPackageLI获得将前面解析到的app的组件配置信息，并为app分配UID。
+# Step19: PackageManagerService::scanPackageLI(...)
+``` java
+// frameworks/base/services/core/java/com/android/server/pm/PackageManagerService.java
+// :477
+// 系统中已经安装的app都是用一个Package对象来描述，这些对象保存在mPackages这个HashMap中，
+// 该HashMap是以Package的名称为关键字
+    final ArrayMap<String, PackageParser.Package> mPackages =
+            new ArrayMap<String, PackageParser.Package>();
+// :528
+// 每个已经安装的app都包含若干Activity、Broadcast Receiver、Service和
+// Content Provider组件，这些组件信息分别保存在下面的变量中
+    // All available activities, for your resolving pleasure.
+    final ActivityIntentResolver mActivities =
+            new ActivityIntentResolver();
+
+    // All available receivers, for your resolving pleasure.
+    final ActivityIntentResolver mReceivers =
+            new ActivityIntentResolver();
+
+    // All available services, for your resolving pleasure.
+    final ServiceIntentResolver mServices = new ServiceIntentResolver();
+
+    // All available providers, for your resolving pleasure.
+    final ProviderIntentResolver mProviders = new ProviderIntentResolver();
+
+    // Mapping from provider base names (first directory in content URI codePath)
+    // to the provider information.
+    final ArrayMap<String, PackageParser.Provider> mProvidersByAuthority =
+            new ArrayMap<String, PackageParser.Provider>();
+
+// :6466
+    private PackageParser.Package scanPackageLI(PackageParser.Package pkg, int parseFlags,
+            int scanFlags, long currentTime, UserHandle user) throws PackageManagerException {
+        boolean success = false;
+        ... ...
+            final PackageParser.Package res = scanPackageDirtyLI(pkg, parseFlags, scanFlags,
+                    currentTime, user);
+            success = true;
+            return res;
+        ... ...
+    }
+```
+# Step20: PackageManagerService::scanPackageDirtyLI(...)
+``` java
+private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int parseFlags,
+            int scanFlags, long currentTime, UserHandle user) throws PackageManagerException {
+        ... ...
+        SharedUserSetting suid = null;
+        PackageSetting pkgSetting = null;
+        ... ...
+        // 为pkg所描述的应用程序分配UID
+        synchronized (mPackages) {
+            if (pkg.mSharedUserId != null) {// 检查pkg是否指定了要与其它app共享UID
+                // 🏁Step21 获得被共享的UID
+                suid = mSettings.getSharedUserLPw(pkg.mSharedUserId, 0, 0, true);
+                ... ...
+            }
+            ... ...
+            // Just create the setting, don't add it yet. For already existing packages
+            // the PkgSetting exists already and doesn't have to be created.
+            pkgSetting = mSettings.getPackageLPw(pkg, origPackage, realName, suid, destCodeFile,
+                    destResourceFile, pkg.applicationInfo.nativeLibraryRootDir,
+                    pkg.applicationInfo.primaryCpuAbi,
+                    pkg.applicationInfo.secondaryCpuAbi,
+                    pkg.applicationInfo.flags, pkg.applicationInfo.privateFlags,
+                    user, false);
+            ... ...
+        }
+
+        ... ...
+        // writer
+        synchronized (mPackages) {
+            // We don't expect installation to fail beyond this point
+
+            // Add the new setting to mSettings
+            mSettings.insertPackageSettingLPw(pkgSetting, pkg);
+            // Add the new setting to mPackages
+            // 将pkg指向的Package对象保存在mPackages中
+            mPackages.put(pkg.applicationInfo.packageName, pkg);
+            ... ...
+            // 将pkg描述的应用程序的Content Provider组件配置信息保存在mProvidersByAuthority
+            int N = pkg.providers.size();
+            StringBuilder r = null;
+            int i;
+            for (i=0; i<N; i++) {
+                PackageParser.Provider p = pkg.providers.get(i);
+                p.info.processName = fixProcessName(pkg.applicationInfo.processName,
+                        p.info.processName, pkg.applicationInfo.uid);
+                mProviders.addProvider(p);
+                p.syncable = p.info.isSyncable;
+                if (p.info.authority != null) {
+                    String names[] = p.info.authority.split(";");
+                    p.info.authority = null;
+                    for (int j = 0; j < names.length; j++) {
+                        if (j == 1 && p.syncable) {
+                            // We only want the first authority for a provider to possibly be
+                            // syncable, so if we already added this provider using a different
+                            // authority clear the syncable flag. We copy the provider before
+                            // changing it because the mProviders object contains a reference
+                            // to a provider that we don't want to change.
+                            // Only do this for the second authority since the resulting provider
+                            // object can be the same for all future authorities for this provider.
+                            p = new PackageParser.Provider(p);
+                            p.syncable = false;
+                        }
+                        if (!mProvidersByAuthority.containsKey(names[j])) {
+                            mProvidersByAuthority.put(names[j], p);
+                            if (p.info.authority == null) {
+                                p.info.authority = names[j];
+                            } else {
+                                p.info.authority = p.info.authority + ";" + names[j];
+                            }
+                            ... ...
+                        } ... ...
+                    }
+                }
+                ... ...
+            }
+            ... ...
+            // 将pkg描述的应用程序的Service组件配置信息保存在mServices中
+            N = pkg.services.size();
+            r = null;
+            for (i=0; i<N; i++) {
+                PackageParser.Service s = pkg.services.get(i);
+                s.info.processName = fixProcessName(pkg.applicationInfo.processName,
+                        s.info.processName, pkg.applicationInfo.uid);
+                mServices.addService(s);
+                ... ...
+            }
+            ... ...
+            // 将pkg描述的应用程序的Broadcast Receiver组件配置信息保存在mReceivers
+            N = pkg.receivers.size();
+            r = null;
+            for (i=0; i<N; i++) {
+                PackageParser.Activity a = pkg.receivers.get(i);
+                a.info.processName = fixProcessName(pkg.applicationInfo.processName,
+                        a.info.processName, pkg.applicationInfo.uid);
+                mReceivers.addActivity(a, "receiver");
+                ... ...
+            }
+            ... ...
+            // 将pkg描述的应用程序的Activity组件配置信息保存在mActivities
+            N = pkg.activities.size();
+            r = null;
+            for (i=0; i<N; i++) {
+                PackageParser.Activity a = pkg.activities.get(i);
+                a.info.processName = fixProcessName(pkg.applicationInfo.processName,
+                        a.info.processName, pkg.applicationInfo.uid);
+                mActivities.addActivity(a, "activity");
+                ... ...
+            }
+            ... ...
+        }
+
+        return pkg;
+    }
+```
+# Step21: Settings::getSharedUserLPw(...)
+``` java
+// frameworks/base/services/core/java/com/android/server/pm/Settings.java:398
+    SharedUserSetting getSharedUserLPw(String name,
+            int pkgFlags, int pkgPrivateFlags, boolean create) {
+        // name 描述共享的LinuxUID
+        // create 当系统不存在名称为name的UID时，是否需要创建一个
+        SharedUserSetting s = mSharedUsers.get(name);
+        if (s == null) {
+            if (!create) {
+                return null;
+            }
+            s = new SharedUserSetting(name, pkgFlags, pkgPrivateFlags);
+            s.userId = newUserIdLPw(s);
+            ... ...
+            if (s.userId >= 0) {
+                mSharedUsers.put(name, s);
+            }
+        }
+
+        return s;
     }
 ```
