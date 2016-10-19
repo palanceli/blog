@@ -1096,8 +1096,7 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
                 ... ...
             }
             ... ...
-            // Just create the setting, don't add it yet. For already existing packages
-            // the PkgSetting exists already and doesn't have to be created.
+            // 🏁Step22 为pkg描述的应用程序分配一个UID
             pkgSetting = mSettings.getPackageLPw(pkg, origPackage, realName, suid, destCodeFile,
                     destResourceFile, pkg.applicationInfo.nativeLibraryRootDir,
                     pkg.applicationInfo.primaryCpuAbi,
@@ -1202,6 +1201,8 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
             int pkgFlags, int pkgPrivateFlags, boolean create) {
         // name 描述共享的LinuxUID
         // create 当系统不存在名称为name的UID时，是否需要创建一个
+
+        // 系统中所有共享的UID都保存在mSharedUsers，先到这里查找
         SharedUserSetting s = mSharedUsers.get(name);
         if (s == null) {
             if (!create) {
@@ -1216,5 +1217,122 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
         }
 
         return s;
+    }
+```
+# Step22: Settings::getPackageLPw(...)
+``` java
+// frameworks/base/services/core/java/com/android/server/pm/Settings.java:367
+    PackageSetting getPackageLPw(PackageParser.Package pkg, PackageSetting origPackage,
+            String realName, SharedUserSetting sharedUser, File codePath, File resourcePath,
+            String legacyNativeLibraryPathString, String primaryCpuAbi, String secondaryCpuAbi,
+            int pkgFlags, int pkgPrivateFlags, UserHandle user, boolean add) {
+        final String name = pkg.packageName;
+        PackageSetting p = getPackageLPw(name, origPackage, realName, sharedUser, codePath,
+                resourcePath, legacyNativeLibraryPathString, primaryCpuAbi, secondaryCpuAbi,
+                pkg.mVersionCode, pkgFlags, pkgPrivateFlags, user, add, true /* allowInstall */);
+        return p;
+    }
+```
+它又调用了重载函数。
+## Step22.1 Settings::getPcakageLPw(...)
+``` java
+// frameworks/base/services/core/java/com/android/server/pm/Settings.java:3565
+    private PackageSetting getPackageLPw(String name, PackageSetting origPackage,
+            String realName, SharedUserSetting sharedUser, File codePath, File resourcePath,
+            String legacyNativeLibraryPathString, String primaryCpuAbiString,
+            String secondaryCpuAbiString, int vc, int pkgFlags, int pkgPrivateFlags,
+            UserHandle installUser, boolean add, boolean allowInstall) {
+        // 系统所有应用程序的安装信息都保存在mPackages中
+        PackageSetting p = mPackages.get(name);
+        UserManagerService userManager = UserManagerService.getInstance();
+        if (p != null) {
+            ... ...
+            // p是否与其他app共享同一个UID，且其sharedUser是否与sharedUser相同
+            // 如果不相同，p就不能用来描述名称为name的应用程序的安装信息
+            if (p.sharedUser != sharedUser) { 
+                ... ...
+                p = null;
+            } else ... ...
+        }
+        if (p == null) { // 为名称为name的app创建新的PackageSetting对象
+            if (origPackage != null) { // 说明名称为name的app在系统中有一个旧版本
+                // 为此旧版本的app的名称以及UID创建一个新PackageSetting对象
+                // We are consuming the data from an existing package.
+                p = new PackageSetting(origPackage.name, name, codePath, resourcePath,
+                        legacyNativeLibraryPathString, primaryCpuAbiString, secondaryCpuAbiString,
+                        null /* cpuAbiOverrideString */, vc, pkgFlags, pkgPrivateFlags);
+                ... ...
+                PackageSignatures s = p.signatures;
+                p.copyFrom(origPackage);
+                p.signatures = s;
+                p.sharedUser = origPackage.sharedUser;
+                p.appId = origPackage.appId;
+                p.origPackage = origPackage;
+                p.getPermissionsState().copyFrom(origPackage.getPermissionsState());
+                mRenamedPackages.put(name, origPackage.name);
+                name = origPackage.name;
+                // Update new package state.
+                p.setTimeStamp(codePath.lastModified());
+            } else {
+                // 说明名称为name的app是个全新安装的应用程序，使用本函数参数为之创
+                // 建一个全新PackageSetting对象
+                p = new PackageSetting(name, realName, codePath, resourcePath,
+                        legacyNativeLibraryPathString, primaryCpuAbiString, secondaryCpuAbiString,
+                        null /* cpuAbiOverrideString */, vc, pkgFlags, pkgPrivateFlags);
+                p.setTimeStamp(codePath.lastModified());
+                p.sharedUser = sharedUser;
+                ... ...
+                // 名称为name的app是否制定了要与其它app共享UID
+                if (sharedUser != null) {
+                    p.appId = sharedUser.userId;
+                } else {
+                    // Clone the setting here for disabled system packages
+                    // 是否是一个禁用的系统应用
+                    PackageSetting dis = mDisabledSysPackages.get(name);
+                    if (dis != null) {//如果是，则不需要分配新的UID，直接使用原来的
+                        ... ...
+                        p.appId = dis.appId;
+                        // Clone permissions
+                        p.getPermissionsState().copyFrom(dis.getPermissionsState());
+                        ... ...
+                        // Add new setting to list of user ids
+                        addUserIdLPw(p.appId, p, name);
+                    } else {
+                        // Assign new user id
+                        // 🏁分配新UID
+                        p.appId = newUserIdLPw(p);
+                    }
+                }
+            }
+            ... ...
+            if (add) {
+                // Finish adding new package by adding it and updating shared
+                // user preferences
+                addPackageSettingLPw(p, name, sharedUser);
+            }
+        } else {... ...}
+        return p;
+    }
+```
+# Step23: Settings::newUserIdLPw(...)
+``` java
+// frameworks/base/services/core/java/com/android/server/pm/Settings.java:3736
+    private int newUserIdLPw(Object obj) {
+        // Let's be stupidly inefficient for now...
+        final int N = mUserIds.size();
+        for (int i = mFirstAvailableUid; i < N; i++) {
+            if (mUserIds.get(i) == null) {
+                mUserIds.set(i, obj);
+                return Process.FIRST_APPLICATION_UID + i;
+            }
+        }
+
+        // None left?
+        if (N > (Process.LAST_APPLICATION_UID-Process.FIRST_APPLICATION_UID)) {
+            return -1;
+        }
+
+        mUserIds.add(obj);
+        return Process.FIRST_APPLICATION_UID + N;
     }
 ```
