@@ -1372,7 +1372,16 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
         android:name="android.permission.READ_EXTERNAL_STORAGE">
 </uses-permission>
 ```
-系统在`/system/etc/permissions/platform.xml`中保存着系统中的资源访问权限列表，内容如下：
+他记录了app所需要的权限名称。系统在`/system/etc/permissions/platform.xml`中保存着系统中的资源访问权限列表，其内容主要形式为：
+``` xml
+    <permission name="android.permission.BLUETOOTH" >
+        <group gid="net_bt" />
+    </permission>
+```
+这两个表连接起来就知道app所需要的用户组名称，再通过getgrname函数就可以获得对应group id。<font color="red">但是我并没有在platform.xml中找到READ_EXTERNAL_STORAGE对应的grout gid标签，这是为什么？</font>
+
+PackageManagerService会给AndroiManifest.xml中每个permission标签创建一个BasePermission对象，并且以标签中name属性作为关键字将对象们保存在mSettings.mPermissions这个HashMap中。
+`/system/etc/permissions/platform.xml`中的内容：
 ``` xml
 <permissions>
     <permission name="android.permission.BLUETOOTH_ADMIN" >
@@ -1386,67 +1395,10 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
     <permission name="android.permission.BLUETOOTH_STACK" >
         <group gid="net_bt_stack" />
     </permission>
-
-    <permission name="android.permission.NET_TUNNELING" >
-        <group gid="vpn" />
-    </permission>
-
-    <permission name="android.permission.INTERNET" >
-        <group gid="inet" />
-    </permission>
-
-    <permission name="android.permission.READ_LOGS" >
-        <group gid="log" />
-    </permission>
-
-    <permission name="android.permission.WRITE_MEDIA_STORAGE" >
-        <group gid="media_rw" />
-        <group gid="sdcard_rw" />
-    </permission>
-
-    <permission name="android.permission.ACCESS_MTP" >
-        <group gid="mtp" />
-    </permission>
-
-    <permission name="android.permission.NET_ADMIN" >
-        <group gid="net_admin" />
-    </permission>
-
-    <permission name="android.permission.ACCESS_CACHE_FILESYSTEM" >
-        <group gid="cache" />
-    </permission>
-
-    <permission name="android.permission.DIAGNOSTIC" >
-        <group gid="input" />
-        <group gid="diag" />
-    </permission>
-
-    <permission name="android.permission.READ_NETWORK_USAGE_HISTORY">
-        <group gid="net_bw_stats" />
-    </permission>
-
-    <permission name="android.permission.MODIFY_NETWORK_ACCOUNTING">
-        <group gid="net_bw_acct" />
-    </permission>
-
-    <permission name="android.permission.LOOP_RADIO" >
-        <group gid="loop_radio" />
-    </permission>
-
-    <permission name="android.permission.MANAGE_VOICE_KEYPHRASES">
-        <group gid="audio" />
-    </permission>
-
-    <permission name="android.permission.ACCESS_FM_RADIO" >
-        <group gid="media" />
-    </permission>
-
+    ... ...
     <assign-permission name="android.permission.MODIFY_AUDIO_SETTINGS" uid="media" />
     <assign-permission name="android.permission.ACCESS_SURFACE_FLINGER" uid="media" />
-    <assign-permission name="android.permission.WAKE_LOCK" uid="media" />
-    <assign-permission name="android.permission.UPDATE_DEVICE_STATS" uid="media" />
-    <assign-permission name="android.permission.UPDATE_APP_OPS_STATS" uid="media" />
-
+    ... ...
     <assign-permission name="android.permission.ACCESS_SURFACE_FLINGER" uid="graphics" />
 
     <library name="android.test.runner"
@@ -1465,17 +1417,7 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
 // frameworks/base/services/core/java/com/android/server/pm/PackageManagerService.java:8338
     private void grantPermissionsLPw(PackageParser.Package pkg, boolean replace,
             String packageOfInterest) {
-        // IMPORTANT: There are two types of permissions: install and runtime.
-        // Install time permissions are granted when the app is installed to
-        // all device users and users added in the future. Runtime permissions
-        // are granted at runtime explicitly to specific users. Normal and signature
-        // protected permissions are install time permissions. Dangerous permissions
-        // are install permissions if the app's target SDK is Lollipop MR1 or older,
-        // otherwise they are runtime permissions. This function does not manage
-        // runtime permissions except for the case an app targeting Lollipop MR1
-        // being upgraded to target a newer SDK, in which case dangerous permissions
-        // are transformed from install time to runtime ones.
-
+        // pkg描述的应用程序的安装信息就保存在mExtras中
         final PackageSetting ps = (PackageSetting) pkg.mExtras;
         if (ps == null) {
             return;
@@ -1509,26 +1451,18 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
                 }
             }
         }
-
+        // 将系统中所有应用程序的默认资源访问权限赋给该应用
         permissionsState.setGlobalGids(mGlobalGids);
 
+        // 依次检查pkg中所描述的每一个资源访问权限
         final int N = pkg.requestedPermissions.size();
         for (int i=0; i<N; i++) {
             final String name = pkg.requestedPermissions.get(i);
+            // 每个资源访问权限都对应一个BasePermission对象，并且以name作为关键字
+            // 此处取出该对象
             final BasePermission bp = mSettings.mPermissions.get(name);
-
-            if (DEBUG_INSTALL) {
-                Log.i(TAG, "Package " + pkg.packageName + " checking " + name + ": " + bp);
-            }
-
-            if (bp == null || bp.packageSetting == null) {
-                if (packageOfInterest == null || packageOfInterest.equals(pkg.packageName)) {
-                    Slog.w(TAG, "Unknown permission " + name
-                            + " in package " + pkg.packageName);
-                }
-                continue;
-            }
-
+            ... ...
+            // 判断当前正在检查的资源访问权限是否合法
             final String perm = bp.name;
             boolean allowedSig = false;
             int grant = GRANT_DENIED;
@@ -1543,17 +1477,18 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
                 pkgs.add(pkg.packageName);
             }
 
+            // 分析bp所描述的资源访问权限的保护级别
             final int level = bp.protectionLevel & PermissionInfo.PROTECTION_MASK_BASE;
             switch (level) {
                 case PermissionInfo.PROTECTION_NORMAL: {
                     // For all apps normal permissions are install time ones.
-                    grant = GRANT_INSTALL;
+                    grant = GRANT_INSTALL; // 合法
                 } break;
 
                 case PermissionInfo.PROTECTION_DANGEROUS: {
                     if (pkg.applicationInfo.targetSdkVersion <= Build.VERSION_CODES.LOLLIPOP_MR1) {
                         // For legacy apps dangerous permissions are install time ones.
-                        grant = GRANT_INSTALL_LEGACY;
+                        grant = GRANT_INSTALL_LEGACY; // 合法
                     } else if (origPermissions.hasInstallPermission(bp.name)) {
                         // For legacy apps that became modern, install becomes runtime.
                         grant = GRANT_UPGRADE;
@@ -1572,17 +1507,14 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
 
                 case PermissionInfo.PROTECTION_SIGNATURE: {
                     // For all apps signature permissions are install time ones.
+                    // 需要结合pkg的签名来判断当前检查的资源访问权限是否合法
                     allowedSig = grantSignaturePermission(perm, pkg, bp, origPermissions);
                     if (allowedSig) {
                         grant = GRANT_INSTALL;
                     }
                 } break;
             }
-
-            if (DEBUG_INSTALL) {
-                Log.i(TAG, "Package " + pkg.packageName + " granting " + perm);
-            }
-
+            ... ...
             if (grant != GRANT_DENIED) {
                 if (!isSystemApp(ps) && ps.installPermissionsFixed) {
                     // If this is an existing, non-system package, then
@@ -1596,7 +1528,7 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
                         }
                     }
                 }
-
+                // 将合法的资源访问权限对应的gid分配给pkg
                 switch (grant) {
                     case GRANT_INSTALL: {
                         // Revoke this as runtime permission to handle the case of
@@ -1678,39 +1610,17 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
                             }
                         }
                     } break;
-
-                    default: {
-                        if (packageOfInterest == null
-                                || packageOfInterest.equals(pkg.packageName)) {
-                            Slog.w(TAG, "Not granting permission " + perm
-                                    + " to package " + pkg.packageName
-                                    + " because it was previously installed without");
-                        }
-                    } break;
+                    ... ...
                 }
-            } else {
+            } else { // 正在检查的资源访问权限不合法，将它从pkg的资源访问权限列表中删除
                 if (permissionsState.revokeInstallPermission(bp) !=
                         PermissionsState.PERMISSION_OPERATION_FAILURE) {
                     // Also drop the permission flags.
                     permissionsState.updatePermissionFlags(bp, UserHandle.USER_ALL,
                             PackageManager.MASK_PERMISSION_FLAGS, 0);
                     changedInstallPermission = true;
-                    Slog.i(TAG, "Un-granting permission " + perm
-                            + " from package " + pkg.packageName
-                            + " (protectionLevel=" + bp.protectionLevel
-                            + " flags=0x" + Integer.toHexString(pkg.applicationInfo.flags)
-                            + ")");
-                } else if ((bp.protectionLevel&PermissionInfo.PROTECTION_FLAG_APPOP) == 0) {
-                    // Don't print warning for app op permissions, since it is fine for them
-                    // not to be granted, there is a UI for the user to decide.
-                    if (packageOfInterest == null || packageOfInterest.equals(pkg.packageName)) {
-                        Slog.w(TAG, "Not granting permission " + perm
-                                + " to package " + pkg.packageName
-                                + " (protectionLevel=" + bp.protectionLevel
-                                + " flags=0x" + Integer.toHexString(pkg.applicationInfo.flags)
-                                + ")");
-                    }
-                }
+                    ... ...
+                } ... ...
             }
         }
 
@@ -1730,3 +1640,74 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
         }
     }
 ```
+完成给pkg赋予需要的资源访问权限之后，回到前面Step2中，接下来调用Settings::writeLPr()将应用程序的安装信息保存在本地文件中。
+# Step25: Settings::writeLPr()
+``` java
+    void writeLPr() {
+        if (mSettingsFilename.exists()) {
+            // 确保packages-backup.xml文件总是packages.xml的影子
+            if (!mBackupSettingsFilename.exists()) {
+                if (!mSettingsFilename.renameTo(mBackupSettingsFilename)) {
+                    ... ...
+                    return;
+                }
+            } else {
+                mSettingsFilename.delete();
+                ... ...
+            }
+        }
+
+        mPastSignatures.clear();
+
+        try {
+            FileOutputStream fstr = new FileOutputStream(mSettingsFilename);
+            BufferedOutputStream str = new BufferedOutputStream(fstr);
+
+            // 初始化头部
+            XmlSerializer serializer = new FastXmlSerializer();
+            serializer.setOutput(str, StandardCharsets.UTF_8.name());
+            serializer.startDocument(null, true);
+            serializer.setFeature("http://xmlpull.org/v1/doc/features.html#indent-output", true);
+
+            serializer.startTag(null, "packages");
+            ... ...
+            for (final SharedUserSetting usr : mSharedUsers.values()) {
+                serializer.startTag(null, "shared-user");
+                serializer.attribute(null, ATTR_NAME, usr.name);
+                serializer.attribute(null, "userId",
+                        Integer.toString(usr.userId));
+                usr.signatures.writeXml(serializer, "sigs", mPastSignatures);
+                writePermissionsLPr(serializer, usr.getPermissionsState()
+                        .getInstallPermissionStates());
+                serializer.endTag(null, "shared-user");
+            }
+            ... ...
+            mKeySetManagerService.writeKeySetManagerServiceLPr(serializer);
+
+            serializer.endTag(null, "packages");
+
+            serializer.endDocument();
+
+            str.flush();
+            FileUtils.sync(fstr);
+            str.close();
+
+            // New settings successfully written, old ones are no longer
+            // needed.
+            mBackupSettingsFilename.delete();
+            FileUtils.setPermissions(mSettingsFilename.toString(),
+                    FileUtils.S_IRUSR|FileUtils.S_IWUSR
+                    |FileUtils.S_IRGRP|FileUtils.S_IWGRP,
+                    -1, -1);
+
+            writePackageListLPr();
+            writeAllUsersPackageRestrictionsLPr();
+            writeAllRuntimePermissionsLPr();
+            return;
+
+        } catch(XmlPullParserException e) {... ...}
+        ... ...
+    }
+```
+至此，PackageManagerService就将每个应用程序使用的uid保存起来了，之后如果一个app重新安装，uid也是不会变的。
+如果一个app是通过下载安装的，他调用PackageManagerService::installPackage(...)来启动安装，该函数最终也是通过调用PackageManagerService::scanPackageLI(...)来完成安装。
