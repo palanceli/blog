@@ -1,5 +1,33 @@
 # -*- coding:utf-8 -*-
 import immdata
+import logging
+
+class HzMap(object):
+    ''' 汉字表 '''
+    def __init__(self):
+        self.filePath = 'hz_py.txt'
+        self.aHz = {}
+        self.loadFromTxt()
+
+    def GetData(self):
+        return self.aHz
+
+    def loadFromTxt(self):
+        cnt = 0
+        with open(self.filePath) as f:
+            for line in f:
+                line = line.strip('\r\n')
+                if len(line) == 0:
+                    continue
+                if line.isdigit():
+                    continue
+                line = line.decode('utf-8')
+                hz = line[0]
+                py = line[1:]
+                if not self.aHz.has_key(py):
+                    self.aHz[py] = [hz, ]
+                else:
+                    self.aHz[py].append(hz)
 
 class PyMap(object):
     ''' 拼音表 '''
@@ -85,6 +113,24 @@ class PyNetMaker(object):
                 j += 1
         return result
 
+def combination(arr):
+    ''' arr = [a0, a1, ..., an]返回[[ij0, ij1, ..., ijn], ]其中jx∈[0, ax), x∈[0, n]
+    '''
+    if arr == None or len(arr) == 0:
+        return None
+    result = []
+    cArr = len(arr)
+
+    if cArr == 1:
+        for i in range(arr[0]):
+            result.append([i, ])
+    else:
+        for i in range(arr[0]):
+            subResult = combination(arr[1 : ])
+            [j.insert(0, i) for j in subResult]
+            result.extend(subResult)
+    return result
+    
 class IMMConvertor(object):
     selfObj = None
 
@@ -96,7 +142,59 @@ class IMMConvertor(object):
 
     def __init__(self, immData):
         self.immData = immData
+        self.hzMap = HzMap()
         self.pyNetMaker = PyNetMaker()
 
     def ConvertPinyin(self, composition):
         return self.pyNetMaker.Proc(composition)
+
+    def convertPinyinArray(self, compArray): # compArray = ['ni', 'hao']
+        candidates = []
+        cHans = [] # [Cni, Chao] 每一个拼音下面有多少汉字
+
+        for py in compArray:
+            cHans.append(len(self.hzMap.GetData()[py]))
+
+        candIndex = combination(cHans) # [[iHZni, iHZhao], ] 每个拼音对应汉字的序号
+
+        for i in candIndex: # i = [iHZni, iHZhao]
+            candString = ''
+            k = 0
+            for j in i:
+                py = compArray[k]
+                candString += self.hzMap.GetData()[py][j]
+                k += 1
+            candidates.append(candString)
+        return candidates            
+                
+    def ConvertPinyin2(self, composition):
+        pinyinSegs = self.pyNetMaker.Proc(composition)
+        if len(pinyinSegs) == 0:
+            return (composition, [])
+        pinyinArray = pinyinSegs[0].strip("'").split("'") # ['ni', 'hao']
+        return (pinyinArray, self.convertPinyinArray(pinyinArray))
+
+def tc01():
+    hzMap = HzMap()
+    for k, v in hzMap.aHz.items():
+        msg = '%8s:' % k
+        for i in v:
+            msg += '%s ' % i
+        logging.debug(msg)
+
+def tc02():
+    r = combination([3, 2, 2])
+    logging.debug(r)
+
+def tc03():
+    immData = immdata.IMMData()
+    immConvertor = IMMConvertor.GetInstance(immData)
+    pinyinArray, candidates = immConvertor.ConvertPinyin2('ni')
+    for cand in candidates:
+        logging.debug('%s:%s' % (pinyinArray, cand))
+        
+if __name__ == '__main__':
+    loggingFormat = '%(asctime)s %(lineno)04d %(levelname)-8s %(message)s'
+    logging.basicConfig(level=logging.DEBUG, format=loggingFormat, datefmt='%H:%M',)
+    
+    tc03()

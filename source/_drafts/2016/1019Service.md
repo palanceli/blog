@@ -11,7 +11,7 @@ comments: true
 如果某个程序在运行时需要呈现用户界面或者要和用户交互，就应该使用Activity，否则可以考虑使用Service。
 # 创建Service
 两个步骤：1、定义继承Service的子类；2、在AndroidManifest.xml中配置该子类
-
+<!-- more -->
 ## 定义Service子类
 五个关键接口：
 ``` java

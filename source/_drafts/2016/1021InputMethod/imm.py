@@ -49,9 +49,10 @@ class IMMReadyState(IMMState):
             currState = IMMState.SetState(IMMPinyinState.GetInstance())
             currState.ProcessChar(ch)
         elif ch.isdigit() or ch.isupper():
-            self.imm.SetComposition('')
-            self.imm.SetCandidates([])
-            self.imm.SetCompleted(ch)
+            self.imm.SetCoreData('Composition', '')
+            self.imm.SetCoreData('CompDisplay', '')
+            self.imm.SetCoreData('Candidates', [])
+            self.imm.SetCoreData('Completed', ch)
 
 class IMMPinyinState(IMMState):
     selfObj = None
@@ -67,17 +68,45 @@ class IMMPinyinState(IMMState):
 
     def ProcessChar(self, ch):
         if ch.isalpha():
-            self.imm.SetCoreData('Composition', self.imm.GetCoreData('Composition') + ch)
+            compString = self.imm.SetCoreData('Composition', self.imm.GetCoreData('Composition') + ch)
             convertor = self.imm.immConvertor
-            self.imm.SetCoreData('Candidates', convertor.ConvertPinyin(self.imm.GetCoreData('Composition')))
+            compArray, candidates = convertor.ConvertPinyin2(compString)
+            self.imm.SetCoreData('Candidates', candidates)
+            cursorPos = self.imm.SetCoreData('cursorPos', self.imm.GetCoreData('cursorPos') + 1)
+            compDisplay = ''
+            pos = 0
+            for comp in compArray:
+                if pos + len(comp) <= cursorPos:
+                    if pos != 0:
+                        compDisplay += "'"
+                    compDisplay += comp
+                    if pos + len(comp) == cursorPos:
+                        compDisplay += "|"
+                    pos += len(comp)
+                else:
+                    if pos != 0:
+                        compDisplay += "'"
+                    if pos < cursorPos:
+                        compDisplay += comp[ : cursorPos - pos]
+                        compDisplay += '|'
+                        compDisplay += comp[cursorPos - pos : ]
+                    else:
+                        compDisplay += comp
+                    pos += len(comp)
+            self.imm.SetCoreData('CompDisplay', compDisplay)
+            
         elif ch.isdigit():
             i = int(ch)
             if i > self.imm.GetSetting('maxCandCount') and i > len(self.imm.GetCoreData('Candidates')):
                 pass
             else:
                 self.imm.SetCoreData('Completed', self.imm.GetCoreData('Candidates')[i - 1])
-                self.imm.SetCoreData('Composition', '')
-                self.imm.SetCoreData('Candidates', [])
+                self.imm.ResetCoreData('Composition', 'Candidates', 'CompDisplay', 'cursorPos')
+                self.imm.SetCurrState(IMMReadyState.GetInstance())
+        elif ch == '\r':
+            self.imm.SetCoreData('Completed', self.imm.GetCoreData('Composition'))
+            self.imm.ResetCoreData('Composition', 'Candidates', 'CompDisplay', 'cursorPos')
+            self.imm.SetCurrState(IMMReadyState.GetInstance())
 
 class InputMethodManager(object):
     selfObj = None
@@ -92,6 +121,16 @@ class InputMethodManager(object):
         self.immData = immdata.IMMData()
         self.immConvertor = immconv.IMMConvertor(self.immData)
 
+    def SetCurrState(self, state):
+        IMMState.currState = state
+        return IMMState.currState
+
+    def GetCurrState(self):
+        return IMMState.currState
+        
+    def ResetCoreData(self, *keylist):
+        self.immData.ResetCoreData(*keylist)
+            
     def SetCoreData(self, key, value):
         return self.immData.SetCoreData(key, value)
 
@@ -108,10 +147,31 @@ class InputMethodManager(object):
         state = IMMState.currState
         state.ProcessChar(ch)
 
-class MainProc(object):
+class IMEControl(object):
     def __init__(self):
         self.imm = InputMethodManager.GetInstance()
         IMMState.currState = IMMReadyState.GetInstance()
+
+    def displayIMMData(self):
+        outStr = '=' * 80 + '\r\n'
+        outStr += '当前状态:%-32s' % self.imm.GetCurrState().GetStateName()
+        outStr += '光标位置:%d\r\n' % self.imm.GetCoreData('cursorPos')
+        outStr += '上屏串:%s\r\n' % self.imm.GetCoreData('Completed').encode('utf-8')
+
+        outStr += '候选串:'
+        for i in range(self.imm.GetSetting('maxCandCount')):
+            if i >= len(self.imm.GetCoreData('Candidates')):
+                break
+            outStr += '%d:%s ' % (i+1, self.imm.GetCoreData('Candidates')[i].encode('utf-8'))
+        outStr += '\r\n'
+
+        outStr += '输入串:%-32s 输入串显示为:%-32s' % \
+                 (self.imm.GetCoreData('Composition'), self.imm.GetCoreData('CompDisplay'))
+        outStr += '\r\n'
+        sys.stdout.write(outStr)
+        
+        if len(self.imm.GetCoreData('Completed')) > 0:
+            self.imm.ResetCoreData()
         
     def Run(self):
         fd = sys.stdin.fileno()
@@ -138,21 +198,7 @@ class MainProc(object):
                     else:
                         self.imm.ProcessChar(ch)
                 if ctlString == None:
-                    sys.stdout.write('输入串:%s\r\n' % self.imm.GetCoreData('Composition'))
-                    candString = ''
-                    for i in range(self.imm.GetSetting('maxCandCount')):
-                        if i >= len(self.imm.GetCoreData('Candidates')):
-                            break
-                        candString += '%d:%s ' % (i+1, self.imm.GetCoreData('Candidates')[i])
-                    sys.stdout.write('候选串:%s\r\n' % candString)
-                    sys.stdout.write('上屏串:%s\r\n' % self.imm.GetCoreData('Completed'))
-                    sys.stdout.write('当前状态:%s\r\n' % IMMState.currState.GetStateName())
-                    sys.stdout.write('\n')
-                    
-                    if len(self.imm.GetCoreData('Completed')) > 0:
-                        self.imm.SetCoreData('Composition', '')
-                        self.imm.SetCoreData('Candidates', [])
-                        self.imm.SetCoreData('Completed', '')
+                    self.displayIMMData()
                 else:
                     sys.stdout.write('控制串:%s\r\n\n' % ctlString)
         finally:
@@ -161,5 +207,5 @@ class MainProc(object):
 if __name__ == '__main__':
     loggingFormat = '%(asctime)s %(lineno)04d %(levelname)-8s %(message)s'
     logging.basicConfig(level=logging.DEBUG, format=loggingFormat, datefmt='%H:%M',)
-    mainProc = MainProc()
-    mainProc.Run()
+    imeControl = IMEControl()
+    imeControl.Run()

@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Android App安装过程笔记
+title: Android App安装过程学习笔记
 date: 2016-10-15 15:14:42 +0800
 categories: Android
 tags: 安装过程
@@ -31,6 +31,7 @@ public final class SystemServer {
     ... ...
     // Start the package manager.
     Slog.i(TAG, "Package Manager");             // :365
+    // 🏁调用PackageManagerService的静态函数main(...)安装系统中的应用
     mPackageManagerService = PackageManagerService.main(mSystemContext, installer,
             mFactoryTestMode != FactoryTest.FACTORY_TEST_OFF, mOnlyCore);
     mFirstBoot = mPackageManagerService.isFirstBoot();
@@ -38,7 +39,7 @@ public final class SystemServer {
     ... ...
 } 
 ```
-PackageManagerService在启动过程中会对系统中的应用程序进行安装，因此可以它的main函数作为起点。
+PackageManagerService在启动过程中会对系统中的应用程序进行安装，以它的main函数作为起点开启探索。
 # Step1: PackageManagerService.main(...)
 ``` java
 // frameworks/base/services/core/java/com/android/server/pm/PackageManagerService.java:1765
