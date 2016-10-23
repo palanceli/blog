@@ -61,97 +61,64 @@ public static PackageManagerService main(Context context, Installer installer,
         ... ...            
             File dataDir = Environment.getDataDirectory();      // 目录/data
             mAppDataDir = new File(dataDir, "data");            // /data/data
-            // /data/app 保存有用户自己安装的app
-            mAppInstallDir = new File(dataDir, "app");             
+            mAppInstallDir = new File(dataDir, "app");          // /data/app 
             mAppLib32InstallDir = new File(dataDir, "app-lib"); // /data/app-lib   
             mAsecInternalPath = new File(dataDir, "app-asec").getPath(); // /data/app-asec
             mUserAppDataDir = new File(dataDir, "user");        // /data/user
-            // /data/app-private 保存受DRM保护的私有app
-            mDrmAppPrivateInstallDir = new File(dataDir, "app-private"); 
+            mDrmAppPrivateInstallDir = new File(dataDir, "app-private"); // /data/app-private
             ... ...
-            // /system/framework保存的应用程序是资源型的，资源型应用程序是用来打包资源文件的，不包含执行代码
+            // 🏁恢复上一次安装的应用程序信息
+            mRestoredSettings = mSettings.readLPw(this, sUserManager.getUsers(false),
+                    mSdkVersion, mOnlyCore);
+
             File frameworkDir = new File(Environment.getRootDirectory(), "framework");
             ... ...
-            // 🏁Step10: 安装保存在/system/framework、/system/app、/vendor/app、
-            // /data/app和/data/app-private的app
-            // Collect vendor overlay packages.
-            // (Do this before scanning any apps.)
-            // For security and version matching reason, only consider
-            // overlay packages if they reside in VENDOR_OVERLAY_DIR.
+
+            // 🏁Step10: 调用scanDirLI(...)分别安装保存在几个目录下的应用程序
+            // /vendor/overlay保存厂商提供的覆盖包
             File vendorOverlayDir = new File(VENDOR_OVERLAY_DIR);
             scanDirLI(vendorOverlayDir, PackageParser.PARSE_IS_SYSTEM
                     | PackageParser.PARSE_IS_SYSTEM_DIR, scanFlags | SCAN_TRUSTED_OVERLAY, 0);
 
+            // /system/framework保存不含代码的资源包
             // Find base frameworks (resource packages without code).
             scanDirLI(frameworkDir, PackageParser.PARSE_IS_SYSTEM
                     | PackageParser.PARSE_IS_SYSTEM_DIR
                     | PackageParser.PARSE_IS_PRIVILEGED,
                     scanFlags | SCAN_NO_DEX, 0);
 
+            // /system/priv-app 有特权的系统包
             // Collected privileged system packages.
             final File privilegedAppDir = new File(Environment.getRootDirectory(), "priv-app");
             scanDirLI(privilegedAppDir, PackageParser.PARSE_IS_SYSTEM
                     | PackageParser.PARSE_IS_SYSTEM_DIR
                     | PackageParser.PARSE_IS_PRIVILEGED, scanFlags, 0);
 
-            // Collect ordinary system packages.
             // /system/app 系统自带的应用程序
+            // Collect ordinary system packages.
             final File systemAppDir = new File(Environment.getRootDirectory(), "app");
             scanDirLI(systemAppDir, PackageParser.PARSE_IS_SYSTEM
                     | PackageParser.PARSE_IS_SYSTEM_DIR, scanFlags, 0);
 
-            // Collect all vendor packages.
             // /vendor/app 设备厂商提供的应用程序
+            // Collect all vendor packages.
             File vendorAppDir = new File("/vendor/app");
             try {
                 vendorAppDir = vendorAppDir.getCanonicalFile();
-            } catch (IOException e) {
-                // failed to look up canonical path, continue with original one
-            }
+            } catch (IOException e) {...}
             scanDirLI(vendorAppDir, PackageParser.PARSE_IS_SYSTEM
                     | PackageParser.PARSE_IS_SYSTEM_DIR, scanFlags, 0);
 
+            // /oem/app 所有OEM包
             // Collect all OEM packages.
             final File oemAppDir = new File(Environment.getOemDirectory(), "app");
             scanDirLI(oemAppDir, PackageParser.PARSE_IS_SYSTEM
                     | PackageParser.PARSE_IS_SYSTEM_DIR, scanFlags, 0);
 
             ... ...
-
-            //look for any incomplete package installations
-            ArrayList<PackageSetting> deletePkgsList = mSettings.getListOfIncompleteInstallPackagesLPr();
-            //clean up list
-            for(int i = 0; i < deletePkgsList.size(); i++) {
-                //clean up here
-                cleanupInstallFailedPackage(deletePkgsList.get(i));
-            }
-            //delete tmp files
-            deleteTempPackageFiles();
-
-            // Remove any shared userIDs that have no associated packages
-            mSettings.pruneSharedUsersLPw();
-
-            ... ...
-
-            // Now that we know all of the shared libraries, update all clients to have
-            // the correct library paths.
-            updateAllSharedLibrariesLPw();
-
-            ... ...
-            // Now that we know all the packages we are keeping,
-            // read and update their last usage times.
-            mPackageUsage.readLP();
-            ... ...
-            // If the platform SDK has changed since the last time we booted,
-            // we need to re-grant app permission to catch any new ones that
-            // appear.  This is really a hack, and means that apps can in some
-            // cases get permissions that the user didn't initially explicitly
-            // allow...  it would be nice to have some better way to handle
-            // this situation.
             int updateFlags = UPDATE_PERMISSIONS_ALL;
             if (ver.sdkVersion != mSdkVersion) {
-                Slog.i(TAG, "Platform changed from " + ver.sdkVersion + " to "
-                        + mSdkVersion + "; regranting permissions for internal storage");
+                ... ...
                 updateFlags |= UPDATE_PERMISSIONS_REPLACE_PKG | UPDATE_PERMISSIONS_REPLACE_ALL;
             }
             // 🏁Step24: 为申请了特定资源访问权限的app分配相应的Linux用户组ID
@@ -165,7 +132,7 @@ public static PackageManagerService main(Context context, Installer installer,
 ```
 # Step3: Settings.readLPw(...)
 ``` java
-// frameworks/base/services/core/java/com/android/server/pm/Settings/java
+// frameworks/base/services/core/java/com/android/server/pm/Settings.java
 // :346
     Settings(File dataDir, Object lock) {
         ... ...
@@ -355,9 +322,8 @@ public static PackageManagerService main(Context context, Installer installer,
             ... ...
             int userId = idStr != null ? Integer.parseInt(idStr) : 0;
             ... ...
-            if (name == null) {     // 该字段必须存在
-                ... ...
-            }... ...
+            if (name == null) {  ... }  // 该字段必须存在
+            ... ...
             else if (userId > 0) {
                 packageSetting = addPackageLPw(name.intern(), realName, new File(codePathStr),
                         new File(resourcePathStr), legacyNativeLibraryPathStr, primaryCpuAbiString,
@@ -388,12 +354,8 @@ public static PackageManagerService main(Context context, Installer installer,
                     mPendingPackages.add((PendingPackage) packageSetting);
                     ... ...
                 } ... ...
-            } else {
-                ... ...
-            }
-        } catch (NumberFormatException e) {
-            ... ...
-        }
+            } else {...}
+        } catch (NumberFormatException e) {...}
         ... ...
     }
 ```
@@ -456,7 +418,12 @@ public static PackageManagerService main(Context context, Installer installer,
         return true;
     }
 ```
-在区间[FIRST_APPLICATION_UID, FIRST_APPLICATION_UID + MAX_APPLICATION_UIDS)中的UID是保留给应用程序的，(0, FIRST_APPLICATION_UID)是留给特权用户的。FIRST_APPLICATION_UID=10000, MAX_APPLICATION_UIDS=1000。
+区间
+`[FIRST_APPLICATION_UID, FIRST_APPLICATION_UID + MAX_APPLICATION_UIDS)`
+中的UID是保留给应用程序的，
+`(0, FIRST_APPLICATION_UID)`是留给特权用户的。
+`FIRST_APPLICATION_UID=10000`,
+`MAX_APPLICATION_UIDS=1000`。
 
 回到Step3中，通过readPackageLPw(...)读取了上次安装的app信息之后，接下来调用readSharedUserLPw(...)读取上次安装app时分配的共享UID。
 
@@ -477,20 +444,14 @@ public static PackageManagerService main(Context context, Installer installer,
             if ("true".equals(parser.getAttributeValue(null, "system"))) {
                 pkgFlags |= ApplicationInfo.FLAG_SYSTEM;
             }
-            if (name == null) { // name和uid一定存在
-                ... ...
-            } else if (userId == 0) {
-                ... ...
-            } else {
+            if (name == null) { ... }// name和uid都必须存在
+            else if (userId == 0) { ... } 
+            else {
                 // 🏁在系统中为名称为name的共享Linux用户保留一个职位userId的Linux用户ID
                 if ((su = addSharedUserLPw(name.intern(), userId, pkgFlags, pkgPrivateFlags))
-                        == null) {
-                    ... ...
-                }
+                        == null) { ... }
             }
-        } catch (NumberFormatException e) {
-            ... ...
-        }
+        } catch (NumberFormatException e) { ... }
         ... ...
     }
 ```
@@ -517,6 +478,11 @@ public static PackageManagerService main(Context context, Installer installer,
         return null;
     }
 ```
+至此就完成了packages.xml文件的加载：
+* 对于“package”标签记录的app安装信息，有独立uid的app信息，封装为PackageSetting对象，保存到mPackages中；有shareduid的app，封装为PendingPackage对象，保存到mPendingPackages中
+* 对于“shared-user”标签记录的shared uid信息，保存到mSharedUser中
+* 在此过程中遇到的uid和shared uid都保存在mUserIds中，并让每个uid指向与之关联的安装包对象。
+
 本步完成后回到Step3，完成共享Linux用户信息的读取。接下来就可以为保存在mPendingPackage中的app保留他们上一次所使用的Linux UID了。然后返回到Step2，readLPw(...)完成恢复上一次应用程序安装信息的读取。接下来调用scanDirLI来安装保存在/system/framework、/system/app、/vendor/app、/data/app和/data/app-private的应用程序。
 # Step10: PackageManagerService::scanDirLI(...)
 ``` java
