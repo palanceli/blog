@@ -121,12 +121,12 @@ Android系统在启动时，会把已安装的app重新安装一遍，所谓的�
                 ... ...
                 updateFlags |= UPDATE_PERMISSIONS_REPLACE_PKG | UPDATE_PERMISSIONS_REPLACE_ALL;
             }
-            // 🏁Step24: 为申请了特定资源访问权限的app分配相应的Linux用户组ID
+            // 🏁Step23: 为申请了特定资源访问权限的app分配相应的Linux用户组ID
             updatePermissionsLPw(null, null, StorageManager.UUID_PRIVATE_INTERNAL, updateFlags); 
             ver.sdkVersion = mSdkVersion;
             ... ...
             // can downgrade to reader
-            mSettings.writeLPr();   // 把前面获得的app安装信息保存回配置文件
+            mSettings.writeLPr();   // 🏁Step24: 把前面获得的app安装信息保存回配置文件
         ... ...
     }
 ```

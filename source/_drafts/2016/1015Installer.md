@@ -533,7 +533,10 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
         // 为pkg所描述的应用程序分配UID
         synchronized (mPackages) {
             if (pkg.mSharedUserId != null) {// 检查pkg是否指定了要与其它app共享UID
-                // 🏁Step19 获得被共享的UID
+                // 🏁Step19 pkg.mSharedUserId是“shared-user name”，系统的
+                // 共享用户信息保存在mSharedUser中，回顾
+                // Step7 Settings::readSharedUserLPw(...)。此处根据name找到
+                // SharedUserSetting对象
                 suid = mSettings.getSharedUserLPw(pkg.mSharedUserId, 0, 0, true);
                 ... ...
             }
@@ -676,21 +679,21 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
     }
 ```
 它又调用了重载函数。
-## Step22.1 Settings::getPcakageLPw(...)
+## Step20.1 Settings::getPcakageLPw(...)
 ``` java
-// frameworks/base/services/core/java/com/android/server/pm/Settings.java:3565
+// frameworks/base/services/core/java/com/android/server/pm/Settings.java:565
     private PackageSetting getPackageLPw(String name, PackageSetting origPackage,
             String realName, SharedUserSetting sharedUser, File codePath, File resourcePath,
             String legacyNativeLibraryPathString, String primaryCpuAbiString,
             String secondaryCpuAbiString, int vc, int pkgFlags, int pkgPrivateFlags,
             UserHandle installUser, boolean add, boolean allowInstall) {
-        // 系统所有应用程序的安装信息都保存在mPackages中
+        // mPackages中保存的是从packages.xml中读取的信息
         PackageSetting p = mPackages.get(name);
-        UserManagerService userManager = UserManagerService.getInstance();
+        ... ...
         if (p != null) {
             ... ...
-            // p是否与其他app共享同一个UID，且其sharedUser是否与sharedUser相同
-            // 如果不相同，p就不能用来描述名称为name的应用程序的安装信息
+            // packages.xml中记录的pkg使用的sharedUser和实际的包文件中指定的
+            // sharedUser不一致
             if (p.sharedUser != sharedUser) { 
                 ... ...
                 p = null;
@@ -756,7 +759,7 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
         return p;
     }
 ```
-# Step23: Settings::newUserIdLPw(...)
+# Step21: Settings::newUserIdLPw(...)
 ``` java
 // frameworks/base/services/core/java/com/android/server/pm/Settings.java:3736
     private int newUserIdLPw(Object obj) {
@@ -779,8 +782,10 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
         return Process.FIRST_APPLICATION_UID + N;
     }
 ```
+似曾相识，跟Step6 Settings::addUserIdLPw(...)的差异在于add指定了uid，而此处是在mUserIds的最末端生成一个新的uid。
+
 接下来返回到Step2中，调用PackageManagerService::updatePermissionLPw(...)为前面安装的app分配用户组ID，授予它们所申请的资源的访问权限，尔后就可以调用Settings::writeLPr()将这些应用程序的安装信息保存在本地了。
-# Step24: PackageManagerService::updatePermissionLPw(...)
+# Step22: PackageManagerService::updatePermissionLPw(...)
 ``` java
 // frameworks/base/services/core/java/com/android/server/pm/PackageManagerService.java:8244
     private void updatePermissionsLPw(String changingPkg, PackageParser.Package pkgInfo,
@@ -790,7 +795,7 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
     }
 ```
 调用了重载函数。
-## Step24.1: PackageManagerService::updatePermissionLPw(...)
+## Step22.1: PackageManagerService::updatePermissionLPw(...)
 ``` java
 // frameworks/base/services/core/java/com/android/server/pm/PackageManagerService.java:8250
     private void updatePermissionsLPw(String changingPkg,
@@ -854,7 +859,7 @@ PackageManagerService会给AndroiManifest.xml中每个permission标签创建一�
 
 </permissions>
 ```
-# Step25: PackageManagerService::grantPermissionsLPw(...)
+# Step23: PackageManagerService::grantPermissionsLPw(...)
 ``` java
 // frameworks/base/services/core/java/com/android/server/pm/PackageManagerService.java:8338
     private void grantPermissionsLPw(PackageParser.Package pkg, boolean replace,
@@ -1083,7 +1088,7 @@ PackageManagerService会给AndroiManifest.xml中每个permission标签创建一�
     }
 ```
 完成给pkg赋予需要的资源访问权限之后，回到前面Step2中，接下来调用Settings::writeLPr()将应用程序的安装信息保存在本地文件中。
-# Step25: Settings::writeLPr()
+# Step24: Settings::writeLPr()
 ``` java
     void writeLPr() {
         if (mSettingsFilename.exists()) {
