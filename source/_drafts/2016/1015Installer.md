@@ -8,35 +8,36 @@ toc: true
 comments: true
 ---
 在学习笔记（一）中，Android系统在启动时，解析packages.xml文件，加载记录在其中的安装信息。接下来将遍历所有可能安装有应用程序的目录，获取到实际的安装信息。
+<!-- more -->
+以/system/data为例，看一下其下的目录结构：
+```
+/system/data
+├──BasicDreams
+│  └──BasicDreams.apk
+├──Bluetooth
+│  ├──Bluetooth.apk
+│  └──lib
+... ...
+└──webview
+   └──webview.apk
+```
+每个目录下都有一个apk文件。
 # Step9: PackageManagerService::scanDirLI(...)
 ``` java
 // frameworks/base/services/core/java/com/android/server/pm/PackageManagerService.java:5624
     private void scanDirLI(File dir, int parseFlags, int scanFlags, long currentTime) {
         final File[] files = dir.listFiles();
         ... ...
-
-        for (File file : files) { // 遍历dir下的每个文件
+        for (File file : files) {   // 遍历dir下的每个文件
             final boolean isPackage = (isApkFile(file) || file.isDirectory())
                     && !PackageInstallerService.isStageName(file.getName());
             if (!isPackage) {
                 continue;
             }
-            try {
+            try {                   // 🏁继续解析Package
                 scanPackageLI(file, parseFlags | PackageParser.PARSE_MUST_BE_APK,
-                        scanFlags, currentTime, null); // 🏁继续解析Package
-            } catch (PackageManagerException e) {
-                ... ...
-                // 如果解析失败则表明不是真正的应用程序文件，则删除
-                if ((parseFlags & PackageParser.PARSE_IS_SYSTEM) == 0 &&
-                        e.error == PackageManager.INSTALL_FAILED_INVALID_APK) {
-                    ... ...
-                    if (file.isDirectory()) {
-                        mInstaller.rmPackageDir(file.getAbsolutePath());
-                    } else {
-                        file.delete();
-                    }
-                }
-            }
+                        scanFlags, currentTime, null); 
+            } catch (PackageManagerException e) { ... }
         }
     }
 ```
@@ -60,7 +61,6 @@ comments: true
         // 🏁Step19: 安装pkg描述的应用程序文件，以便获得它的组件信息，并为它分配LinuxUID
         PackageParser.Package scannedPkg = scanPackageLI(pkg, parseFlags, scanFlags
                 | SCAN_UPDATE_SIGNATURE, currentTime, user);
-
         ... ...
         return scannedPkg;
     }
@@ -79,24 +79,26 @@ comments: true
 ```
 根据要解析的是一个目录还是一个文件，这里分了两枝来处理。如果是一个文件，`parseClusterPackage(...)`会解析其中的所有APK文件，把目录当做一个package来处理。我们假设待处理的是单个apk文件，进入`parseMonolithicPackage(...)`。
 
-# Step13: PackageParser::parseMonollithicPackage(...)
+# Step12: PackageParser::parseMonollithicPackage(...)
+`parseMonolithicPackageLite(...)`将AndroidManifest.xml中的概要信息提取出来，并封装成一个轻量级对象PackageLite。
 ``` java
 // frameworks/base/core/java/android/content/pm/PackageParser.java:827
     public Package parseMonolithicPackage(File apkFile, int flags) throws PackageParserException {
-        if (mOnlyCoreApps) {
+        if (mOnlyCoreApps) { // 🏁此处解析出概要数据，封装为轻量级对象
             final PackageLite lite = parseMonolithicPackageLite(apkFile, flags);
             ... ...
         }
-
+        // 这的逻辑有点奇怪，前面封装的lite并没有在下面派上用场
         final AssetManager assets = new AssetManager();
         ... ...
+            // 🏁Step14 
             final Package pkg = parseBaseApk(apkFile, assets, flags);
-            pkg.codePath = apkFile.getAbsolutePath(); // 🏁Step16
+            pkg.codePath = apkFile.getAbsolutePath(); 
             return pkg;
         ... ...
     }
 ```
-# Step14: PackageParser::parseMonolithicPackageLite(...)
+# Step13: PackageParser::parseMonolithicPackageLite(...)
 ``` java
 // frameworks/base/core/java/android/content/pm/PackageParser.java:657
     private static PackageLite parseMonolithicPackageLite(File packageFile, int flags)
@@ -107,8 +109,8 @@ comments: true
         return new PackageLite(packagePath, baseApk, null, null, null);
     }
 ```
-## Step14.1: PackageParser::parseApkLite(...)
-`parseApkLite(...)`是一个获取APK轻量级信息的方法，比如package name, split name, install location等。
+## Step13.1: PackageParser::parseApkLite(...)
+这些概要信息包含：package name, split name, install location等。
 ``` java
 // frameworks/base/core/java/android/content/pm/PackageParser.java:1155
     public static ApkLite parseApkLite(File apkFile, int flags)
@@ -119,13 +121,14 @@ comments: true
         ... ...
     }
 ```
-## Step14.2: PackageParser::parseApkLite(...)
+## Step13.2: PackageParser::parseApkLite(...)
 ``` java
-// frameworks/base/core/java/android/content/pm/PackageParser.java:1155
+// frameworks/base/core/java/android/content/pm/PackageParser.java:1274
     private static ApkLite parseApkLite(String codePath, Resources res, XmlPullParser parser,
             AttributeSet attrs, int flags, Signature[] signatures) throws IOException,
             XmlPullParserException, PackageParserException {
-        final Pair<String, String> packageSplit = parsePackageSplitNames(parser, attrs, flags); // 🏁解析并生成<package, split>的pair
+        // 🏁解析并生成<package, split>的pair
+        final Pair<String, String> packageSplit = parsePackageSplitNames(parser, attrs, flags); 
 
         int installLocation = PARSE_DEFAULT_INSTALL_LOCATION;
         int versionCode = 0;
@@ -154,7 +157,7 @@ comments: true
                 extractNativeLibs);
     }
 ```
-## Step 14.3: PackageParser::parsePackageSplitNames(...)
+## Step 13.3: PackageParser::parsePackageSplitNames(...)
 ``` java
 // frameworks/base/core/java/android/content/pm/PackageParser.java:123
     private static Pair<String, String> parsePackageSplitNames(XmlPullParser parser,
@@ -189,7 +192,7 @@ comments: true
                 (splitName != null) ? splitName.intern() : splitName);
     }
 ```
-# Step15: 一个AndroidManifest.xml的样例
+# 一个AndroidManifest.xml的样例
 有必要抓一个AndroidManifest.xml拿来看一眼，一般的apk解压后，AndroidManifest.xml文件是需要反编译的，可以下一个AXMLPrinter2.jar，执行：
 ``` bash
 java -jar AXMLPrinter2.jar AndroidManifest.xml
@@ -340,7 +343,7 @@ java -jar AXMLPrinter2.jar AndroidManifest.xml
     </application>
 </manifest>
 ```
-# Step16: PackageParser::parseBaseApk(...)
+# Step14: PackageParser::parseBaseApk(...)
 ``` java
 // frameworks/base/core/java/android/content/pm/PackageParser.java:864
     private Package parseBaseApk(File apkFile, AssetManager assets, int flags)
@@ -376,7 +379,7 @@ java -jar AXMLPrinter2.jar AndroidManifest.xml
         ... ...
     }
 ```
-# Step17: PackageParser::parseBaseApk(...)
+# Step15: PackageParser::parseBaseApk(...)
 ``` java
 // frameworks/base/core/java/android/content/pm/PackageParser.java:1354
     private Package parseBaseApk(Resources res, XmlResourceParser parser, int flags,
@@ -394,15 +397,7 @@ java -jar AXMLPrinter2.jar AndroidManifest.xml
         // 要与其它应用程序共享一个LinuxUID。
         TypedArray sa = res.obtainAttributes(attrs,
                 com.android.internal.R.styleable.AndroidManifest);
-        pkg.mVersionCode = pkg.applicationInfo.versionCode = sa.getInteger(
-                com.android.internal.R.styleable.AndroidManifest_versionCode, 0);
-        pkg.baseRevisionCode = sa.getInteger(
-                com.android.internal.R.styleable.AndroidManifest_revisionCode, 0);
-        pkg.mVersionName = sa.getNonConfigurationString(
-                com.android.internal.R.styleable.AndroidManifest_versionName, 0);
-        if (pkg.mVersionName != null) {
-            pkg.mVersionName = pkg.mVersionName.intern();
-        }
+        ... ...
         String str = sa.getNonConfigurationString(
                 com.android.internal.R.styleable.AndroidManifest_sharedUserId, 0);
         if (str != null && str.length() > 0) {
@@ -414,15 +409,16 @@ java -jar AXMLPrinter2.jar AndroidManifest.xml
         sa.recycle();
         ... ...
         int outerDepth = parser.getDepth();
-        // 解析uses-permission和application标签，它们均未manifest子标签
+        // 解析uses-permission和application标签，它们均为manifest的子标签
         while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
                 && (type != XmlPullParser.END_TAG || parser.getDepth() > outerDepth)) {
             ... ...
             String tagName = parser.getName();
             if (tagName.equals("application")) {
                 ... ...
+                // 🏁 Step16: 解析每个app必须存在的application标签
                 if (!parseBaseApplication(pkg, res, parser, attrs, flags, 
-                outError)) { // 🏁解析每个app必须存在的application标签
+                outError)) { 
                     return null;
                 }
             } ... ...
@@ -434,58 +430,13 @@ java -jar AXMLPrinter2.jar AndroidManifest.xml
                 if (!parseUsesPermission(pkg, res, parser, attrs)) {
                     return null;
                 }
-            } else if (tagName.equals("uses-permission-sdk-m")
-                    || tagName.equals("uses-permission-sdk-23")) {
-                if (!parseUsesPermission(pkg, res, parser, attrs)) {
-                    return null;
-                }
             } ... ...
-        }
-        ... ...
-        final int NP = PackageParser.NEW_PERMISSIONS.length;
-        StringBuilder implicitPerms = null;
-        for (int ip=0; ip<NP; ip++) {
-            final PackageParser.NewPermissionInfo npi
-                    = PackageParser.NEW_PERMISSIONS[ip];
-            if (pkg.applicationInfo.targetSdkVersion >= npi.sdkVersion) {
-                break;
-            }
-            if (!pkg.requestedPermissions.contains(npi.name)) {
-                if (implicitPerms == null) {
-                    implicitPerms = new StringBuilder(128);
-                    implicitPerms.append(pkg.packageName);
-                    implicitPerms.append(": compat added ");
-                } else {
-                    implicitPerms.append(' ');
-                }
-                implicitPerms.append(npi.name);
-                pkg.requestedPermissions.add(npi.name);
-            }
-        }
-        if (implicitPerms != null) {
-            Slog.i(TAG, implicitPerms.toString());
-        }
-
-        final int NS = PackageParser.SPLIT_PERMISSIONS.length;
-        for (int is=0; is<NS; is++) {
-            final PackageParser.SplitPermissionInfo spi
-                    = PackageParser.SPLIT_PERMISSIONS[is];
-            if (pkg.applicationInfo.targetSdkVersion >= spi.targetSdk
-                    || !pkg.requestedPermissions.contains(spi.rootPerm)) {
-                continue;
-            }
-            for (int in=0; in<spi.newPerms.length; in++) {
-                final String perm = spi.newPerms[in];
-                if (!pkg.requestedPermissions.contains(perm)) {
-                    pkg.requestedPermissions.add(perm);
-                }
-            }
         }
         ... ...
         return pkg;
     }
 ```
-# Step18: PackageParser::parseBaseApplication(...)
+# Step16: PackageParser::parseBaseApplication(...)
 ``` java
 // frameworks/base/core/java/android/content/pm/PackageParser.java:2406
     private boolean parseBaseApplication(Package owner, Resources res,
@@ -526,8 +477,8 @@ java -jar AXMLPrinter2.jar AndroidManifest.xml
         return true;
     }
 ```
-回到Step11中，在调用PackageParser::parsePackage(...)解析完应用程序后，接下来调用PackageManagerService::scanPackageLI获得将前面解析到的app的组件配置信息，并为app分配UID。
-# Step19: PackageManagerService::scanPackageLI(...)
+回到Step10中，在调用PackageParser::parsePackage(...)解析完应用程序的AndroidManifest.xml文件后，接下来调用PackageManagerService::scanPackageLI获得解析到的app的组件配置信息，并为app分配UID。
+# Step17: PackageManagerService::scanPackageLI(...)
 ``` java
 // frameworks/base/services/core/java/com/android/server/pm/PackageManagerService.java
 // :477
@@ -562,6 +513,7 @@ java -jar AXMLPrinter2.jar AndroidManifest.xml
             int scanFlags, long currentTime, UserHandle user) throws PackageManagerException {
         boolean success = false;
         ... ...
+            // 🏁
             final PackageParser.Package res = scanPackageDirtyLI(pkg, parseFlags, scanFlags,
                     currentTime, user);
             success = true;
@@ -569,8 +521,9 @@ java -jar AXMLPrinter2.jar AndroidManifest.xml
         ... ...
     }
 ```
-# Step20: PackageManagerService::scanPackageDirtyLI(...)
+# Step18: PackageManagerService::scanPackageDirtyLI(...)
 ``` java
+// frameworks/base/services/core/java/com/android/server/pm/PackageManagerService.java : 6481
 private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int parseFlags,
             int scanFlags, long currentTime, UserHandle user) throws PackageManagerException {
         ... ...
@@ -580,12 +533,12 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
         // 为pkg所描述的应用程序分配UID
         synchronized (mPackages) {
             if (pkg.mSharedUserId != null) {// 检查pkg是否指定了要与其它app共享UID
-                // 🏁Step21 获得被共享的UID
+                // 🏁Step19 获得被共享的UID
                 suid = mSettings.getSharedUserLPw(pkg.mSharedUserId, 0, 0, true);
                 ... ...
             }
             ... ...
-            // 🏁Step22 为pkg描述的应用程序分配一个UID
+            // 🏁Step20 为pkg描述的应用程序分配一个UID
             pkgSetting = mSettings.getPackageLPw(pkg, origPackage, realName, suid, destCodeFile,
                     destResourceFile, pkg.applicationInfo.nativeLibraryRootDir,
                     pkg.applicationInfo.primaryCpuAbi,
@@ -683,7 +636,7 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
         return pkg;
     }
 ```
-# Step21: Settings::getSharedUserLPw(...)
+# Step19: Settings::getSharedUserLPw(...)
 ``` java
 // frameworks/base/services/core/java/com/android/server/pm/Settings.java:398
     SharedUserSetting getSharedUserLPw(String name,
@@ -708,7 +661,7 @@ private PackageParser.Package scanPackageDirtyLI(PackageParser.Package pkg, int 
         return s;
     }
 ```
-# Step22: Settings::getPackageLPw(...)
+# Step20: Settings::getPackageLPw(...)
 ``` java
 // frameworks/base/services/core/java/com/android/server/pm/Settings.java:367
     PackageSetting getPackageLPw(PackageParser.Package pkg, PackageSetting origPackage,
