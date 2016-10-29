@@ -1163,4 +1163,4 @@ app.thread是一个类型为ApplicationThreadProxy的Binder代理对象。
         return activity;
     }
 ```
-接下来调用指定组件的`onCreate`函数，Activity组件的启动过程就完成了
+接下来调用指定组件的`onCreate`函数，Activity组件的启动过程就完成了。
