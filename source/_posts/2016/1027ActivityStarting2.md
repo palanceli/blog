@@ -8,6 +8,7 @@ toc: true
 comments: true
 ---
 收到来自`ActivityManagerService`的进程间通信请求`SCHEDULE_PAUSE_ACTIVITY_TRANSACTION`后，Launcher通过`ApplicationThread::schedulePauseActivity(...)`来执行处理操作：
+<!-- more -->
 # Step18 ApplicationThread::schedulePauseActivity(...)
 ``` java
 // frameworks/base/core/java/android/app/ActivityThread.java
