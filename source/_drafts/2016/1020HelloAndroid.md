@@ -38,3 +38,8 @@ $ mmm packages/experimental/HelloAndroid
 ```
 即可生成apk文件：
 `<android-dir>/out/debug/target/product/generic/system/app/HelloAndroid/HelloAndroid.apk`。
+为了不重新编译Android源码，需要执行：
+``` bash
+$ make snode
+```
+重新生成系统镜像，该应用就会被放置到桌面。
