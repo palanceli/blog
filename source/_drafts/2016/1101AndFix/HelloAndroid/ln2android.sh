@@ -8,8 +8,8 @@ echo "my_dir:     " $my_dir
 echo "android_dir:" $android_dir
 echo "slink:      " $slink
 
-if [ ! -L $slink ]; then
-    ln -s $my_dir $slink
-else
-    echo "obj softlink exists."
+if [ -L $slink ]; then
+	rm -fr $slink
 fi
+
+ln -s $my_dir $slink
