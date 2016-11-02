@@ -38,8 +38,26 @@ $ mmm packages/experimental/HelloAndroid
 ```
 即可生成apk文件：
 `<android-dir>/out/debug/target/product/generic/system/app/HelloAndroid/HelloAndroid.apk`。
+# 运行
 为了不重新编译Android源码，需要执行：
 ``` bash
 $ make snod
 ```
 重新生成系统镜像，该应用就会被放置到桌面。
+或者不要作为系统安装，启动了模拟器后，
+``` bash
+$ emulator& 
+```
+查询已安装的应用程序：
+``` bash
+$ adb shell pm list packages
+package:com.android.providers.telephony
+package:palance.li.hello
+... ...
+```
+如果应用已安装，则先卸载再安装：
+``` bash
+$ adb uninstall palance.li.hello
+... ...
+$ adb install ~/HelloAndroid.apk
+```

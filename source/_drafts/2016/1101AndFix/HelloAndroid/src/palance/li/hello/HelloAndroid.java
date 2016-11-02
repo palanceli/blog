@@ -11,7 +11,8 @@ public class HelloAndroid extends Activity{
     public void onCreate(Bundle savedInstanceState){
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
-
+        TextView tv = (TextView)findViewById(R.id.tv);
+        tv.setText("Hello Android!");
         Log.i(LOG_TAG, "OnCreate OK.");
     }
 }
