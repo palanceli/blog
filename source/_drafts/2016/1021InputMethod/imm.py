@@ -9,9 +9,6 @@ import immconv
 class IMMState(object):
     currState = None
     
-    def __init__(self, imm):
-        self.imm = imm
-
     @staticmethod
     def GetState(self):
         if IMMState.currState == None:
@@ -23,6 +20,9 @@ class IMMState(object):
         IMMState.currState = state
         return IMMState.currState
 
+    def imm(self):
+        return InputMethodManager.GetInstance()
+    
     def ProcessChar(self, ch):
         pass
 
@@ -35,12 +35,9 @@ class IMMReadyState(IMMState):
     @staticmethod
     def GetInstance():
         if IMMReadyState.selfObj == None:
-            IMMReadyState.selfObj = IMMReadyState(InputMethodManager.GetInstance())
+            IMMReadyState.selfObj = IMMReadyState()
         return IMMReadyState.selfObj
         
-    def __init__(self, imm):
-        IMMState.__init__(self, imm)
-
     def GetStateName(self):
         return 'IMMReadyState'
 
@@ -49,10 +46,10 @@ class IMMReadyState(IMMState):
             currState = IMMState.SetState(IMMPinyinState.GetInstance())
             currState.ProcessChar(ch)
         elif ch.isdigit() or ch.isupper():
-            self.imm.SetCoreData('Composition', '')
-            self.imm.SetCoreData('CompDisplay', '')
-            self.imm.SetCoreData('Candidates', [])
-            self.imm.SetCoreData('Completed', ch)
+            self.imm().SetCoreData('Composition', '')
+            self.imm().SetCoreData('CompDisplay', '')
+            self.imm().SetCoreData('Candidates', [])
+            self.imm().SetCoreData('Completed', ch)
 
 class IMMPinyinState(IMMState):
     selfObj = None
@@ -60,7 +57,7 @@ class IMMPinyinState(IMMState):
     @staticmethod
     def GetInstance():
         if IMMPinyinState.selfObj == None:
-            IMMPinyinState.selfObj = IMMPinyinState(InputMethodManager.GetInstance())
+            IMMPinyinState.selfObj = IMMPinyinState()
         return IMMPinyinState.selfObj
 
     def GetStateName(self):
@@ -68,11 +65,11 @@ class IMMPinyinState(IMMState):
 
     def ProcessChar(self, ch):
         if ch.isalpha():
-            compString = self.imm.SetCoreData('Composition', self.imm.GetCoreData('Composition') + ch)
-            convertor = self.imm.immConvertor
+            compString = self.imm().SetCoreData('Composition', self.imm().GetCoreData('Composition') + ch)
+            convertor = self.imm().immConvertor
             compArray, candidates = convertor.ConvertPinyin2(compString)
-            self.imm.SetCoreData('Candidates', candidates)
-            cursorPos = self.imm.SetCoreData('cursorPos', self.imm.GetCoreData('cursorPos') + 1)
+            self.imm().SetCoreData('Candidates', candidates)
+            cursorPos = self.imm().SetCoreData('cursorPos', self.imm().GetCoreData('cursorPos') + 1)
             compDisplay = ''
             pos = 0
             for comp in compArray:
@@ -93,20 +90,20 @@ class IMMPinyinState(IMMState):
                     else:
                         compDisplay += comp
                     pos += len(comp)
-            self.imm.SetCoreData('CompDisplay', compDisplay)
+            self.imm().SetCoreData('CompDisplay', compDisplay)
             
         elif ch.isdigit():
             i = int(ch)
-            if i > self.imm.GetSetting('maxCandCount') and i > len(self.imm.GetCoreData('Candidates')):
+            if i > self.imm().GetSetting('maxCandCount') and i > len(self.imm().GetCoreData('Candidates')):
                 pass
             else:
-                self.imm.SetCoreData('Completed', self.imm.GetCoreData('Candidates')[i - 1])
-                self.imm.ResetCoreData('Composition', 'Candidates', 'CompDisplay', 'cursorPos')
-                self.imm.SetCurrState(IMMReadyState.GetInstance())
+                self.imm().SetCoreData('Completed', self.imm().GetCoreData('Candidates')[i - 1])
+                self.imm().ResetCoreData('Composition', 'Candidates', 'CompDisplay', 'cursorPos')
+                self.imm().SetCurrState(IMMReadyState.GetInstance())
         elif ch == '\r':
-            self.imm.SetCoreData('Completed', self.imm.GetCoreData('Composition'))
-            self.imm.ResetCoreData('Composition', 'Candidates', 'CompDisplay', 'cursorPos')
-            self.imm.SetCurrState(IMMReadyState.GetInstance())
+            self.imm().SetCoreData('Completed', self.imm().GetCoreData('Composition'))
+            self.imm().ResetCoreData('Composition', 'Candidates', 'CompDisplay', 'cursorPos')
+            self.imm().SetCurrState(IMMReadyState.GetInstance())
 
 class InputMethodManager(object):
     selfObj = None
@@ -121,6 +118,9 @@ class InputMethodManager(object):
         self.immData = immdata.IMMData()
         self.immConvertor = immconv.IMMConvertor(self.immData)
 
+    def Initialize(self):
+        IMMState.currState = IMMReadyState.GetInstance()
+        
     def SetCurrState(self, state):
         IMMState.currState = state
         return IMMState.currState
@@ -135,6 +135,8 @@ class InputMethodManager(object):
         return self.immData.SetCoreData(key, value)
 
     def GetCoreData(self, key):
+        if key == 'currStateName':
+            return self.GetCurrState().GetStateName()
         return self.immData.GetCoreData(key)
 
     def SetSetting(self, key, value):

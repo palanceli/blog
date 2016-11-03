@@ -21,10 +21,11 @@ class HzMap(object):
                     continue
                 if line.isdigit():
                     continue
-                line = line.decode('utf-8')
+                line = line#.decode('utf-8')
                 hz = line[0]
                 py = line[1:]
-                if not self.aHz.has_key(py):
+                #if not self.aHz.has_key(py):
+                if not py in self.aHz:
                     self.aHz[py] = [hz, ]
                 else:
                     self.aHz[py].append(hz)
@@ -100,7 +101,7 @@ class PyNetMaker(object):
         pyNet = []
         result = []
         while True:
-            if seg.has_key(i) and (j < len(seg[i])):
+            if (i in seg) and (j < len(seg[i])):
                 pyNet.append((i, j))
                 i = i + seg[i][j] + 1
                 j = 0
