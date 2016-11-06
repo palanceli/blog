@@ -36,15 +36,18 @@ fi
 echo "mkdir [assets]"
 mkdir assets
 echo "$MY_AAPT package -f -M AndroidManifest.xml -S res -A assets -I $MY_ANDROID_JAR -F bin/$MY_APKNAME""_unsigned.apk"
-aapt package -f -M AndroidManifest.xml -S res -A assets -I $MY_ANDROID_JAR -F bin/$MY_APKNAME"_unsigned.apk"
+aapt package -f -M AndroidManifest.xml -S res -A assets -I $MY_ANDROID_JAR \
+	-F bin/$MY_APKNAME"_unsigned.apk"
 
 ## 4.1 添加dex文件
 cd $MY_PROJDIR"/bin"
-aapt add $MY_APKNAME"_unsigned.apk" classes.dex
+aapt add bin/$MY_APKNAME"_unsigned.apk" classes.dex
 cd $MY_PROJDIR
 
 ## 5. 对apk文件签名
-jarsigner -verbose -keystore ~/.android/debug.keystore -keypass android -storepass android -signedjar bin/$MY_APKNAME"_signed.apk" bin/$MY_APKNAME"_unsigned.apk" androiddebugkey
+jarsigner -verbose -keystore ~/.android/debug.keystore -keypass android \
+	-storepass android -signedjar bin/$MY_APKNAME"_signed.apk" \
+	bin/$MY_APKNAME"_unsigned.apk" androiddebugkey
 
 ## 6. 优化对齐
 zipalign -f 4 bin/$MY_APKNAME"_signed.apk" bin/$MY_APKNAME".apk"

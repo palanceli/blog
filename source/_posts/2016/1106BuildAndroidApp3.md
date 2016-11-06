@@ -215,3 +215,11 @@ $ adb shell logcat *:d
 ```
 终于算折腾出结果了：
 ![带native的Android应用](1106BuildAndroidApp3/img01.png)
+
+我把本文的代码放到[HelloAndroid](https://github.com/palanceli/blog/tree/master/source/_posts/2016/1106BuildAndroidApp3/HelloAndroid)，并在其下写了一个脚本[build.sh](https://github.com/palanceli/blog/blob/master/source/_posts/2016/1106BuildAndroidApp3/HelloAndroid/build.sh)。由于带native的Android应用在编译的时候需要穿插自动和手动——先修改java代码、编译之后才能生成jni的头文件，所以`build.sh`算是个半自动脚本。首次执行，生成R.java、编译java源文件、生成dex文件；然后需要手动执行ndk-build，生成so；然后在执行一次build.sh完成打包：
+``` bash
+$ cd HelloAndroid
+$ sh build.sh
+$ ndk-build
+$ sh build.sh
+```

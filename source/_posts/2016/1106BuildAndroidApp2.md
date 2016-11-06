@@ -162,7 +162,7 @@ $ jarsigner -verbose \
 ``` bash
 zipalign -f 4 bin/HelloAndroid_signed.apk bin/HelloAndroid.apk
 ```
-我把以上的编译过程写成脚本放在[build.sh]()。
+我把以上的编译过程写成脚本放在[build.sh](https://github.com/palanceli/blog/blob/master/source/_posts/2016/1106BuildAndroidApp2/build.sh)。
 
 # 在SDK自带的emulator中运行
 使用Android SDK 下载的x86的模拟器运行速度已经快很多了，所以一般的app调试，可以用它。要比源码编译出来的模拟器使用更方便。在使用之前要先创建模拟器，方法为：
