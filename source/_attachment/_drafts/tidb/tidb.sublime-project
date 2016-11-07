@@ -1,0 +1,12 @@
+{
+	"folders":
+	[
+		{
+			"file_exclude_patterns":
+			[
+				"*.class", 
+			],
+			"path": "/Users/palance/Documents/SubVersions/tidb"
+		}
+	]
+}
