@@ -22,10 +22,10 @@ $ android create project \
 HelloAndroid
 ├── build.gradle
 ├── gradle
-│   └── wrapper
+│   └── wrapper # 运行时，发现系统没有对应版本的gradle，会通过gradle-wrapper.jar下载gradle-wrapper.properties中指定的gradle版本
 │       ├── gradle-wrapper.jar
 │       └── gradle-wrapper.properties
-├── gradlew
+├── gradlew     # 它和.bat支持多平台的gradle运行命令，通过gradlew，可以执行gradle构建任务
 ├── gradlew.bat
 ├── local.properties
 └── src
@@ -38,164 +38,49 @@ HelloAndroid
         └── res
             └── ...
 ```
-# gradlew
-在`HelloAndroid`目录下执行`gradlew`将启动工程的编译
+# 解决编译错误
+在`HelloAndroid`目录下执行`gradlew`将启动工程的编译，首次执行会花几分钟下载必要的文件。执行结果遇到了错误：
 ``` bash
-... ...
-# Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
-DEFAULT_JVM_OPTS=""
-
-APP_NAME="Gradle"
-APP_BASE_NAME=`basename "$0"`
-
-# Use the maximum available, or set MAX_FD != -1 to use that value.
-MAX_FD="maximum"
-
-warn ( ) {
-    echo "$*"
+Execution failed for task ':dexDebug'.
+> com.android.ide.common.internal.LoggedErrorException: Failed to run command:
+    /Users/palance/Library/Android/sdk/build-tools/25.0.0/dx --dex --num-threads=4 --output /Users/palance/Documents/dev/HelloAndroid/build/intermediates/dex/debug /Users/palance/Documents/dev/HelloAndroid/build/intermediates/classes/debug /Users/palance/Documents/dev/HelloAndroid/build/intermediates/dependency-cache/debug
+  Error Code:
+    1
+  Output:
+    Exception in thread "main" java.lang.UnsupportedClassVersionError: com/android/dx/command/Main : Unsupported major.minor version 52.0
+      at java.lang.ClassLoader.defineClass1(Native Method)
+      at java.lang.ClassLoader.defineClass(ClassLoader.java:800)
+      ... ...
+```
+原因是Java版本号不匹配，Java的主版本号如下：
+```
+J2SE 8 = 52
+J2SE 7 = 51
+J2SE 6.0 = 50
+J2SE 5.0 = 49
+JDK 1.4 = 48
+JDK 1.3 = 47
+JDK 1.2 = 46
+JDK 1.1 = 45
+```
+所以结合报错信息，应该是本地没有装Java 1.8。可是在创建project的时候也没有指定java版本号呀，猜测应该是跟target的版本号绑定的，我把target指定为2，重新创建工程：
+```
+$ android create project --activity MainActivity --target 2 --package palance.li.hello --path HelloAndroid -g -v 0.11.+
+```
+打开`build.gradle`文件：
+```
+...
+android {
+    compileSdkVersion 'android-23'
+    buildToolsVersion '23.0.2' # 这里原本是25.0.0，我改成本地已安装的23系列的SDK Build-tools
+    ...
 }
-
-die ( ) {
-    echo
-    echo "$*"
-    echo
-    exit 1
-}
-
-# OS specific support (must be 'true' or 'false').
-cygwin=false
-msys=false
-darwin=false
-case "`uname`" in
-  CYGWIN* )
-    cygwin=true
-    ;;
-  Darwin* )
-    darwin=true
-    ;;
-  MINGW* )
-    msys=true
-    ;;
-esac
-
-# For Cygwin, ensure paths are in UNIX format before anything is touched.
-if $cygwin ; then
-    [ -n "$JAVA_HOME" ] && JAVA_HOME=`cygpath --unix "$JAVA_HOME"`
-fi
-
-# Attempt to set APP_HOME
-# Resolve links: $0 may be a link
-PRG="$0"
-# Need this for relative symlinks.
-while [ -h "$PRG" ] ; do
-    ls=`ls -ld "$PRG"`
-    link=`expr "$ls" : '.*-> \(.*\)$'`
-    if expr "$link" : '/.*' > /dev/null; then
-        PRG="$link"
-    else
-        PRG=`dirname "$PRG"`"/$link"
-    fi
-done
-SAVED="`pwd`"
-cd "`dirname \"$PRG\"`/" >&-
-APP_HOME="`pwd -P`"
-cd "$SAVED" >&-
-
-CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
-
-# Determine the Java command to use to start the JVM.
-if [ -n "$JAVA_HOME" ] ; then
-    if [ -x "$JAVA_HOME/jre/sh/java" ] ; then
-        # IBM's JDK on AIX uses strange locations for the executables
-        JAVACMD="$JAVA_HOME/jre/sh/java"
-    else
-        JAVACMD="$JAVA_HOME/bin/java"
-    fi
-    if [ ! -x "$JAVACMD" ] ; then
-        die "ERROR: JAVA_HOME is set to an invalid directory: $JAVA_HOME
-
-Please set the JAVA_HOME variable in your environment to match the
-location of your Java installation."
-    fi
-else
-    JAVACMD="java"
-    which java >/dev/null 2>&1 || die "ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
-
-Please set the JAVA_HOME variable in your environment to match the
-location of your Java installation."
-fi
-
-# Increase the maximum file descriptors if we can.
-if [ "$cygwin" = "false" -a "$darwin" = "false" ] ; then
-    MAX_FD_LIMIT=`ulimit -H -n`
-    if [ $? -eq 0 ] ; then
-        if [ "$MAX_FD" = "maximum" -o "$MAX_FD" = "max" ] ; then
-            MAX_FD="$MAX_FD_LIMIT"
-        fi
-        ulimit -n $MAX_FD
-        if [ $? -ne 0 ] ; then
-            warn "Could not set maximum file descriptor limit: $MAX_FD"
-        fi
-    else
-        warn "Could not query maximum file descriptor limit: $MAX_FD_LIMIT"
-    fi
-fi
-
-# For Darwin, add options to specify how the application appears in the dock
-if $darwin; then
-    GRADLE_OPTS="$GRADLE_OPTS \"-Xdock:name=$APP_NAME\" \"-Xdock:icon=$APP_HOME/media/gradle.icns\""
-fi
-
-# For Cygwin, switch paths to Windows format before running java
-if $cygwin ; then
-    APP_HOME=`cygpath --path --mixed "$APP_HOME"`
-    CLASSPATH=`cygpath --path --mixed "$CLASSPATH"`
-
-    # We build the pattern for arguments to be converted via cygpath
-    ROOTDIRSRAW=`find -L / -maxdepth 1 -mindepth 1 -type d 2>/dev/null`
-    SEP=""
-    for dir in $ROOTDIRSRAW ; do
-        ROOTDIRS="$ROOTDIRS$SEP$dir"
-        SEP="|"
-    done
-    OURCYGPATTERN="(^($ROOTDIRS))"
-    # Add a user-defined pattern to the cygpath arguments
-    if [ "$GRADLE_CYGPATTERN" != "" ] ; then
-        OURCYGPATTERN="$OURCYGPATTERN|($GRADLE_CYGPATTERN)"
-    fi
-    # Now convert the arguments - kludge to limit ourselves to /bin/sh
-    i=0
-    for arg in "$@" ; do
-        CHECK=`echo "$arg"|egrep -c "$OURCYGPATTERN" -`
-        CHECK2=`echo "$arg"|egrep -c "^-"`                                 ### Determine if an option
-
-        if [ $CHECK -ne 0 ] && [ $CHECK2 -eq 0 ] ; then                    ### Added a condition
-            eval `echo args$i`=`cygpath --path --ignore --mixed "$arg"`
-        else
-            eval `echo args$i`="\"$arg\""
-        fi
-        i=$((i+1))
-    done
-    case $i in
-        (0) set -- ;;
-        (1) set -- "$args0" ;;
-        (2) set -- "$args0" "$args1" ;;
-        (3) set -- "$args0" "$args1" "$args2" ;;
-        (4) set -- "$args0" "$args1" "$args2" "$args3" ;;
-        (5) set -- "$args0" "$args1" "$args2" "$args3" "$args4" ;;
-        (6) set -- "$args0" "$args1" "$args2" "$args3" "$args4" "$args5" ;;
-        (7) set -- "$args0" "$args1" "$args2" "$args3" "$args4" "$args5" "$args6" ;;
-        (8) set -- "$args0" "$args1" "$args2" "$args3" "$args4" "$args5" "$args6" "$args7" ;;
-        (9) set -- "$args0" "$args1" "$args2" "$args3" "$args4" "$args5" "$args6" "$args7" "$args8" ;;
-    esac
-fi
-
-# Split up the JVM_OPTS And GRADLE_OPTS values into an array, following the shell quoting and substitution rules
-function splitJvmOpts() {
-    JVM_OPTS=("$@")
-}
-eval splitJvmOpts $DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS
-JVM_OPTS[${#JVM_OPTS[*]}]="-Dorg.gradle.appname=$APP_BASE_NAME"
-
-exec "$JAVACMD" "${JVM_OPTS[@]}" -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
+...
+```
+再次执行` ./gradlew build`，终于看到`BUILD SUCCESSFUL`的执行结果。
+# 编译、安装、卸载
+``` bash
+$ ./gradlew build           # 编译
+$ ./gradlew installDebug    # 安装
+$ ./gradlew uninstallDebug  # 卸载
 ```
