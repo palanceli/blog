@@ -66,6 +66,22 @@ M-x recover-file <RET> 文件名 <RET>
 yes <RET>
 C-x C-s
 ```
+
+# elpy
+[elpy](https://elpy.readthedocs.io/en/latest/introduction.html)——Emacs Lisp Python Environment，这个必须得装，安装过程也很简单：
+1. 在.emacs文件中添加如下内容后重启emacs
+``` lisp
+(require 'package)
+(add-to-list 'package-archives
+             '("elpy" . "http://jorgenschaefer.github.io/packages/"))
+```
+2. 运行`M-x package-install RET elpy RET`
+3. 在.emacs文件中添加如下内容，以使emacs默认支持elpy：
+``` lisp
+(package-initialize)
+(elpy-enable)
+```
+
 # cscope
 cscope是用来帮助阅读源码的，Emacs for mac osx默认自带cscope的支持。在使用之前，cscope也需要对代码进行索引。在emacs中可以这样做：
 C-c s a 设定初始化的目录，一般是你代码的根目录

@@ -3,6 +3,7 @@
 import logging
 import sys
 from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QFrame
+from PyQt5.QtGui import QFont
 from PyQt5 import QtCore
 
 
@@ -78,6 +79,23 @@ class MyLayout(object):
 
         self.getData('layouts').append(newLayout)
         self.Adjust()
+
+
+class MyFontLayout(MyLayout):
+    def __init__(self, name, widget,
+                 fontName, fontSize, fontWeight, maxWidth, maxLine):
+        super().__init__(name, widget)
+        self.setData('maxWidth', maxWidth)
+        self.setData('maxLine', maxLine)
+        font = QFont(fontName, fontSize, fontWeight)
+        self.label.setFont(font)
+        self.label.setText(name)
+        width = self.label.fontMetrics().width(name)
+        height = self.label.fontMetrics().height(name)
+        if width > maxWidth:
+            logging.debug('处理折行')
+        self.setData('fixedW', width)
+        self.setData('fixedH', height)
 
 
 class MyVLayout(MyLayout):
@@ -251,19 +269,23 @@ class MainWidget(QWidget):
         rootLayout.AddLayout(P1)
 
         # Page1内布局
-        P1L1 = MyHLayout('P1L1', self, parentLayout=P1,
+        P1R1 = MyHLayout('P1R1', self, parentLayout=P1,
                          fixedW=pageWidth,
                          marginL=marginMid, marginU=marginUp*0.5,
                          marginR=marginMid, marginD=marginUp*0.5,
                          weight=3.7)
 
-        P1.AddLayout(P1L1)
+        P1.AddLayout(P1R1)
         # layout.AddStretch(3.7)
         P1.AddStretch(1.4)
         P1.AddStretch(1.4)
 
-        P1L1.AddStretch(3)
-        P1L1.AddStretch(6.3)
+        P1R1.AddStretch(3)
+        P1R1C2 = MyVLayout('P1R1C2', self, parentLayout=P1R1,
+                           weight=6.3)
+        P1R1C2
+        P1R1.AddLayout(P1R1C2)
+        # P1R1.AddStretch(6.3)
 
         # 一级margin布局，根据客户端传入的屏幕指标定宽定高
         M1 = MyLayout('M1', self, parentLayout=rootLayout,
