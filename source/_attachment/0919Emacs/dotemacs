@@ -17,7 +17,8 @@
  '(custom-enabled-themes (quote (tsdh-dark)))
  '(ede-project-directories
    (quote
-    ("/Users/palance/tmp/myproject/include" "/Users/palance/tmp/myproject/src" "/Users/palance/tmp/myproject" "/Users/palance/Documents/SubVersions/tidb/pinyinnet"))))
+    ("/Users/palance/tmp/myproject/include" "/Users/palance/tmp/myproject/src" "/Users/palance/tmp/myproject" "/Users/palance/Documents/SubVersions/tidb/pinyinnet")))
+ '(package-selected-packages (quote (elpy))))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
@@ -70,6 +71,7 @@
   (setq c-macro-cppflags " ")		;; 
   (setq c-macro-prompt-flag t)		;; 
   (setq hs-minor-mode t)			;; 代码折叠
+
   ;; (setq abbrev-mode t)				;; 自定义短语
 )
 (add-hook 'c-mode-common-hook 'my-c-mode-common-hook)	;; 
@@ -134,6 +136,13 @@
 ;; 全局快捷键定义
 (global-set-key "\M-]"  'bs-cycle-next)
 (global-set-key "\M-["  'bs-cycle-previous)
+(global-set-key "\M-="  'hs-toggle-hiding) ;; 代码折叠块
+(global-set-key "\M--"  'hs-hide-all)      ;; 代码折叠全部
+(global-set-key "\M-_"  'hs-show-all)      ;; 代码展开全部
+(global-set-key (kbd "s-<up>")  'scroll-up-line)   ;; 向上滚动一行
+(global-set-key (kbd "s-<down>") 'scroll-down-line) ;;向下滚动一行
+(global-set-key (kbd "C-s-<up>") 'scroll-up)
+(global-set-key (kbd "C-s-<down>") 'scroll-down)
 
 ;; Emacs Markdown Mode
 (add-to-list 'load-path "~/.emacs.d/modes")  
@@ -156,3 +165,13 @@
 
 ;;; Title = 'system-name File: foo.bar'
 (setq frame-title-format '(:eval (frame-title-string)))
+
+;;; elpy 对于python的支持
+(require 'package)
+(add-to-list 'package-archives
+             '("elpy" . "http://jorgenschaefer.github.io/packages/"))
+
+(package-initialize)
+(elpy-enable)
+
+
