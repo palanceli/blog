@@ -224,7 +224,8 @@ private final boolean attachApplicationLocked(IApplicationThread thread,
     List<ProviderInfo> providers = normalMode ? generateApplicationProvidersLocked(app) : null;
 
     ...
-
+    // 由此可见，当进程启动完成后，ActivityManagerService会优先处理Activity组件然后
+    // 再处理Service组件，这是因为前者需要用户交互，后者不需要。
     // See if the top visible activity is waiting to run in this process...
     if (normalMode) {
         try {
@@ -255,8 +256,9 @@ boolean attachApplicationLocked(ProcessRecord proc, String processName)
     // Collect any services that are waiting for this process to come up.
     if (mPendingServices.size() > 0) {
         ServiceRecord sr = null;
-        try {
+        try { // 检查保存在mPendingService中的service组件是否需要在app中启动
             for (int i=0; i<mPendingServices.size(); i++) {
+                // 如果需要启动，从mPendingService中取出并删除
                 sr = mPendingServices.get(i);
                 if (proc != sr.isolatedProc && (proc.uid != sr.appInfo.uid
                         || !processName.equals(sr.processName))) {
@@ -278,5 +280,131 @@ boolean attachApplicationLocked(ProcessRecord proc, String processName)
     return didSomething;
 }
 ```
+# Step15 ActiveServices::realStartServiceLocked(...)
+``` java
+// frameworks/base/services/core/java/com/android/server/am/ActiveServices.java:1501
+    private final void realStartServiceLocked(ServiceRecord r,
+            ProcessRecord app, boolean execInFg) throws RemoteException {
+        ...
+        r.app = app;
+        ...
+        try {
+            ...
+            // app.thread是类型为ApplicationThreadProxy的Binder代理对象
+            // 请求新进程将r所描述的service组件启动起来
+            app.thread.scheduleCreateService(r, r.serviceInfo,
+                    mAm.compatibilityInfoForPackageLocked(r.serviceInfo.applicationInfo),
+                    app.repProcState);
+            ...
+        } catch ...
+        ...
+    }
+```
+# Step16 ApplicationThreadNative::scheduleCreateService(...)
+``` java
+public abstract class ApplicationThreadNative extends Binder
+        implements IApplicationThread {
+// frameworks/base/core/java/android/app/ApplicationThreadNative.java:919
+    public final void scheduleCreateService(IBinder token, ServiceInfo info,
+            CompatibilityInfo compatInfo, int processState) throws RemoteException {
+        Parcel data = Parcel.obtain();
+        data.writeInterfaceToken(IApplicationThread.descriptor);
+        data.writeStrongBinder(token);
+        info.writeToParcel(data, 0);
+        compatInfo.writeToParcel(data, 0);
+        data.writeInt(processState);
+        try {
+            // 向新建进程发送SCHEDULE_CREATE_SERVICE_TRANSACTION请求
+            mRemote.transact(SCHEDULE_CREATE_SERVICE_TRANSACTION, data, null,
+                    IBinder.FLAG_ONEWAY);
+        } catch (TransactionTooLargeException e) ...
+        data.recycle();
+    }
+...
+}
+```
+以上步骤是在ActivityManagerService中进行，接下来转入新建进程中。
+# Step17 ActivityThread::scheduleCreateService(...)
+``` java
+public final class ActivityThread {
+    private class ApplicationThread extends ApplicationThreadNative {
+...
+// frameworks/base/core/java/android/app/ApplicationThreadNative.java:718
+    public final void scheduleCreateService(IBinder token,
+            ServiceInfo info, CompatibilityInfo compatInfo, int processState) {
+        updateProcessState(processState, false);
+        CreateServiceData s = new CreateServiceData();
+        s.token = token;
+        s.info = info;
+        s.compatInfo = compatInfo;
 
+        sendMessage(H.CREATE_SERVICE, s);
+    }
+    ...
+    }
+    ...
+}
+```
+此处把“要启动Service组件”信息封装成一个CreateServiceData对象，再通过sendMessage发送到消息队列，可参考[Activity启动过程学习笔记（二）之Step39](http://palanceli.com/2016/10/27/2016/1027ActivityStarting2/#Step39-ActivityThread-scheduleLaunchActivity-…)
 
+# Step18 ActivityThread::handleMessage(…)
+``` java
+// frameworks/base/core/java/android/app/ActivityThread.java:1335
+    public void handleMessage(Message msg) {
+        ... ...
+        switch (msg.what) {
+            ...
+            case CREATE_SERVICE:
+                ...
+                handleCreateService((CreateServiceData)msg.obj);
+                ...
+                break;
+        ...
+    }...
+}
+```
+# Step19 ActivityThread::handleCreateService(...)
+``` java
+public final class ActivityThread {
+...
+// frameworks/base/core/java/android/app/ActivityThread.java:2849
+    private void handleCreateService(CreateServiceData data) {
+        ...
+        // 描述即将启动的Service组件所在的应用程序的LoadedApk对象，
+        // 通过它可以访问应用程序的资源
+        LoadedApk packageInfo = getPackageInfoNoCheck(
+                data.info.applicationInfo, data.compatInfo);
+        Service service = null;
+        try {
+            // 获得类加载器
+            java.lang.ClassLoader cl = packageInfo.getClassLoader();
+            // 将data所描述的Service组件加载到内存
+            service = (Service) cl.loadClass(data.info.name).newInstance();
+        } catch (Exception e) ...
+        }
+
+        try {
+            ...
+            // context作为service运行的上下文环境，通过它可以访问到特定的
+            // 应用程序资源，及启动其他应用程序组件
+            ContextImpl context = ContextImpl.createAppContext(this, packageInfo);
+            context.setOuterContext(service);
+
+            // 描述service所属的应用程序
+            Application app = packageInfo.makeApplication(false, mInstrumentation);
+            // 初始化service对象
+            service.attach(context, this, data.info.name, data.token, app,
+                    ActivityManagerNative.getDefault());
+            service.onCreate(); // 调用它的onCreate()成员函数
+            // 以token为关键字，把service保存在ActivityThread::mServices中
+            mServices.put(data.token, service); 
+            try {
+                ActivityManagerNative.getDefault().serviceDoneExecuting(
+                        data.token, SERVICE_DONE_EXECUTING_ANON, 0, 0);
+            } catch (RemoteException e) ...
+        } catch (Exception e) ...
+    }
+```
+至此，Service的启动过程就分析完了。它和Activity的启动过程非常相似。
+那天老板问我Android下的Activity和Service如果类比到Windows下的概念，有没有可比物，我的回答是Window。Android弱化了进程的概念以及进程之间的边缘。程序员接触到的是四大组件，这些组件是进程创建后，根据manifest描述再创建的对象，组件的创建和销毁均由进程在其生命周期内完成。Windows下也一样，进程创建后通过CreateWindow(...)创建窗体，窗体销毁后进程可能还在。
+Android通过Binder机制弱化了进程之间的边缘，启动其它组件、发送数据可能是跨进程的，但在实现层面上和进程内没有差别，这和Windows就有差别了，首先Windows没有类似Binder的支持，稍微有点相似的是窗体消息，可以跨进程拿到窗体句柄，并发送消息，但并非所有消息都支持进程间发送。
