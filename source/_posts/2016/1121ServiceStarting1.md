@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Service启动过程学习笔记（一）
+title: Service启动过程学习笔记（一）——跨进程启动Service组件
 date: 2016-11-21 23:59:58 +0800
 categories: Android
 tags: Service启动过程
@@ -300,7 +300,7 @@ boolean attachApplicationLocked(ProcessRecord proc, String processName)
         ...
     }
 ```
-# Step16 ApplicationThreadNative::scheduleCreateService(...)
+# Step16 ApplicationThreadProxy::scheduleCreateService(...)
 ``` java
 public abstract class ApplicationThreadNative extends Binder
         implements IApplicationThread {
