@@ -159,3 +159,83 @@ public final class LoadedApk {
     }
 ```
 此处向ActivityManagerService发送一个REGISTER_RECEIVER_TRANSACTION请求，以上都是在客户端进程中执行的，接下来将转入ActivityManagerService中执行。
+
+# ActivityManagerService::registerReceiver(...)
+``` java
+// frameworks/base/core/java/com/android/server/am/ActivityManagerService.java:16208
+    public Intent registerReceiver(IApplicationThread caller, String callerPackage,
+            IIntentReceiver receiver, IntentFilter filter, String permission, int userId) {
+        ...
+        synchronized(this) {
+            if (caller != null) {
+                // 描述正在祖册BroadcastReceiver的Activity组件所在的进程
+                callerApp = getRecordForAppLocked(caller);
+                ...
+            } 
+            ...
+        }
+
+        ArrayList<Intent> allSticky = null;
+        if (stickyIntents != null) {
+            final ContentResolver resolver = mContext.getContentResolver();
+            // Look for any matching sticky broadcasts...
+            for (int i = 0, N = stickyIntents.size(); i < N; i++) {
+                Intent intent = stickyIntents.get(i);
+                // If intent has scheme "content", it will need to acccess
+                // provider that needs to lock mProviderMap in ActivityThread
+                // and also it may need to wait application response, so we
+                // cannot lock ActivityManagerService here.
+                if (filter.match(resolver, intent, true, TAG) >= 0) {
+                    if (allSticky == null) {
+                        allSticky = new ArrayList<Intent>();
+                    }
+                    allSticky.add(intent);
+                }
+            }
+        }
+
+    // Activity组件注册一个BroadcastReceiver并不是将该Reciever注册到
+    // ActivityManagerService中，而是注册与他关联的InnerReceiver对象。
+    // ActivityManagerService接收到广播时，会根据该广播类型在内部找到对应的
+    // InnerReceiver对象，再根据此对象将广播发送给对应的BroadcastReceiver
+
+    // 在ActivityManagerService中使用BroadcastFilter来描述广播接收者，
+    // BroadcastFilter是根据InnerReceiver对象和要接收到的广播类型而创建出来。
+    // 在一个进程的不同Activity可能使用同一个InnerReceiver来注册不同的广播接收者，
+    // ActivityManagerService使用一个ReceiverList来保存这些使用了相同InnserReceiver
+    // 对象来注册的广播接收者，并以他们所使用的InnerReceiver为key。
+
+        // 如果ActivityManagerService内部存在与filter对应的黏性广播，则将allSticky
+        // 中第一个黏性广播取出来
+        // The first sticky in the list is returned directly back to the client.
+        Intent sticky = allSticky != null ? allSticky.get(0) : null;
+        ...
+        if (receiver == null) {
+            return sticky;
+        }
+
+        synchronized (this) {
+            ...
+            ReceiverList rl = mRegisteredReceivers.get(receiver.asBinder());
+            if (rl == null) {
+                rl = new ReceiverList(this, callerApp, callingPid, callingUid,
+                        userId, receiver);
+                ...
+                mRegisteredReceivers.put(receiver.asBinder(), rl);
+            } else ...
+            // 描述正在注册的广播接收者
+            BroadcastFilter bf = new BroadcastFilter(filter, rl, callerPackage,
+                    permission, callingUid, userId);
+            rl.add(bf);
+            ...
+            mReceiverResolver.addFilter(bf);
+            // 以后ActivityManagerService接收到广播时，就可以在mReceiverResolver中
+            // 找到对应的广播接收者了
+            ...
+            return sticky;
+        }
+    }
+```
+黏性广播被发送到ActivityManagerService之后会被一直保存，直到下次再接收到另一个同类型的黏性广播为止。一个Activity组件在向ActivityManagerService注册接收某一种类型的广播时，如果其内部恰好保存有该类型的黏性广播，就会将此黏性广播返回给Activity，以便他知道系统上次发出的他所感兴趣的广播内容。可以通过ContextWrapper::sendStickyBroadcast(...)发送一个黏性广播。
+
+到此，BroadcastReceiver的注册过程就走完了，接下来继续研究广播的发送过程。
