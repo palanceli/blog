@@ -1,6 +1,6 @@
 ---
 layout: post
-title: 广播机制学习笔记（一）
+title: 广播机制学习笔记（一）——BroadcastReceiver的注册
 date: 2017-01-01 22:23:45 +0800
 categories: Android
 tags: 广播机制
