@@ -107,11 +107,14 @@ mBase的类型为ContextImpl。
         final String action = intent.getAction();
         ...
         // Add to the sticky list if requested.
+
+        // 如果是粘性广播，需要将它保存下来，以便后面注册接收此种类型广播的
+        // BroadcastReceiver可以获得此广播
         if (sticky) {
-            // 如果是粘性广播，需要将它保存下来，以便后面注册接收此种类型广播的
-            // BroadcastReceiver可以获得此广播
             ...
-            // 根据广播类型找到匹配的广播列表
+            // 所有类型相同的黏性广播都保存在一个列表中，这些列表又保存在mStickBroadcasts
+            // 中，并以广播类型为关键字。
+            // 先根据广播类型找到匹配的广播列表
             ArrayMap<String, ArrayList<Intent>> stickies = mStickyBroadcasts.get(userId);
             if (stickies == null) {
                 stickies = new ArrayMap<>();
@@ -122,6 +125,7 @@ mBase的类型为ContextImpl。
                 list = new ArrayList<>();
                 stickies.put(intent.getAction(), list);
             }
+            // 再从广播列表中找到与intent一致的广播
             final int stickiesCount = list.size();
             int i;
             for (i = 0; i < stickiesCount; i++) {
@@ -147,8 +151,8 @@ mBase的类型为ContextImpl。
         }
 
         // Figure out who all will receive this broadcast.
-        List receivers = null;
-        List<BroadcastFilter> registeredReceivers = null;
+        List receivers = null;  // 保存静态注册的接收者
+        List<BroadcastFilter> registeredReceivers = null; // 保存动态注册的接收者
         // Need to resolve the intent to interested receivers...
         if ((intent.getFlags()&Intent.FLAG_RECEIVER_REGISTERED_ONLY)
                  == 0) {
@@ -178,71 +182,45 @@ mBase的类型为ContextImpl。
             }
         }
 
+        // 上次接收的广播还未来得及转发给接收者
         final boolean replacePending =
                 (intent.getFlags()&Intent.FLAG_RECEIVER_REPLACE_PENDING) != 0;
-
-        if (DEBUG_BROADCAST) Slog.v(TAG_BROADCAST, "Enqueing broadcast: " + intent.getAction()
-                + " replacePending=" + replacePending);
-
+        ...
         int NR = registeredReceivers != null ? registeredReceivers.size() : 0;
+        // 当前发送的广播是无序广播 && 存在动态注册的接收者
         if (!ordered && NR > 0) {
             // If we are not serializing this broadcast, then send the
             // registered receivers separately so they don't wait for the
             // components to be launched.
+            // 将intent描述的广播转发给目标接收者，由此可见动态注册的广播要比静态注册的
+            // 优先收到无序广播
             final BroadcastQueue queue = broadcastQueueForIntent(intent);
+            // r用来描述ActivityManagerService要执行的广播转发任务
             BroadcastRecord r = new BroadcastRecord(queue, intent, callerApp,
                     callerPackage, callingPid, callingUid, resolvedType, requiredPermissions,
                     appOp, brOptions, registeredReceivers, resultTo, resultCode, resultData,
                     resultExtras, ordered, sticky, false, userId);
-            if (DEBUG_BROADCAST) Slog.v(TAG_BROADCAST, "Enqueueing parallel broadcast " + r);
+            ...
             final boolean replaced = replacePending && queue.replaceParallelBroadcastLocked(r);
-            if (!replaced) {
+            // 如果没有需要替换的广播，则将r插入无序广播调度队列；如果有，则不再重复插入
+            if (!replaced) { 
                 queue.enqueueParallelBroadcastLocked(r);
-                queue.scheduleBroadcastsLocked();
+                queue.scheduleBroadcastsLocked(); // 🏁重新调度队列中的广播转发任务
             }
+            // 此时，对于无序广播，已将intent所描述的广播转发给那些动态注册的接收者
             registeredReceivers = null;
             NR = 0;
         }
 
+        // 无论ActivityManagerService当前接收到的是无序广播还是有序广播，都会将
+        // 该广播及目标接收者封装成转发任务，并添加到有序广播调度队列中。
+        // mOrderedBroadcasts描述有序广播调度队列，其中每个转发任务的目标接收者都是按照
+        // 优先级由高到低排列的。
         // Merge into one list.
         int ir = 0;
+        // 合并动态注册和静态注册的目标接收者，按照优先级从高到低排列，存放到receivers
         if (receivers != null) {
-            // A special case for PACKAGE_ADDED: do not allow the package
-            // being added to see this broadcast.  This prevents them from
-            // using this as a back door to get run as soon as they are
-            // installed.  Maybe in the future we want to have a special install
-            // broadcast or such for apps, but we'd like to deliberately make
-            // this decision.
-            String skipPackages[] = null;
-            if (Intent.ACTION_PACKAGE_ADDED.equals(intent.getAction())
-                    || Intent.ACTION_PACKAGE_RESTARTED.equals(intent.getAction())
-                    || Intent.ACTION_PACKAGE_DATA_CLEARED.equals(intent.getAction())) {
-                Uri data = intent.getData();
-                if (data != null) {
-                    String pkgName = data.getSchemeSpecificPart();
-                    if (pkgName != null) {
-                        skipPackages = new String[] { pkgName };
-                    }
-                }
-            } else if (Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE.equals(intent.getAction())) {
-                skipPackages = intent.getStringArrayExtra(Intent.EXTRA_CHANGED_PACKAGE_LIST);
-            }
-            if (skipPackages != null && (skipPackages.length > 0)) {
-                for (String skipPackage : skipPackages) {
-                    if (skipPackage != null) {
-                        int NT = receivers.size();
-                        for (int it=0; it<NT; it++) {
-                            ResolveInfo curt = (ResolveInfo)receivers.get(it);
-                            if (curt.activityInfo.packageName.equals(skipPackage)) {
-                                receivers.remove(it);
-                                it--;
-                                NT--;
-                            }
-                        }
-                    }
-                }
-            }
-
+            ...
             int NT = receivers != null ? receivers.size() : 0;
             int it = 0;
             ResolveInfo curt = null;
@@ -283,19 +261,34 @@ mBase的类型为ContextImpl。
                     callerPackage, callingPid, callingUid, resolvedType,
                     requiredPermissions, appOp, brOptions, receivers, resultTo, resultCode,
                     resultData, resultExtras, ordered, sticky, false, userId);
-
-            if (DEBUG_BROADCAST) Slog.v(TAG_BROADCAST, "Enqueueing ordered broadcast " + r
-                    + ": prev had " + queue.mOrderedBroadcasts.size());
-            if (DEBUG_BROADCAST) Slog.i(TAG_BROADCAST,
-                    "Enqueueing broadcast " + r.intent.getAction());
-
+            ...
             boolean replaced = replacePending && queue.replaceOrderedBroadcastLocked(r);
             if (!replaced) {
                 queue.enqueueOrderedBroadcastLocked(r);
                 queue.scheduleBroadcastsLocked();
             }
         }
-
+        // 至此，ActivityManagerService就找到intent所描述的目标接收者，并分别将他们
+        // 保存在内部无序广播调度队列mParallelBroadcasts和有序广播队列
+        // mOrderedBroadcasts中
         return ActivityManager.BROADCAST_SUCCESS;
+    }
+```
+由此可见，无论对于有序还是无序广播，都会把目标接收者保存到mOrderedBroadcasts中，对于无序广播，会再保存到mParallelBroadcasts中。
+
+# Step6 BroadcastQueue::scheduleBroadcastsLocked()
+``` java
+// frameworks/base/services/core/java/com/android/server/am/BroadcastQueue.java:346
+// 成员变量mBroadcastsScheduled描述ActivityManagerService是否已经向它所在线程消息队列
+// 发送了类型为BROADCAST_INTENT_MSG的消息。ActivityManagerService就是通过该消息来调度
+// 两个队列中的广播。
+    public void scheduleBroadcastsLocked() {
+        ...
+        // ActivityManagerService所在线程消息队列中已经存在BROADCAST_INTENT_MSG消息了
+        if (mBroadcastsScheduled) {
+            return;
+        }
+        mHandler.sendMessage(mHandler.obtainMessage(BROADCAST_INTENT_MSG, this));
+        mBroadcastsScheduled = true;
     }
 ```
