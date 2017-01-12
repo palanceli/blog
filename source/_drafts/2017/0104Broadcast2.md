@@ -278,7 +278,13 @@ mBase的类型为ContextImpl。
 
 # Step6 BroadcastQueue::scheduleBroadcastsLocked()
 ``` java
-// frameworks/base/services/core/java/com/android/server/am/BroadcastQueue.java:346
+// frameworks/base/services/core/java/com/android/server/am/BroadcastQueue.java
+public final class BroadcastQueue {
+...
+// :155
+    final BroadcastHandler mHandler;
+...
+// :346
 // 成员变量mBroadcastsScheduled描述ActivityManagerService是否已经向它所在线程消息队列
 // 发送了类型为BROADCAST_INTENT_MSG的消息。ActivityManagerService就是通过该消息来调度
 // 两个队列中的广播。
@@ -290,5 +296,349 @@ mBase的类型为ContextImpl。
         }
         mHandler.sendMessage(mHandler.obtainMessage(BROADCAST_INTENT_MSG, this));
         mBroadcastsScheduled = true;
+    }
+```
+mBroadcastsScheduled的类型为BroadcastHandler。
+# Step7 BroadcastHandler::handleMessage(...)
+``` java
+// frameworks/base/services/core/java/com/android/server/am/BroadcastQueue.java:163
+    public void handleMessage(Message msg) {
+        switch (msg.what) {
+            case BROADCAST_INTENT_MSG: {
+                ...
+                processNextBroadcast(true);  // 🏁
+            } break;
+            ...
+        }
+    }
+
+```
+# Step8 BroadcastQueue::::processNextBroadcast(...)
+``` java 
+// frameworks/base/services/core/java/com/android/server/am/BroadcastQueue.java:639
+    final void processNextBroadcast(boolean fromMsg) {
+        synchronized(mService) {
+            BroadcastRecord r;
+            ...
+            // 表示前面发送到ActivityManagerService的BROADCAST_INTENT_MSG已被处理
+            if (fromMsg) { 
+                mBroadcastsScheduled = false;
+            }
+
+            // First, deliver any non-serialized broadcasts right away.
+            while (mParallelBroadcasts.size() > 0) {
+                r = mParallelBroadcasts.remove(0);
+                r.dispatchTime = SystemClock.uptimeMillis();
+                r.dispatchClockTime = System.currentTimeMillis();
+                final int N = r.receivers.size();
+                ...
+                for (int i=0; i<N; i++) {
+                    Object target = r.receivers.get(i);
+                    ...
+                    deliverToRegisteredReceiverLocked(r, (BroadcastFilter)target, false);
+                }
+                addBroadcastToHistoryLocked(r);
+                ...
+            }
+
+            // Now take care of the next serialized one...
+
+            // If we are waiting for a process to come up to handle the next
+            // broadcast, then do nothing at this point.  Just in case, we
+            // check that the process we're waiting for still exists.
+            if (mPendingBroadcast != null) {
+                ...
+
+                boolean isDead;
+                synchronized (mService.mPidsSelfLocked) {
+                    ProcessRecord proc = mService.mPidsSelfLocked.get(mPendingBroadcast.curApp.pid);
+                    isDead = proc == null || proc.crashing;
+                }
+                ...
+            }
+
+            boolean looped = false;
+            
+            do {
+                if (mOrderedBroadcasts.size() == 0) {
+                    // No more broadcasts pending, so all done!
+                    mService.scheduleAppGcsLocked();
+                    if (looped) {
+                        // If we had finished the last ordered broadcast, then
+                        // make sure all processes have correct oom and sched
+                        // adjustments.
+                        mService.updateOomAdjLocked();
+                    }
+                    return;
+                }
+                r = mOrderedBroadcasts.get(0);
+                boolean forceReceive = false;
+
+                // Ensure that even if something goes awry with the timeout
+                // detection, we catch "hung" broadcasts here, discard them,
+                // and continue to make progress.
+                //
+                // This is only done if the system is ready so that PRE_BOOT_COMPLETED
+                // receivers don't get executed with timeouts. They're intended for
+                // one time heavy lifting after system upgrades and can take
+                // significant amounts of time.
+                int numReceivers = (r.receivers != null) ? r.receivers.size() : 0;
+                if (mService.mProcessesReady && r.dispatchTime > 0) {
+                    long now = SystemClock.uptimeMillis();
+                    if ((numReceivers > 0) &&
+                            (now > r.dispatchTime + (2*mTimeoutPeriod*numReceivers))) {
+                        ...
+                        broadcastTimeoutLocked(false); // forcibly finish this broadcast
+                        forceReceive = true;
+                        r.state = BroadcastRecord.IDLE;
+                    }
+                }
+
+                if (r.state != BroadcastRecord.IDLE) {
+                    ...
+                    return;
+                }
+
+                if (r.receivers == null || r.nextReceiver >= numReceivers
+                        || r.resultAbort || forceReceive) {
+                    // No more receivers for this broadcast!  Send the final
+                    // result if requested...
+                    if (r.resultTo != null) {
+                        try {
+                            ...
+                            performReceiveLocked(r.callerApp, r.resultTo,
+                                new Intent(r.intent), r.resultCode,
+                                r.resultData, r.resultExtras, false, false, r.userId);
+                            // Set this to null so that the reference
+                            // (local and remote) isn't kept in the mBroadcastHistory.
+                            r.resultTo = null;
+                        } catch (RemoteException e) ...
+                    }
+
+                    ...
+                    cancelBroadcastTimeoutLocked();
+
+                    ...
+
+                    // ... and on to the next...
+                    addBroadcastToHistoryLocked(r);
+                    mOrderedBroadcasts.remove(0);
+                    r = null;
+                    looped = true;
+                    continue;
+                }
+            } while (r == null);
+
+            // Get the next receiver...
+            int recIdx = r.nextReceiver++;
+
+            // Keep track of when this receiver started, and make sure there
+            // is a timeout message pending to kill it if need be.
+            r.receiverTime = SystemClock.uptimeMillis();
+            if (recIdx == 0) {
+                r.dispatchTime = r.receiverTime;
+                r.dispatchClockTime = System.currentTimeMillis();
+                ...
+            }
+            if (! mPendingBroadcastTimeoutMessage) {
+                long timeoutTime = r.receiverTime + mTimeoutPeriod;
+                ...
+                setBroadcastTimeoutLocked(timeoutTime);
+            }
+
+            final BroadcastOptions brOptions = r.options;
+            final Object nextReceiver = r.receivers.get(recIdx);
+
+            if (nextReceiver instanceof BroadcastFilter) {
+                // Simple case: this is a registered receiver who gets
+                // a direct call.
+                BroadcastFilter filter = (BroadcastFilter)nextReceiver;
+                ...
+                deliverToRegisteredReceiverLocked(r, filter, r.ordered);
+                if (r.receiver == null || !r.ordered) {
+                    // The receiver has already finished, so schedule to
+                    // process the next one.
+                    ...
+                    r.state = BroadcastRecord.IDLE;
+                    scheduleBroadcastsLocked();
+                } else {
+                    if (brOptions != null && brOptions.getTemporaryAppWhitelistDuration() > 0) {
+                        scheduleTempWhitelistLocked(filter.owningUid,
+                                brOptions.getTemporaryAppWhitelistDuration(), r);
+                    }
+                }
+                return;
+            }
+
+            // Hard case: need to instantiate the receiver, possibly
+            // starting its application process to host it.
+
+            ResolveInfo info =
+                (ResolveInfo)nextReceiver;
+            ComponentName component = new ComponentName(
+                    info.activityInfo.applicationInfo.packageName,
+                    info.activityInfo.name);
+
+            boolean skip = false;
+            int perm = mService.checkComponentPermission(info.activityInfo.permission,
+                    r.callingPid, r.callingUid, info.activityInfo.applicationInfo.uid,
+                    info.activityInfo.exported);
+            if (perm != PackageManager.PERMISSION_GRANTED) {
+                if (!info.activityInfo.exported) {
+                    ...
+                } else ...
+                skip = true;
+            } else if (info.activityInfo.permission != null) {
+                final int opCode = AppOpsManager.permissionToOpCode(info.activityInfo.permission);
+                if (opCode != AppOpsManager.OP_NONE
+                        && mService.mAppOpsService.noteOperation(opCode, r.callingUid,
+                                r.callerPackage) != AppOpsManager.MODE_ALLOWED) {
+                    ...
+                    skip = true;
+                }
+            }
+            if (!skip && info.activityInfo.applicationInfo.uid != Process.SYSTEM_UID &&
+                r.requiredPermissions != null && r.requiredPermissions.length > 0) {
+                for (int i = 0; i < r.requiredPermissions.length; i++) {
+                    String requiredPermission = r.requiredPermissions[i];
+                    try {
+                        perm = AppGlobals.getPackageManager().
+                                checkPermission(requiredPermission,
+                                        info.activityInfo.applicationInfo.packageName,
+                                        UserHandle
+                                                .getUserId(info.activityInfo.applicationInfo.uid));
+                    } catch (RemoteException e) ...
+                    if (perm != PackageManager.PERMISSION_GRANTED) {
+                        ...
+                        skip = true;
+                        break;
+                    }
+                    int appOp = AppOpsManager.permissionToOpCode(requiredPermission);
+                    if (appOp != AppOpsManager.OP_NONE && appOp != r.appOp
+                            && mService.mAppOpsService.noteOperation(appOp,
+                            info.activityInfo.applicationInfo.uid, info.activityInfo.packageName)
+                            != AppOpsManager.MODE_ALLOWED) {
+                        ...
+                        skip = true;
+                        break;
+                    }
+                }
+            }
+            if (!skip && r.appOp != AppOpsManager.OP_NONE
+                    && mService.mAppOpsService.noteOperation(r.appOp,
+                    info.activityInfo.applicationInfo.uid, info.activityInfo.packageName)
+                    != AppOpsManager.MODE_ALLOWED) {
+                ...
+                skip = true;
+            }
+            if (!skip) {
+                skip = !mService.mIntentFirewall.checkBroadcast(r.intent, r.callingUid,
+                        r.callingPid, r.resolvedType, info.activityInfo.applicationInfo.uid);
+            }
+            boolean isSingleton = false;
+            try {
+                isSingleton = mService.isSingleton(info.activityInfo.processName,
+                        info.activityInfo.applicationInfo,
+                        info.activityInfo.name, info.activityInfo.flags);
+            } catch (SecurityException e) ...
+            if ((info.activityInfo.flags&ActivityInfo.FLAG_SINGLE_USER) != 0) {
+                if (ActivityManager.checkUidPermission(
+                        android.Manifest.permission.INTERACT_ACROSS_USERS,
+                        info.activityInfo.applicationInfo.uid)
+                                != PackageManager.PERMISSION_GRANTED) {
+                    Slog.w(TAG, "Permission Denial: Receiver " + component.flattenToShortString()
+                            + " requests FLAG_SINGLE_USER, but app does not hold "
+                            + android.Manifest.permission.INTERACT_ACROSS_USERS);
+                    skip = true;
+                }
+            }
+            if (r.curApp != null && r.curApp.crashing) {
+                // If the target process is crashing, just skip it.
+                ...
+                skip = true;
+            }
+            if (!skip) {
+                boolean isAvailable = false;
+                try {
+                    isAvailable = AppGlobals.getPackageManager().isPackageAvailable(
+                            info.activityInfo.packageName,
+                            UserHandle.getUserId(info.activityInfo.applicationInfo.uid));
+                } catch (Exception e) ...
+                if (!isAvailable) {
+                    ...
+                    skip = true;
+                }
+            }
+
+            if (skip) {
+                ...
+                r.receiver = null;
+                r.curFilter = null;
+                r.state = BroadcastRecord.IDLE;
+                scheduleBroadcastsLocked();
+                return;
+            }
+
+            r.state = BroadcastRecord.APP_RECEIVE;
+            String targetProcess = info.activityInfo.processName;
+            r.curComponent = component;
+            final int receiverUid = info.activityInfo.applicationInfo.uid;
+            // If it's a singleton, it needs to be the same app or a special app
+            if (r.callingUid != Process.SYSTEM_UID && isSingleton
+                    && mService.isValidSingletonCall(r.callingUid, receiverUid)) {
+                info.activityInfo = mService.getActivityInfoForUser(info.activityInfo, 0);
+            }
+            r.curReceiver = info.activityInfo;
+            if (DEBUG_MU && r.callingUid > UserHandle.PER_USER_RANGE) {
+                ...
+            }
+
+            if (brOptions != null && brOptions.getTemporaryAppWhitelistDuration() > 0) {
+                scheduleTempWhitelistLocked(receiverUid,
+                        brOptions.getTemporaryAppWhitelistDuration(), r);
+            }
+
+            // Broadcast is being executed, its package can't be stopped.
+            try {
+                AppGlobals.getPackageManager().setPackageStoppedState(
+                        r.curComponent.getPackageName(), false, UserHandle.getUserId(r.callingUid));
+            } catch (RemoteException e) ...
+
+            // Is this receiver's application already running?
+            ProcessRecord app = mService.getProcessRecordLocked(targetProcess,
+                    info.activityInfo.applicationInfo.uid, false);
+            if (app != null && app.thread != null) {
+                try {
+                    app.addPackage(info.activityInfo.packageName,
+                            info.activityInfo.applicationInfo.versionCode, mService.mProcessStats);
+                    processCurBroadcastLocked(r, app);
+                    return;
+                } catch (RemoteException e) ...
+
+                // If a dead object exception was thrown -- fall through to
+                // restart the application.
+            }
+
+            ...
+            if ((r.curApp=mService.startProcessLocked(targetProcess,
+                    info.activityInfo.applicationInfo, true,
+                    r.intent.getFlags() | Intent.FLAG_FROM_BACKGROUND,
+                    "broadcast", r.curComponent,
+                    (r.intent.getFlags()&Intent.FLAG_RECEIVER_BOOT_UPGRADE) != 0, false, false))
+                            == null) {
+                // Ah, this recipient is unavailable.  Finish it if necessary,
+                // and mark the broadcast record as ready for the next.
+                ...
+                logBroadcastReceiverDiscardLocked(r);
+                finishReceiverLocked(r, r.resultCode, r.resultData,
+                        r.resultExtras, r.resultAbort, false);
+                scheduleBroadcastsLocked();
+                r.state = BroadcastRecord.IDLE;
+                return;
+            }
+
+            mPendingBroadcast = r;
+            mPendingBroadcastRecvIndex = recIdx;
+        }
     }
 ```
