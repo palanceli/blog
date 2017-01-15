@@ -557,3 +557,29 @@ mBroadcastsScheduled的类型为BroadcastHandler。
         }
     }
 ```
+# Step10 BroadcastQueue::performReceiveLocked(...)
+``` java
+// frameworks/base/services/core/java/com/android/server/am/BroadcastQueue.java:445
+private static void performReceiveLocked(ProcessRecord app, IIntentReceiver receiver,
+    Intent intent, int resultCode, String data, Bundle extras,
+    boolean ordered, boolean sticky, int sendingUser) throws RemoteException {
+    // app描述目标接收者所在进程
+    // receiver描述目标接收者
+    // intent描述即将发送的广播
+    // Send the intent to the receiver asynchronously using one-way binder calls.
+    if (app != null) {
+        if (app.thread != null) {
+            // If we have an app thread, do the call through that so it is
+            // correctly ordered with other one-way calls.
+            app.thread.scheduleRegisteredReceiver(receiver, intent, resultCode,
+                    data, extras, ordered, sticky, sendingUser, app.repProcState);
+        } else {
+            // Application has died. Receiver doesn't exist.
+            throw new RemoteException("app.thread must not be null");
+        }
+    } else {
+        receiver.performReceive(intent, resultCode, data, extras, ordered,
+                sticky, sendingUser);
+    }
+}
+```
