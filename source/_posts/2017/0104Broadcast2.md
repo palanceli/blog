@@ -571,6 +571,7 @@ private static void performReceiveLocked(ProcessRecord app, IIntentReceiver rece
         if (app.thread != null) {
             // If we have an app thread, do the call through that so it is
             // correctly ordered with other one-way calls.
+            // 🏁
             app.thread.scheduleRegisteredReceiver(receiver, intent, resultCode,
                     data, extras, ordered, sticky, sendingUser, app.repProcState);
         } else {
@@ -583,3 +584,122 @@ private static void performReceiveLocked(ProcessRecord app, IIntentReceiver rece
     }
 }
 ```
+app.thread是引用了运行在该进程中的一个ApplicationThread对象的Binder代理对象，其类型为ApplicationThreadProxy。
+
+# Step11 ApplicationThreadProxy::scheduleRegisteredReceiver(...)
+``` java
+// frameworks/base/core/java/android/app/ApplicationThreadNative.java:707
+class ApplicationThreadProxy implements IApplicationThread {
+...
+// :1114
+    public void scheduleRegisteredReceiver(IIntentReceiver receiver, Intent intent,
+            int resultCode, String dataStr, Bundle extras, boolean ordered,
+            boolean sticky, int sendingUser, int processState) throws RemoteException {
+        Parcel data = Parcel.obtain();
+        data.writeInterfaceToken(IApplicationThread.descriptor);
+        data.writeStrongBinder(receiver.asBinder());
+        intent.writeToParcel(data, 0);
+        data.writeInt(resultCode);
+        data.writeString(dataStr);
+        data.writeBundle(extras);
+        data.writeInt(ordered ? 1 : 0);
+        data.writeInt(sticky ? 1 : 0);
+        data.writeInt(sendingUser);
+        data.writeInt(processState);
+        mRemote.transact(SCHEDULE_REGISTERED_RECEIVER_TRANSACTION, data, null,
+                IBinder.FLAG_ONEWAY);
+        data.recycle();
+    }
+```
+它向发送广播消息的应用程序发送SCHEDULE_REGISTERED_RECEIVER_TRANSACTION请求，接下来转入应用程序。
+
+# Step12 ApplicationThread::scheduleRegisteredReceiver(...)
+``` java
+// frameworks/base/core/java/android/app/ActivityThread.java:150
+public final class ActivityThread {
+//:574
+    private class ApplicationThread extends ApplicationThreadNative {
+    ...
+//:893
+        public void scheduleRegisteredReceiver(IIntentReceiver receiver, Intent intent,
+                int resultCode, String dataStr, Bundle extras, boolean ordered,
+                boolean sticky, int sendingUser, int processState) throws RemoteException {
+            updateProcessState(processState, false);
+            // 🏁
+            receiver.performReceive(intent, resultCode, dataStr, extras, ordered,
+                    sticky, sendingUser);
+        }
+```
+receiver指向一个InnerReceiver对象。
+# Step13 InnerReceiver::performReceive(...)
+``` java
+// frameworks/base/core/java/android/app/LoadedApk.java:786
+static final class ReceiverDispatcher {
+
+    final static class InnerReceiver extends IIntentReceiver.Stub {
+        final WeakReference<LoadedApk.ReceiverDispatcher> mDispatcher;
+        ...
+        public void performReceive(Intent intent, int resultCode, String data,
+                Bundle extras, boolean ordered, boolean sticky, int sendingUser) {
+            LoadedApk.ReceiverDispatcher rd = mDispatcher.get();
+            ...
+            if (rd != null) {
+                // 🏁
+                rd.performReceive(intent, resultCode, data, extras,
+                        ordered, sticky, sendingUser);
+            } else ...
+        }
+    }
+}
+```
+# Step14 ReceiverDispatcher::performReceive(...)
+``` java
+// frameworks/base/core/java/android/app/LoadedApk.java:786
+    static final class ReceiverDispatcher {
+    ...
+//:956
+        public void performReceive(Intent intent, int resultCode, String data,
+                Bundle extras, boolean ordered, boolean sticky, int sendingUser) {
+            ...
+            // 将intent描述的广播封装成Args对象，并发送给主线程消息队列，该消息最终由
+            // Args.run函数来处理
+            Args args = new Args(intent, resultCode, data, extras, ordered,
+                    sticky, sendingUser);
+            if (!mActivityThread.post(args)) {
+                ...
+            }
+        }
+```
+ # Step15 Args::run()
+ ``` java
+// frameworks/base/core/java/android/app/LoadedApk.java:786
+static final class ReceiverDispatcher {
+...
+final BroadcastReceiver mReceiver; // 指向广播接收者
+final boolean mRegistered; // 描述mReeiver是否已经注册到ActivityManagerService
+...
+//:837
+ final class Args extends BroadcastReceiver.PendingResult implements Runnable {
+    private Intent mCurIntent;      // 描述一个广播
+    private final boolean mOrdered; // mCurOrdered是否为有序广播
+//:850
+    ...
+    public void run() {
+        final BroadcastReceiver receiver = mReceiver; 
+        final boolean ordered = mOrdered;  
+        ...
+        final IActivityManager mgr = ActivityManagerNative.getDefault();
+        final Intent intent = mCurIntent;
+        ...
+        try {
+            ...
+            receiver.onReceive(mContext, intent); // 到达接收者
+        } catch (Exception e) ...
+        
+        if (receiver.getPendingResult() != null) {
+            finish();
+        }
+        ...
+    }
+}
+ ```
