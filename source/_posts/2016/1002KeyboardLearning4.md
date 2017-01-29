@@ -2,7 +2,7 @@
 layout: post
 title: 键盘消息处理学习笔记（四）——Looper机制
 date: 2016-10-02 11:30:41 +0800
-categories: Android
+categories: Android学习笔记
 tags: 键盘消息处理学习笔记
 toc: true
 comments: true
@@ -31,7 +31,8 @@ int eventfd(unsigned int initval, int flags);
 * ssize_t write(int fd, const void* buf, size_t count)
 从buf中取出8字节的整型值，加到计数器上。如果计数器的值达到0xfffffffffffffffe就会阻塞，直到被read。
 * ssize_t read(int fd, void* buf, size_t count)
-读取计数器的值。如果计数器的值不为0，则读取成功返回该值；如果为0，非阻塞模式时直接返回失败，并把error置为EINVAL，阻塞模式则一直阻塞到计数器非0。
+读取计数器的值，并把计数器重置为0。如果计数器的值不为0，则读取成功返回该值；如果为0，非阻塞模式时直接返回失败，并把error置为EINVAL，阻塞模式则一直阻塞到计数器非0。
+![事件对象](1002KeyboardLearning4/img1.png)
 
 mWakeEventFd正是这样一种对象，Looper默认生成这么一个eventfd对象，Looper::pollOnce(...)等待该对象被写入内容，一旦被写入，Looper::pollOnce(...)函数就会返回。这就是组成消息泵的重要部件——消息的发送者发出消息后向mWakeEventFd写入内容，Looper::pollOnce(...)被唤醒，然后执行消息处理，处理完成后再次睡眠等待，直到下次再发来消息。Android应用程序的消息处理就采用了这种模式。
 
@@ -66,6 +67,17 @@ void Looper::rebuildEpollLocked() {
     }
 }
 ```
+其中mRequests是一个vector，初始没有元素：
+``` c
+// system/core/include/utils/Looper.h:136
+class Looper : public RefBase {
+...
+// :464
+KeyedVector<int, Request> mRequest:s;  // guarded by mLock
+...
+};
+```
+因此`Looper::rebuildEpollLocked()`首次调用，for循环不会被执行。
 # Looper::addFd(...)
 ``` cpp
 int Looper::addFd(int fd, int ident, int events, 

@@ -2,7 +2,7 @@
 layout: post
 title: 广播机制学习笔记（二）——Broadcast的发送
 date: 2017-01-01 22:23:45 +0800
-categories: Android
+categories: Android学习笔记
 tags: 广播机制
 toc: true
 comments: true

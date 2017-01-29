@@ -2,7 +2,7 @@
 layout: post
 title: 细胞分裂——Android进程的启动
 date: 2017-01-29 09:33:42 +0800
-categories: Android
+categories: Android学习笔记
 tags: Android进程
 toc: true
 comments: true

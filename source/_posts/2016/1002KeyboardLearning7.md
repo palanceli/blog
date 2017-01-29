@@ -2,7 +2,7 @@
 layout: post
 title: 键盘消息处理学习笔记（七）——创建新窗口在InputDispatcher更新的注册信息
 date: 2016-10-03 20:09:28 +0800
-categories: Android
+categories: Android学习笔记
 tags: 键盘消息处理学习笔记
 toc: true
 comments: true

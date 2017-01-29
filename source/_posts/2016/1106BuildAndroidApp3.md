@@ -2,7 +2,7 @@
 layout: post
 title: Android应用程序的编译（三）——NDK编译
 date: 2016-11-06 21:28:07 +0800
-categories: Android
+categories: Android学习笔记
 tags: Android开发环境
 toc: true
 comments: true

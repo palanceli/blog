@@ -2,7 +2,7 @@
 layout: post
 title: Service启动过程学习笔记（二）——进程内绑定Service组件
 date: 2016-12-31 22:53:58 +0800
-categories: Android
+categories: Android学习笔记
 tags: Service启动过程
 toc: true
 comments: true

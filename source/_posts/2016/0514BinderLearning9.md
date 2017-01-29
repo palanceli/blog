@@ -1,7 +1,7 @@
 ---
 title:  "Binder学习笔记（九）—— 服务端如何响应Test()请求？"
 date:   2016-05-15 11:26:44 +0800
-categories: Android
+categories: Android学习笔记
 tags:   Binder学习笔记
 toc: true
 comments: true

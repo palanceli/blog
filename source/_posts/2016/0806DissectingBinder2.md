@@ -2,7 +2,7 @@
 layout: post
 title:  "深度探索Binder（二）注册服务"
 date:   2016-08-06 22:12:10 +0800
-categories: Android
+categories: Android学习笔记
 tags:   深度探索Binder
 toc: true
 comments: true

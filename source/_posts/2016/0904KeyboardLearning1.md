@@ -3,7 +3,7 @@ layout: post
 title: 键盘消息处理学习笔记（一）——InputManagerService的创建
 date: 2016-10-01 22:24:33 +0800
 updated: 2016-10-01 22:24:33 +0800
-categories: Android
+categories: Android学习笔记
 tags: 键盘消息处理学习笔记
 toc: true
 comments: true

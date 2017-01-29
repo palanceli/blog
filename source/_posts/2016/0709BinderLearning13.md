@@ -1,7 +1,7 @@
 ---
 title: Binder学习笔记（十三）—— 小结
 date:   2016-07-09 18:23:50 +0800
-categories: Android
+categories: Android学习笔记
 tags:   Binder学习笔记
 toc: true
 comments: true

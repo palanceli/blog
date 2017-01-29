@@ -2,7 +2,7 @@
 layout: post
 title: 键盘消息处理学习笔记（五）——InputChannel的创建
 date: 2016-10-02 21:17:38 +0800
-categories: Android
+categories: Android学习笔记
 tags: 键盘消息处理学习笔记
 toc: true
 comments: true

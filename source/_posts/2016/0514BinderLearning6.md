@@ -2,7 +2,7 @@
 layout: post
 title:  "Binder学习笔记（六）—— binder服务端是如何组织addService数据的？"
 date:   2016-05-11 01:15:03 +0800
-categories: Android
+categories: Android学习笔记
 tags:   Binder学习笔记
 toc: true
 comments: true

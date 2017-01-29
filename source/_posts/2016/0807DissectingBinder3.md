@@ -2,7 +2,7 @@
 layout: post
 title:  "深度探索Binder（三）查找服务"
 date:   2016-08-07 16:40:56 +0800
-categories: Android
+categories: Android学习笔记
 tags:   深度探索Binder
 toc: true
 comments: true

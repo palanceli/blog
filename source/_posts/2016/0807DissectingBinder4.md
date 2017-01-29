@@ -2,7 +2,7 @@
 layout: post
 title:  "深度探索Binder（四）调用服务接口"
 date:   2016-08-07 23:28:01 +0800
-categories: Android
+categories: Android学习笔记
 tags:   深度探索Binder
 toc: true
 comments: true

@@ -2,7 +2,7 @@
 layout: post
 title:  "深度探索Binder（一）取款机模型"
 date:   2016-07-28 00:11:32 +0800
-categories: Android
+categories: Android学习笔记
 tags:   深度探索Binder
 toc: true
 comments: true

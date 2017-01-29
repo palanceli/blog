@@ -2,7 +2,7 @@
 layout: post
 title:  "Binder学习笔记（三）—— binder客户端是如何组织checkService数据的？"
 date:   2016-05-08 01:20:48 +0800
-categories: Android
+categories: Android学习笔记
 tags:   Binder学习笔记
 toc: true
 comments: true

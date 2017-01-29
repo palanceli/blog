@@ -2,7 +2,7 @@
 layout: post
 title: 键盘消息处理学习笔记（十一）
 date: 2016-10-04 18:49:17 +0800
-categories: Android
+categories: Android学习笔记
 tags: 键盘消息处理学习笔记
 toc: true
 comments: true

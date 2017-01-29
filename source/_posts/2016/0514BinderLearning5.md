@@ -2,7 +2,7 @@
 layout: post
 title:  "Binder学习笔记（五）—— Parcel是怎么打包的？"
 date:   2016-05-10 00:55:00 +0800
-categories: Android
+categories: Android学习笔记
 tags:   Binder学习笔记
 toc: true
 comments: true

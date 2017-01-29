@@ -2,7 +2,7 @@
 layout: post
 title: Android应用程序的编译（二）——SDK编译
 date: 2016-11-06 20:17:10 +0800
-categories: Android
+categories: Android学习笔记
 tags: Android开发环境
 toc: true
 comments: true

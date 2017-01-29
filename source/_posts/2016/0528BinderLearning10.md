@@ -1,7 +1,7 @@
 ---
 title: binder学习笔记（十）—— 穿越到驱动层
 date: 2016-05-28 21:58:36
-categories: Android
+categories: Android学习笔记
 tags:   Binder学习笔记
 toc: true
 comments: true

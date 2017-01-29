@@ -2,7 +2,7 @@
 layout: post
 title: 键盘消息处理学习笔记（三）——InputDispatcherThread和InputReaderThread两个线程函数
 date: 2016-10-02 10:14:36 +0800
-categories: Android
+categories: Android学习笔记
 tags: 键盘消息处理学习笔记
 toc: true
 comments: true
