@@ -26,7 +26,7 @@ WorkThread workThread = new WorkThread("Work Thread");
 workThread.start();
 ```
 这种工作线程适合默默无闻在后台干活，当需要和其他线程有关联或交互的时候，就适合用一个配备了消息循环的子线程来处理了，这就是HandlerThread的用武之地。
-
+<!-- more -->
 假设有一个后台工作线程不断产生数据；前台UI也可以产生数据；这些数据都需要保存起来，我们使用HandlerThread来完成数据保存的工作。过程如下：
 ![场景1](0131MessageQueue5/img1.png)
 * WorkThread中每隔一段时间产生一条数据，之后打印数据信息，并通知DataThread保存。
