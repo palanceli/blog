@@ -109,3 +109,40 @@ An extension of View that renders a keyboard and responds to user input events. 
 
 * [KeyboardView](https://developer.android.com/reference/android/inputmethodservice/KeyboardView.html)
 提供键盘布局并响应按键事件的[View](https://developer.android.com/reference/android/view/View.html)。可以通过xml文件定义[keyboard](https://developer.android.com/reference/android/inputmethodservice/Keyboard.html)，来描述一个键盘布局。
+
+# 设计输入法界面（Designing the Input Method UI）
+> There are two main visual elements for an IME: the input view and the candidates view. You only have to implement the elements that are relevant to the input method you're designing.
+
+输入法有两个可以看到的界面元素：输入窗和候选窗。你只需要实现这些和输入法相关的元素即可。
+
+## 输入窗（Input view）
+> The input view is the UI where the user inputs text in the form of keyclicks, handwriting or gestures. When the IME is displayed for the first time, the system calls the onCreateInputView() callback. In your implementation of this method, you create the layout you want to display in the IME window and return the layout to the system. This snippet is an example of implementing the onCreateInputView() method:
+
+输入窗是用户输入文字的区域，可以是键盘、手写或手势。当输入法首次显示的时候，系统将调用[onCreateInputView()](https://developer.android.com/reference/android/inputmethodservice/InputMethodService.html#onCreateInputView)回调函数。在实现该函数的时候，应当创建你希望在输入法窗体上展现的布局，并将此布局返回给系统。下面是一个[onCreateInputView()](https://developer.android.com/reference/android/inputmethodservice/InputMethodService.html#onCreateInputView\(\))函数的例程：
+``` java
+@Override
+public View onCreateInputView() {
+    MyKeyboardView inputView =
+        (MyKeyboardView) getLayoutInflater().inflate( R.layout.input, null);
+
+    inputView.setOnKeyboardActionListener(this);
+    inputView.setKeyboard(mLatinKeyboard);
+
+    return mInputView;
+}
+```
+> In this example, MyKeyboardView is an instance of a custom implementation of KeyboardView that renders a Keyboard. If you’re building a traditional QWERTY keyboard, see the KeyboardView class.
+
+在这个例子中，MyKeyboardView是一个自定义的[keyboard](https://developer.android.com/reference/android/inputmethodservice/Keyboard.html)实例，它实现了[KeyboardView](https://developer.android.com/reference/android/inputmethodservice/KeyboardView.html)接口，如果要创建一个传统的QWERT键盘，请参见[KeyboardView](https://android.googlesource.com/platform/development/+/master/samples/SoftKeyboard/%3E%20%20%20%20SoftKeyboard%3C/a%3E%20sample%20app%20for%20an%20example%20of%20how%20to%20extend%20the%20%3Ccode%3E%3Ca%20href=)类。
+
+## 候选窗（Candidates view）
+> The candidates view is the UI where the IME displays potential word corrections or suggestions for the user to select. In the IME lifecycle, the system calls onCreateCandidatesView() when it's ready to display the candidates view. In your implementation of this method, return a layout that shows word suggestions, or return null if you don’t want to show anything. A null response is the default behavior, so you don’t have to implement this if you don’t provide suggestions.
+
+候选窗用来显示输入法的候选或联想文字。在输入法的生命周期里，当要显示候选窗时，系统将调用[onCreateCandidatesView()](https://developer.android.com/reference/android/inputmethodservice/InputMethodService.html#onCreateCandidatesView())函数。在该函数中应当返回显示候选文字的布局，如果没有要显示的内容则返回null。默认返回null。
+
+> For an example implementation that provides user suggestions, see the SoftKeyboard sample app.
+
+在[SoftKeyboard](https://android.googlesource.com/platform/development/+/master/samples/SoftKeyboard/)例程中，有候选窗的实现例子。
+
+## 界面设计（UI design considerations）
+This section describes some specific UI design considerations for IMEs.
