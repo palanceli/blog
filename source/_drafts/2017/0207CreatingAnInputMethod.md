@@ -145,4 +145,116 @@ public View onCreateInputView() {
 在[SoftKeyboard](https://android.googlesource.com/platform/development/+/master/samples/SoftKeyboard/)例程中，有候选窗的实现例子。
 
 ## 界面设计（UI design considerations）
-This section describes some specific UI design considerations for IMEs.
+> This section describes some specific UI design considerations for IMEs.
+
+本节讲述关于输入法特殊的UI设计考虑。
+### 处理不同的屏幕尺寸
+> The UI for your IME must be able to scale for different screen sizes, and it also must handle both landscape and portrait orientations. In non-fullscreen IME mode, leave sufficient space for the application to show the text field and any associated context, so that no more than half the screen is occupied by the IME. In fullscreen IME mode this is not an issue.
+
+输入法界面必须能适配不同的屏幕尺寸，还要处理横竖屏。在非全屏输入法模式下，必须为应用程序留出足够的空间显示上屏文字以及上下文，因此输入法不能占用超过一半的屏幕尺寸。在全屏输入法则不存在此问题。
+
+### 处理不同的输入类型
+> Android text fields allow you to set a specific input type, such as free-form text, numbers, URLs, email addresses, and search strings. When you implement a new IME, you need to detect the input type of each field and provide the appropriate interface for it. However, you don't have to set up your IME to check that the user entered text valid for the input type; that's the responsibility of the application that owns the text field.
+
+安卓的文本输入区域允许设置一个输入类型，比如文本、数字、URL、email地址或者搜索串。当实现一个输入法时，需要探测当前输入区域的输入类型，并提供与之对应的界面。不过你不必通过输入法检查用户输入的合法性——这是应用程序中的输入区域应该干的事儿。
+
+> For example, here are screenshots of the interfaces that the Latin IME provided with the Android platform provides for text and phone number inputs:
+
+比如，下面是针对输入区域是普通文本和数字的输入法截图：
+![输入区域为普通文本](0207CreatingAnInputMethod/img2.png)
+![输入区域为数字](0207CreatingAnInputMethod/img3.png)
+
+> When an input field receives focus and your IME starts, the system calls onStartInputView(), passing in an EditorInfo object that contains details about the input type and other attributes of the text field. In this object, the inputType field contains the text field's input type.
+
+当输入区域获得焦点，系统会调用函数[onStartInputView()](https://developer.android.com/reference/android/inputmethodservice/InputMethodService.html#onStartInputView(android.view.inputmethod.EditorInfo, boolean))启动输入法，并传入一个[EditorInfo](https://developer.android.com/reference/android/view/inputmethod/EditorInfo.html)对象，该对象包含了输入区域的输入类型等相关属性，其[inputType](https://developer.android.com/reference/android/view/inputmethod/EditorInfo.html#inputType)成员表示输入区域的输入类型。
+
+> The inputType field is an int that contains bit patterns for various input type settings. To test it for the text field's input type, mask it with the constant TYPE_MASK_CLASS, like this:
+
+[inputType](https://developer.android.com/reference/android/view/inputmethod/EditorInfo.html#inputType)字段是一个整型值，它是代表不同输入类型的位“逻辑或”起来的数值。可以将该值与[TYPE_MASK_CLASS](https://developer.android.com/reference/android/text/InputType.html#TYPE_MASK_CLASS)求逻辑与，如下：
+``` java
+inputType & InputType.TYPE_MASK_CLASS
+```
+> The input type bit pattern can have one of several values, including:
+* TYPE_CLASS_NUMBER
+A text field for entering numbers. As illustrated in the previous screen shot, the Latin IME displays a number pad for fields of this type.
+* TYPE_CLASS_DATETIME
+A text field for entering a date and time.
+* TYPE_CLASS_PHONE
+A text field for entering telephone numbers.
+* TYPE_CLASS_TEXT
+A text field for entering all supported characters.
+These constants are described in more detail in the reference documentation for InputType.
+
+输入类型的位可有如下几种取值：
+* [TYPE_CLASS_NUMBER](https://developer.android.com/reference/android/text/InputType.html#TYPE_CLASS_NUMBER)
+    需要输入数字。如前文所示，Latin IME此时在键盘区域显示数字键盘。
+* [TYPE_CLASS_DATETIME](https://developer.android.com/reference/android/text/InputType.html#TYPE_CLASS_DATETIME)
+    需要输入日期和时间。
+* [TYPE_CLASS_PHONE](https://developer.android.com/reference/android/text/InputType.html#TYPE_CLASS_PHONE)
+    需要输入电话号码。
+* [TYPE_CLASS_TEXT](https://developer.android.com/reference/android/text/InputType.html#TYPE_CLASS_TEXT)
+    可以输入所有字符。
+
+> These constants are described in more detail in the reference documentation for InputType.
+
+这些常量在[InputType](https://developer.android.com/reference/android/text/InputType.html)的参考手册中有详细描述。
+
+> The inputType field can contain other bits that indicate a variant of the text field type, such as:
+* TYPE_TEXT_VARIATION_PASSWORD
+A variant of TYPE_CLASS_TEXT for entering passwords. The input method will display dingbats instead of the actual text.
+* TYPE_TEXT_VARIATION_URI
+A variant of TYPE_CLASS_TEXT for entering web URLs and other Uniform Resource Identifiers (URIs).
+* TYPE_TEXT_FLAG_AUTO_COMPLETE
+A variant of TYPE_CLASS_TEXT for entering text that the application "auto-completes" from a dictionary, search, or other facility.
+Remember to mask inputType with the appropriate constant when you test for these variants. The available mask constants are listed in the reference documentation for InputType.
+
+此外，[InputType](https://developer.android.com/reference/android/text/InputType.html)字段还包含输入区域的其他属性，如：
+* [TYPE_TEXT_VARIATION_PASSWORD](https://developer.android.com/reference/android/text/InputType.html#TYPE_TEXT_VARIATION_PASSWORD)
+    在[TYPE_CLASS_TEXT](https://developer.android.com/reference/android/text/InputType.html#TYPE_CLASS_TEXT)类型下表示输入区域为密码，此时输入法应该不应明文显示输入内容
+* [TYPE_TEXT_VARIATION_URI](https://developer.android.com/reference/android/text/InputType.html#TYPE_TEXT_VARIATION_URI)
+    在[TYPE_CLASS_TEXT](https://developer.android.com/reference/android/text/InputType.html#TYPE_CLASS_TEXT)类型下表示输入区域为URL或者URI(Uniform Resource Identifiers)。
+* [TYPE_TEXT_FLAG_AUTO_COMPLETE](https://developer.android.com/reference/android/text/InputType.html#TYPE_TEXT_FLAG_AUTO_COMPLETE)
+    在[TYPE_CLASS_TEXT](https://developer.android.com/reference/android/text/InputType.html#TYPE_CLASS_TEXT)类型下表示输入的文本会被应用程序根据字典、搜索结果或其它机制自动补全。
+
+> Caution: In your own IME, make sure you handle text correctly when you send it to a password field. Hide the password in your UI both in the input view and in the candidates view. Also remember that you shouldn't store passwords on a device. To learn more, see the Designing for Security guide.
+
+注意：当输入法在密码区域输入时，在输入窗和候选窗中都不要显示密码明文，但在上屏时，发送给输入区域的应该是明文，此处应当注意。切记不要在磁盘上保存曾经输入过的密码。参照[安全设计](https://developer.android.com/guide/practices/security.html)，可以了解更多和安全相关的主题。
+
+# 上屏文字到应用程序（Sending Text to the Application）
+> As the user inputs text with your IME, you can send text to the application by sending individual key events or by editing the text around the cursor in the application's text field. In either case, you use an instance of InputConnection to deliver the text. To get this instance, call InputMethodService.getCurrentInputConnection().
+
+当用户通过输入法输入时，通过发送按键事件，你可以向应用程序发送文字，也可以编辑输入区域中光标附近的文本。两种情况下，都是通过一个[InputConnection](https://developer.android.com/reference/android/view/inputmethod/InputConnection.html)的实例来传递文本的。可以调用静态函数[InputMethodService.getCurrentInputConnection()](https://developer.android.com/reference/android/inputmethodservice/InputMethodService.html#getCurrentInputConnection())来获得该实例。
+
+## 编辑光标附近的文本（Editing the text around the cursor）
+> When you're handling the editing of existing text in a text field, some of the more useful methods in BaseInputConnection are:
+* getTextBeforeCursor()
+Returns a CharSequence containing the number of requested characters before the current cursor position.
+* getTextAfterCursor()
+Returns a CharSequence containing the number of requested characters following the current cursor position.
+* deleteSurroundingText()
+Deletes the specified number of characters before and following the current cursor position.
+* commitText()
+Commit a CharSequence to the text field and set a new cursor position.
+
+当编辑输入区域已存在的文字时，[BaseInputConnection](https://developer.android.com/reference/android/view/inputmethod/BaseInputConnection.html)的一些方法会很有用：
+* [getTextBeforeCursor()](https://developer.android.com/reference/android/view/inputmethod/BaseInputConnection.html#getTextBeforeCursor(int, int))
+    返回一个[CharSequence](https://developer.android.com/reference/java/lang/CharSequence.html)对象，该对象包含光标前指定数量的字符串序列。
+* [getTextAfterCursor()](https://developer.android.com/reference/android/view/inputmethod/BaseInputConnection.html#getTextAfterCursor(int, int))
+    返回一个[CharSequence](https://developer.android.com/reference/java/lang/CharSequence.html)对象，该对象包含光标后指定数量的字符串序列。
+* [deleteSurroundingText()](https://developer.android.com/reference/android/view/inputmethod/BaseInputConnection.html#deleteSurroundingText(int, int))
+    删除光标前/后指定数量的字符串。
+* [commitText()](https://developer.android.com/reference/android/view/inputmethod/BaseInputConnection.html#commitText(java.lang.CharSequence, int))
+    向输入区域上屏一个[CharSequence](https://developer.android.com/reference/java/lang/CharSequence.html)对象，并设置新的光标位置。
+> For example, the following snippet shows how to replace the four characters to the left of the cursor with the text "Hello!":
+
+例如：下面代码段演示了如何将光标左边的四个字符替换为"Hello!"：
+``` java
+    InputConnection ic = getCurrentInputConnection();
+    ic.deleteSurroundingText(4, 0);
+    ic.commitText("Hello", 1);
+    ic.commitText("!", 1);
+```
+## 上屏前组织写作串（Composing text before committing）
+> If your IME does text prediction or requires multiple steps to compose a glyph or word, you can show the progress in the text field until the user commits the word, and then you can replace the partial composition with the completed text. You may give special treatment to the text by adding a "span" to it when you pass it to setComposingText().
+
+> The following snippet shows how to show progress in a text field:
