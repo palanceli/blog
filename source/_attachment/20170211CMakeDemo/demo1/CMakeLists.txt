@@ -1,0 +1,5 @@
+project(Demo1)
+set(src_list main.cpp)
+message(STATUS "This is Binary dir " ${Demo1_BINARY_DIR})
+message(STATUS "This is Source dir " ${Demo1_SOURCE_DIR})
+add_executable(Demo1 ${src_list})
