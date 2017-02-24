@@ -50,7 +50,7 @@ comments: true
 因此，我们在`#include <windows.h>`前必须先定义`NOIME`，让windows.h中的imm.h无效。
 如果使用`immdev.h`，则不存在头文件命名冲突的问题。不过我在编写输入法时，还是使用老版本的`imm.h`，因为不确定使用`immdev.h`能否完全与老的Windows系统兼容。
 ## 定义十五个导出函数
-关于这些函数的介绍，可以参见WindowsXPsp1DDK，这个版本的DDK在Ntddk/src/ime/docs目录下有两份输入法开发文档，这也是为数不多的微软发布的输入法开发官方文档。下面是对这些函数的介绍。
+关于这些函数的介绍，可以参见win2kddk，这个版本的DDK在Ntddk/src/ime/docs目录下有两份输入法开发文档，这也是为数不多的微软发布的输入法开发官方文档。下面是对这些函数的介绍。
 ### ImeInquire
 该函数处理输入法的初始化，它返回一个`IMEINFO`结构体以及输入法的UI窗体类名。
 ``` c++
