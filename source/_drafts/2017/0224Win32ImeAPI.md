@@ -1813,24 +1813,7 @@ The following topics contain all the common IME functions. These functions shoul
 
 下面就来介绍输入法的通用函数，这些函数应该只被IMM调用，而不应被应用程序直接调用。
 
-ImeInquire
-For Windows 95, Windows 98, and Windows NT 3.51
-The ImeInquire function handles initialization of the IME. It also returns an IMEINFO structure and the UI class name of the IME.
-BOOL
-    ImeInquire(
-    LPIMEINFO lpIMEInfo,
-    LPTSTR lpszWndClass,
-    LPCTSTR lpszData
-   )
-Parameters
-lpIMEInfo
-Pointer to the IME info structure.
-lpszWndClass
-Window class name that should be filled by the IME. This name is the IME’s UI class. 
-lpszData
-IME option block. NULL for this version.
-
-For Windows NT 4.0 and Windows 2000
+> For Windows NT 4.0 and Windows 2000
 BOOL
     ImeInquire(
     LPIMEINFO lpIMEInfo,
@@ -1846,15 +1829,33 @@ dwSystemInfoFlags
 Varying system information provided by the system. The following flags are provided.
 Flag
 Description
-
 IME_SYSINFO_WINLOGON
 Tells the IME that the client process is the Winlogon process. The IME should not allow users to configure the IME when this flag is specified.
 IME_SYSINFO_WOW16
 Tells the IME that the client process is a 16-bit application.
 
-Return Values
+>Return Values
 If the function is successful, the return value is TRUE. Otherwise, the return value is FALSE.
-ImeConversionList
+
+## ImeInquire
+``` c++
+BOOL ImeInquire(
+    LPIMEINFO lpIMEInfo,
+    LPTSTR lpszWndClass,
+    DWORD dwSystemInfoFlags
+   )
+```
+** 参数 **
+`lpIMEInfo` 指向IMEInfo结构体
+`lpszWndClass` 输入法应通过此参数返回输入法UI窗体的窗体类名
+`dwSystemInfoFlags` 系统通过此参数提供系统信息，这是一些标志位组合，可能的取值有：
+* `IME_SYSINFO_WINLOGON` 告诉输入法当前宿主进程是Winlogon。此时应注意，输入法应禁止修改配置，这是因为大多数输入法配置如全/双拼，候选个数等都是与Windows用户绑定的，此时还未登录系统，也就没有对应的Windows用户。还要特别注意的是，不要让输入法有任何机会启动explorer进程，这会让用户不必登录而能访问系统文件。
+* `IME_SYSINFO_WOW16` 告诉输入法当前宿主进程是一个16位应用。
+
+** 返回值 **
+成功返回TRUE，否则返回FALSE。
+
+>ImeConversionList
 The ImeConversionList function obtains a converted result list from another character or string.
 DWORD
     IMEConversionList(
@@ -1878,18 +1879,45 @@ Currently can be one of the following three flags.
 Flag
 Description
 
-GCL_CONVERSION
+>GCL_CONVERSION
 Specifies the reading string to the lpSrc parameter. The IME returns the result string in the lpDst parameter.
 GCL_REVERSECONVERSION
 Specifies the result string in the lpSrc parameter. The IME returns the reading string in the lpDst parameter.
 GCL_REVERSE_LENGTH
 Specifies the result string in the lpSrc parameter. The IME returns the length that it can handle in GCL_REVERSECONVERSION. For example, an IME cannot convert a result string with a sentence period to a reading string. As a result, it returns the string length in bytes without the sentence period.
 
-Return Values
+>Return Values
 The return value is the number of bytes of the result string list.
 Comments
 This function is intended to be called by an application or an IME without generating IME-related messages. Therefore, an IME should not generate any IME-related messages in this function.
-ImeConfigure
+
+## ImeConversionList
+该函数将一个字符串转换成结果串，并返回该结果串。
+``` c++
+DWORD IMEConversionList(
+    HIMC hIMC,
+    LPCTSTRlpSrc,
+    LPCANDIDATELIST lpDst,
+    DWORD dwBufLen,
+    UINT uFlag
+   )
+```
+** 参数 **
+`hIMC` 输入上下文句柄
+`lpSrc` 待转换的字串
+`lpDst` 指向目标buffer
+`dwBufLen` 目标buffer的尺寸
+`uFlag` 可由如下标志组合而成：
+* `GCL_CONVERSION` 指定lpSrc中为读入串，输入法在lpDst中返回结果串。
+* `GCL_REVERSECONVERSION` 指定lpSrc中为结果串，输入法在lpDst中返回读入串。
+* `GCL_REVERSECONVERSION` 指定lpSrc中为结果串，输入法返回在`GCL_REVERSECONVERSION`可以处理的长度。比如，如果输入法无法转换一个结果串中的某个句段到阅读串，它将返回不包含词句段的阅读串长度。
+
+** 返回值 **
+返回结果串列表的字节数。
+** 说明 **
+应用程序或输入法调用该函数不会产生输入法相关的消息。因此输入法不应当在此函数中生成任何与输入法相关的消息。
+
+>ImeConfigure
 The ImeConfigure function provides a dialog box to use to request optional information for an IME.
 BOOL
     ImeConfigure(
@@ -1908,18 +1936,18 @@ Mode of dialog. The following flags are provided.
 Flag
 Description
 
-IME_CONFIG_GENERAL
+>IME_CONFIG_GENERAL
 Dialog for general purpose configuration. 
 IME_CONFIG_REGWORD
 Dialog for register word. 
 IME_CONFIG_SELECTDICTIONARY
 Dialog for selecting the IME dictionary. 
 
-lpData
+>lpData
 Pointer to VOID, which will be a pointer to the REGISTERWORD structure only if dwMode==IME_CONFIG_REGISTERWORD. Otherwise, lpData should just be ignored.
 This also can be NULL with the IME_CONFIG_REGISTER mode, if no initial string information is given.
 
-Return Values
+>Return Values
 If the function is successful, the return value is TRUE. Otherwise, the return value is FALSE.
 Comments
 An IME checks lpData in the following way in the pseudo code.
@@ -1930,7 +1958,7 @@ if (dwmode != IME_CONFIG_REGISTERWORD)
 else if (IsBadReadPtr(lpdata, sizeof(REGISTERWORD))==FALSE)
     {
  
-if (IsBadStringPtr(PREGISTERWORD(lpdata)->lpReading, (UINT)-1)==FALSE)
+>if (IsBadStringPtr(PREGISTERWORD(lpdata)->lpReading, (UINT)-1)==FALSE)
     {
 // Set the reading string to word registering dialogbox
     }
@@ -1940,7 +1968,43 @@ if (IsBadStringPtr(PREGISTERWORD(lpdata)->lpWord, (UINT)-1)==FALSE)
     }
     }
  
-ImeDestroy
+
+## ImeConfigure
+该函数会弹出一个用于修改输入法设置的对话框。
+``` c++
+BOOL ImeConfigure(
+    HKL hKL,
+    HWND hWnd,
+    DWORD dwMode,
+    LPVOID lpData
+   )
+```
+** 参数 **
+`hKL` 输入法的输入语言句柄（我称作键盘布局句柄，Keyboard Layout Handle）
+`hWnd` 父窗体句柄
+`dwMode` 对话框模式，可由如下标志组合而成：
+* `ME_CONFIG_GENERAL` 通用目的对话框配置
+* `IME_CONFIG_REGWORD` 针对注册字的对话框
+* `IME_CONFIG_SELECTDICTIONARY` 选择输入法词典的对话框
+`lpData` 仅当dwMode==IME_CONFIG_REGISTERWORD时为指向**REGISTERWORD**结构体的指针，其他情况下lpData应当被忽略；如果没有给出初始字串，该值也可以为NULL。
+** 返回值 **
+成功返回TRUE，否则返回FALSE。
+** 说明 **
+输入法应当按照如下模式检查lpData：
+``` c++
+if (dwmode != IME_CONFIG_REGISTERWORD){
+  // Does original execution
+}else if (IsBadReadPtr(lpdata, sizeof(REGISTERWORD))==FALSE){
+  if (IsBadStringPtr(PREGISTERWORD(lpdata)->lpReading, (UINT)-1)==FALSE){
+    // Set the reading string to word registering dialogbox
+  }
+  if (IsBadStringPtr(PREGISTERWORD(lpdata)->lpWord, (UINT)-1)==FALSE){
+    // Set the word string to word registering dialogbox
+  }
+}
+```
+
+>ImeDestroy
 The ImeDestroy function terminates the IME itself. 
 BOOL
     ImeDestroy(
@@ -1950,9 +2014,20 @@ Parameters
 uReserved
 Reserved. Currently, it should be zero. For this version, the IME should return FALSE if it is not zero.
 
-Return Values
+>Return Values
 If the function is successful, the return value is TRUE. Otherwise, the return value is FALSE.
-ImeEscape
+
+## ImeDestroy
+该函数用于终止输入法。
+``` c++
+BOOL ImeDestroy(UINT uReserved)
+```
+** 参数 **
+`uReserved` 保留字段，应当为0。如果不为0，输入法应返回FALSE
+** 返回值 **
+成功返回TRUE，否则返回FALSE。
+
+>ImeEscape
 The ImeEscape function allows an application to access capabilities of a particular IME not directly available though other IMM functions. This is necessary mainly for country-specific functions or private functions in the IME. 
 LRESULT
     ImeEscape(
@@ -1971,7 +2046,7 @@ The ImeEscape function supports the following escape functions.
 uEscape
 Meaning
 
-IME_ESC_QUERY _SUPPORT
+>IME_ESC_QUERY _SUPPORT
 Checks for implementation. If this escape is not implemented, the return value is zero.
 IME_ESC_RESERVED_FIRST
 Escape that is between IME_ESC_RESERVED_FIRST and IME_ESC_RESERVED_LAST is reserved by the system.
@@ -2003,7 +2078,7 @@ Escape that is the name of the IME’s help file. On return from the function, t
 IME_ESC_PRIVATE_HOTKEY
 lpdata points to a DWORD that contains the hot key ID (in the range of IME_HOTKEY_PRIVATE_FIRST and IME_HOTKEY_PRIVATE_LAST). After the system receives the hot key request within this range, the IMM will dispatch it to the IME using the ImeEscape function. Note: Windows® 95 does not support this escape.
 
-Return Values
+>Return Values
 If the function fails, the return value is zero. Otherwise, the return value depends on each escape function.
 Comments
 Parameter validation should be inside each escape function for robustness.
@@ -2012,7 +2087,50 @@ DWORD dwEsc = IME_ESC_GETHELPFILENAME;
 LRESULT lRet = ImmEscape(hKL, hIMC, IME_ESC_QUERYSUPPORT, (LPVOID)&dwEsc);
 See Also
 ImmEscape
-ImeSetActiveContext
+
+## ImeEscape
+该函数允许应用程序不必通过IMM函数而访问某些特定输入法的能力。对于某些特定国家语言的功能或者某些输入法的私有功能，这种能力是必要的。
+``` c++
+LRESULT ImeEscape(
+    HIMC hIMC,
+    UINT uEscape,
+    LPVOID lpData
+   )
+```
+** 参数 **
+`hIMC` 输入上下文句柄
+`uEscape` 指定要执行的转义功能
+`lpData` 指向特定转义功能需要的数据
+该函数支持如下转移功能：
+* `IME_ESC_QUERY _SUPPORT` 检查实现，如果该转移功能未实现，返回0
+* `IME_ESC_RESERVED_FIRST` 转义定义在`IME_ESC_RESERVED_FIRST`和`IME_ESC_RESERVED_LAST`之间的系统保留功能
+* `IME_ESC_RESERVED_LAST` 同上
+* `IME_ESC_PRIVATE_FIRST` 转义定义在`IME_ESC_PRIVATE_FIRST`和`IME_ESC_PRIVATE_LAST`之间的输入法保留功能。输入法可以自由使用这些转义功能。
+* `IME_ESC_PRIVATE_LAST` 同上
+* `IME_ESC_SEQUENCE_TO_INTERNAL` 和中文有关的转义功能。如果应用程序系统运行在所有中东语言平台下，就不要使用该转义功能。这是为中文的EUDC准备的。lpData指向句子的编码，返回值则为该句子的符号码。例如，中文输入法会将读入字符串编码为1到n个句子。
+* `IME_ESC_GET_EUDC_DICTIONARY` 和中文有关的转义功能。如果应用程序系统运行在所有中东语言平台下，就不要使用该转义功能。仅适用于中文EUDC。该函数在lpData中返回EUDC词典的路径名，需要注意lpData的尺寸应不小于`MAX_PATH * sizeof(TCHAR)`。
+* `IME_ESC_SET_EUDC_DICTIONARY` 设置EUDC文件，lpData指向指定的文件路径。仅适用于中文EUDC。
+* `IME_ESC_MAX_KEY` 和中文有关的转义功能。如果应用程序系统运行在所有中东语言平台下，就不要使用该转义功能。仅适用于中文EUDC。返回值为EUDC字符最大的按键次数。
+* `IME_ESC_IME_NAME` 和中文有关的转义功能。如果应用程序系统运行在所有中东语言平台下，就不要使用该转义功能，仅适用于中文EUDC。函数会在lpData中返回输入法输入法名字，lpData的尺寸不小于`16 * sizeof(TCHAR)`。
+* `IME_ESC_SYNC_HOTKEY` 和繁体中文有关的转义功能。如果应用程序系统运行在所有中东语言平台下，就不要使用该转义功能。用于同步不同输入法lpData是输入法的私有热键ID，如果该ID为0，输入法应当检查它关注的每个热键ID。
+* `IME_ESC_HANJA_MODE` 和韩语有关的转义功能。如果应用程序系统运行在所有中东语言平台下，就不要使用该转义功能。用于从韩语到汉字的转换。lpData指向待转换的以0结尾的韩文。
+* `IME_ESC_GETHELPFILENAME` 获取输入法的帮助文件。该函数会在lpData中返回输入法帮助文件的全路径名，lpData的大小不应小于`MAX_PATH * sizeof(TCHAR)`。
+* `IME_ESC_PRIVATE_HOTKEY` lpData指向一个包含热键ID（范围从IME_HOTKEY_PRIVATE_FIRST到IME_HOTKEY_PRIVATE_LAST）的DWORD类型的数据。系统收到此范围内的热键请求后，IMM会使用ImeEscape函数将它发送给输入法。
+
+** 返回值 **
+失败返回0；否则根据每个转移功能返回不同的值。
+** 说明 **
+在每个转移功能内部要注意检查参数的有效性，以确保该函数健壮。
+
+当`uEscape`为` IME_ESC_QUERY _SUPPORT`时，lpData指向包含输入法转义值的变量。下面是检查当前输入法是否支持`IME_ESC_GETHELPFILENAME`的代码例程：
+``` c++
+DWORD dwEsc = IME_ESC_GETHELPFILENAME;
+LRESULT lRet = ImmEscape(hKL, hIMC, IME_ESC_QUERYSUPPORT, (LPVOID)&dwEsc);
+```
+** EUDC** ：end-user-defined characters即用户自造字。
+还可参见ImmEscape。
+
+>ImeSetActiveContext
 The ImeSetActiveContext function notifies the current IME active Input Context.
 BOOL
     ImeSetActiveContext(
@@ -2025,13 +2143,31 @@ Input context handle.
 fFlag
 Two flags are provided. TRUE indicates activated and FALSE indicates deactivated. 
 
-Return Values
+>Return Values
 If the function is successful, the return value is TRUE. Otherwise, the return value is FALSE.
 Comments
 The IME is informed by this function about a newly selected Input Context. The IME can carry out initialization, but it is not required.
 See Also
 ImeSetActiveContext
-ImeProcessKey
+
+## ImeSetActiveContext
+该函数通知当前输入法激活上下文。
+``` c++
+BOOL ImeSetActiveContext(
+    HIMC hIMC,
+    BOOL fFlag
+   )
+```
+** 参数 **
+`hIMC` 输入上下文句柄
+`hFlag` TRUE表示激活，FALSE表示deactivated。
+** 返回值 **
+成功返回TRUE，否则返回FALSE。
+** 说明 **
+当输入法通过该函数收到被激活的通知，次数输入法可以执行一些初始化工作。
+还可参见ImeSetActiveContext。
+
+>ImeProcessKey
 The ImeProcessKey function preprocesses all the keystrokes given through the IMM and returns TRUE if that key is necessary for the IME with a given Input Context.
 BOOL
     ImeProcessKey(
@@ -2050,14 +2186,37 @@ lParam of key messages.
 lpbKeyState
 Points to a 256-byte array that contains the current keyboard state. The IME should not modify the content of the key state.
 
-Return Values
+>Return Values
 If the function is successful, the return value is TRUE. Otherwise, the return value is FALSE.
 Comments
 The system decides whether the key is handled by IME or not by calling this function. If the function returns TRUE before the application gets the key message, the IME will handle the key. The system will then call the ImeToAsciiEx function. If this function returns FALSE, the system recognizes that the key will not be handled by the IME and the key message will be sent to the application.
 For IMEs that support IME_PROP_ACCEPT_WIDE_VKEY on Windows 2000, ImeProcessKey will receive full 32 bit value for uVirKey, which is injected by using SendInput API through VK_PACKET. uVirKey will include 16-bit Unicode in hiword even the IME may be ANSI version. 
 For IMEs that do not support IME_PROP_ACCEPT_WIDE_VKEY, Unicode IME's ImeProcessKey will receive VK_PACKET with zero'ed hiword. Unicode IME still can return TRUE so ImeToAsciiEx will be called with the injected Unicode. ANSI IME's ImeProcessKey will not receive anything. The injected Unicode will be discarded if the ANSI IME is open. If the ANSI IME is closed, the injected Unicode message will be posted to application's queue immediately.
 
-NotifyIME
+## ImeProcessKey
+该函数用于预处理经过IMM的所有按键，如果输入法要处理该按键，则返回TRUE，否则返回FALSE。
+``` c++
+BOOL ImeProcessKey(
+    HIMC hIMC,
+    UINT uVirKey,
+    DWORD lParam,
+    CONST LPBYTE lpbKeyState
+   )
+```
+** 参数 **
+`hIMC` 输入上下文句柄
+`uVirKey` 待处理的按键虚拟键盘码
+`lpbKeyState` 指向一个256字节的数组，该数组包含键盘当前的状态。输入法不要改变该数组的内容。
+** 返回值 **
+成功返回TRUE，否则返回FALSE。
+** 说明 **
+系统通过调用该函数来决定是否要处理一个按键。如果该函数返回TRUE，输入法将会处理该按键，紧接着系统将调用`ImeToAsciiEx`函数。如果该函数返回FALSE，系统认为输入法不处理该按键，键盘消息将被发送给应用程序。
+
+在Win2000下，对于支持IME_PROP_ACCEPT_WIDE_VKEY的输入法，ImeProcessKey将对uVirKey接收全32位值，该值是使用带VK_PACKET参数的SendInput函数注入的值。即使输入法是ANSI版本，uVirKey也会在高16位包含16位Unicode。
+
+对于不支持IME_PROP_ACCEPT_WIDE_VKEY的输入法，Unicode版本的输入法的ImeProcessKey函数将接收高16位为0的VK_PACKET，Unicode版本的输入法依然返回TRUE，以便ImeToAsciiEx将被调用来处理该injected Unicode。ANSI版本的输入法的ImeProcessKey将不接受任何调用，即使输入法处于开启的状态，injected Unicode也会被抛弃，如果输入法关闭，该injected Unicode消息将立刻被发送给应用程序消息队列。
+
+>NotifyIME
 The NotifyIME function changes the status of the IME according to the given parameters.
 BOOL
     NotifyIME(
@@ -2074,63 +2233,63 @@ Following are the context items that an application can specify in the dwAction 
 Context Item
 Description
 
-NI_OPENCANDIDATE 
+>NI_OPENCANDIDATE 
 Application has the IME open the candidate list. If the IME opens the candidate list, the IME sends a WM_IME_NOTIFY (subfunction is IMN_OPENCANDIDATE) message.
 
-dwIndex
+>dwIndex
 Index of the candidate list to be opened.
 
-dwValue
+>dwValue
 Not used.
 NI_CLOSECANDIDATE
 Application has the IME close the candidate list. If the IME closes the candidate list, the IME sends a WM_IME_NOTIFY (subfunction is IMN_CLOSECANDIDATE) message.
 
-dwIndex
+>dwIndex
 Index of the candidate list to be closed.
 
-dwValue
+>dwValue
 Not used.
 NI_SELECTCANDIDATESTR
 Application selects one of the candidates.
 
-dwIndex
+>dwIndex
 Index of the candidate list to be selected.
 
-dwValue
+>dwValue
 Index of the candidate string in the selected candidate list.
 NI_CHANGECANDIDATELIST
 Application changes the currently selected candidate.
 
-dwIndex
+>dwIndex
 Index of the candidate list to be selected.
 
-dwValue
+>dwValue
 Not used.
 NI_SETCANDIDATE_PAGESTART
 Application changes the page starting index of the candidate list.
 
-dwIndex
+>dwIndex
 Index of the candidate list to be changed.
 
-dwValue
+>dwValue
 New page start index.
 NI_SETCANDIDATE_PAGESIZE
 Application changes the page size of the candidate list.
 
-dwIndex
+>dwIndex
 Index of the candidate list to be changed.
 
-dwValue
+>dwValue
 New page size.
 NI_CONTEXTUPDATED
 Application or system updates the Input Context.
 
-dwIndex
+>dwIndex
 When the value of dwValue is IMC_SETCONVERSIONMODE, dwIndex is the previous conversion mode.
 When the value of dwValue is IMC_SETSENTENCEMODE, dwIndex is the previous sentence mode.
 For any other dwValue, dwIndex is not used.
 
-dwValue
+>dwValue
 One of following values used by the WM_IME_CONTROL message:
 IMC_SETCANDIDATEPOS
 IMC_SETCOMPOSITIONFONT
@@ -2141,7 +2300,7 @@ IMC_SETOPENSTATUS
 NI_COMPOSITIONSTR
 Application changes the composition string. This action takes effect only when there is a composition string in the Input Context.
 
-dwIndex
+>dwIndex
 The following values are provided for dwIndex:
 CPS_COMPLETE
 To determine the composition string as the result string.
@@ -2152,19 +2311,61 @@ To revert the composition string. The current composition string will be cancele
 CPS_CANCEL 
 To clear the composition string and set the status as no composition string.
 
-dwValue
+>dwValue
 Not used.
 
-dwIndex
+>dwIndex
 Dependent on uAction.
 dwValue
 Dependent on uAction.
 
-Return Values
+>Return Values
 If the function is successful, the return value is TRUE. Otherwise, the return value is FALSE.
 See Also
 ImmNotifyIME
-ImeSelect
+
+## NotifyIME
+该函数会根据参数改变输入法状态。
+``` c++
+BOOL NotifyIME(
+    HIMC hIMC,
+    DWORD dwAction,
+    DWORD dwIndex,
+    DWORD dwValue
+   )
+```
+** 参数 **
+`hIMC` 输入上下文句柄
+`dwIndex`和`dwValue`将依赖`dwAction`的值
+`dwAction` 应用程序可指定的上下文选项，下面是该值的取值范围：
+* `NI_OPENCANDIDATE` 应用程序让输入法打开候选列表，如果输入法打开了候选列表，输入法会发送一个WM_IME_NOTIFY(子功能为IMN_OPENCANDIDATE)消息。此时`dwIndex`表示待打开的候选列表序号，`dwValue`未使用。
+* `NI_CLOSECANDIDATE` 应用程序让输入法关闭候选列表，如果输入法关闭了候选列表，输入法发送一个WM_IME_NOTIFY（子功能为IMN_CLOSECANDIDATE）消息。此时`dwIndex`表示待关闭的候选列表序号，`dwValue`未使用。
+* `NI_SELECTCANDIDATESTR` 应用程序选择一个候选。此时`dwIndex`表示被选中的候选序号；`dwValue`表示被选中的候选串。
+* `NI_CHANGECANDIDATELIST` 应用程序修改当前选中的候选。此时`dwIndex`表示将被选择的候选序号；`dwValue`未使用。
+* `NI_SETCANDIDATE_PAGESTART` 应用程序修改候选列表的起始页。此时`dwIndex`表示被修改的候选列表序号；`dwValue`表示新页中的起始序号。
+* `NI_SETCANDIDATE_PAGESIZE` 应用程序修改候选列表的页数。此时`dwIndex`表示待修改的候选列表序号；`dwValue`表示新页尺寸。
+* `NI_CONTEXTUPDATED` 应用程序或系统修改输入上下文。此时，
+  - `dwIndex`的含义为：当`dwValue`为IMC_SETCONVERSIONMODE时`dwIndex`表示前一个转换模式；当`dwValue`为IMC_SETSENTENCEMODE时`dwIndex`表示前一个句子模式；其他情况`dwIndex`未使用
+  - `dwValue`为WM_IME_CONTROL消息使用的如下值之一：
+    IMC_SETCANDIDATEPOS
+    IMC_SETCOMPOSITIONFONT
+    IMC_SETCOMPOSITIONWINDOW
+    IMC_SETCONVERSIONMODE
+    IMC_SETSENTENCEMODE
+    IMC_SETOPENSTATUS
+* `NI_COMPOSITIONSTR` 应用程序修改写作串。该动作仅在输入上下文中有写作串时才会生效。此时，
+  - `dwIndex`为如下值：
+    CPS_COMPLETE 要把写作串转换成结果串。
+    CPS_CONVERT 要转换写作串
+    CPS_REVERT 要回复写作串。当前写作串将被取消，未转换的字串将被设置为写作串。
+    CPS_CANCEL 要清除写作串，将输入法处于没有写作串的状态。
+  - `dwValue`未使用
+
+** 返回值  **
+成功返回TRUE，否则返回FALSE。
+还可参见ImmNotifyIME。
+
+>ImeSelect
 The ImeSelect function is used to initialize and uninitialize the IME private context.
 BOOL
     ImeSelect(
@@ -2177,9 +2378,24 @@ Input context handle
 fSelect
 Two flags are provided. TRUE indicates initialize and FALSE indicates uninitialize (free resource). 
 
-Return Values
+>Return Values
 If the function is successful, the return value is TRUE. Otherwise, the return value is FALSE.
-ImeSetCompositionString
+
+## ImeSelect
+该函数用于初始化或者析构输入法的私有上下文。
+``` c++
+BOOL ImeSelect(
+    HIMC hIMC,
+    BOOL fSelect
+   )
+```
+** 参数 **
+`hIMC` 输入上下文句柄
+`fSelect` TRUE表示初始化，FALSE表示析构。
+** 返回值 **
+成功返回TRUE，否则返回FALSE。
+
+>ImeSetCompositionString
 The ImeSetCompositionString function is used by an application to set the IME composition string structure with the data contained in the lpComp or lpRead parameters. The IME then generates a WM_IME_COMPOSITION message.
 BOOL WINAPI
     ImeSetCompositionString(
@@ -2198,7 +2414,7 @@ The following values are provided for dwIndex.
 Value
 Description
 
-SCS_SETSTR
+>SCS_SETSTR
 Application sets the composition string, the reading string, or both. At least one of the lpComp and lpRead parameters must point to a valid string. If either string is too long, the IME truncates it.
 SCS_CHANGEATTR
 Application sets attributes for the composition string, the reading string, or both. At least one of the lpComp and lpRead parameters must point to a valid attribute array. 
@@ -2209,7 +2425,7 @@ Application asks the IME to adjust its RECONERTSTRINGSTRUCTRE. If the applicatio
 SCS_SETRECONVERTSTRING
 Application asks the IME to reconvert the string contained in the RECONVERTSTRING structure.
 
-lpComp
+>lpComp
 Pointer to the buffer that contains the updated string. The type of string is determined by the value of dwIndex.
 dwCompLen
 Length of the buffer in bytes.
@@ -2218,10 +2434,40 @@ Pointer to the buffer that contains the updated string. The type of string is de
 dwReadLen
 Length of the buffer in bytes.
 
-Comments
+>Comments
 For Unicode, dwCompLen and dwReadLen specifies the length of the buffer in bytes, even if SCS_SETSTR is specified and the buffer contains a Unicode string. 
 SCS_SETRECONVERTSTRING or SCS_QUERYRECONVERTSTRING can be used only for IMEs that have an SCS_CAP_SETRECONVERTSTRING property. This property can be retrieved by using the ImmGetProperty function.
-ImeToAsciiEx 
+
+## ImeSetCompositionString
+应用程序构造lpComp或lpRead数据，使用该函数设置写作串。输入法随即收到一条WM_IME_COMPOSITION消息。
+``` c++
+BOOL WINAPI ImeSetCompositionString(
+    HIMC hIMC,
+    DWORD dwIndex,
+    LPCVOID lpComp,
+    DWORD dwCompLen,
+    LPCVOID lpRead,
+    DWORD dwReadLen
+   );
+```
+** 参数 **
+`hIMC` 输入上下文句柄
+`dwIndex`可为如下值：
+* `SCS_SETSTR` 应用程序设置写作串或读入串，或者两者都设。lpComp和lpRead两个参数至少要有一个指向合法字符串。如果任一字串超长，输入法将会截断它。
+* `SCS_CHANGEATTR` 应用程序设置写作串或读入串的属性，或者两者都设。lpComp和lpRead两个参数至少要有一个指向合法字符串。
+* `SCS_CHANGECLAUSE` 应用程序设置输入串或读入串的分句信息。lpComp和lpRead两个参数至少要有一个指向合法的分句信息数组。
+* `SCS_QUERYRECONVERTSTRING` 应用程序让输入法调整它的RECONERTSTRINGSTRUCTRE。如果应用程序使用该值调用了`ImeSetCompositionString`函数，输入法将调整`RECONVERTSTRING`结构体。应用程序随即传入调整后的RECONVERTSTRING结构体给本函数，并传入参数`SCS_RECONVERTSTRING`。输入法将不产生任何WM_IMECOMPOSITION消息。
+* `SCS_SETRECONVERTSTRING` 应用程序要求输入法重新转换包含在`RECONVERTSTRING`结构体中的字串。
+`lpComp` 指向更新串的buffer。字串的类型由`dwIndex`决定。
+`dwCompLen` buffer的字节数。
+`lpRead` 指向更新串的buffer。字串的类型由`dwIndex`决定。如果`dwIndex`为`SCS_SETRRECONVERTSTRING` 或 `SCS_QUERYRECONVERTSTRING`，`lpRead`将是一个指向`RECONVERTSTRING`结构体的指针，该结构体包含更新的读入串。如果被选中的输入法为`SCS_CAP_MAKEREAD`，该值为NULL。
+`dwReadLen` buffer的字节数。
+
+** 说明 **
+对于Unicode，`dwCompLen`和`dwReadLen`指定buffer的字节数，即使指定了`SCS_SETSTR`且buffer中包含Unicode字符。
+`SCS_SETRECONVERTSTRING` 或 `SCS_QUERYRECONVERTSTRING` 仅适用于有`SCS_CAP_SETRECONVERTSTRING` 属性的输入法，可以通过函数`ImmGetProperty`来获得该属性。
+
+> ImeToAsciiEx 
 The ImeToAsciiEx function generates a conversion result through the IME conversion engine according to the hIMC parameter.
 UINT
     ImeToAsciiEx(
@@ -2247,13 +2493,13 @@ Active menu flag.
 hIMC
 Input context handle.
 
-Return Values
+>Return Values
 The return value indicates the number of messages. If the number is greater than the length of the translated message buffer, the translated message buffer is not enough. The system then checks hMsgBuf to get the translation messages.
 Comments
 On Windows 2000, a new 32bit-width virtual key code, using VK_PACKET in LOBYTE of wParam and the high word is Unicode, can be injected by using SendInput. 
 For ANSI IMEs that support IME_PROP_ACCEPT_WIDE_VKEY, ImeToAsciiEx may receive up to 16bit ANSI code for a character. It will be packed as below.  The character is injected from SendInput API through VK_PACKET. 
 
-24-31 bit
+>24-31 bit
 16-23 bit
 8-15 bit
 0-7 biy
@@ -2262,9 +2508,42 @@ Trailing DBCS byte(if any)
 Leading byte
 VK_PACKET
 
-See Also
+>See Also
 ImmToAsciiEx
-ImeRegisterWord
+
+## ImeToAsciiEx
+该函数通过输入法的转换引擎执行一次转换。
+``` c++
+UINT ImeToAsciiEx(
+    UINT uVirKey,
+    UINT uScanCode,
+    CONST LPBYTE lpbKeyState,
+    LPTRANSMSGLIST lpTransMsgList,
+    UINT fuState,
+    HIMC hIMC
+   )
+```
+** 参数 **
+`uVirKey` 指定待翻译的虚拟键盘码。当属性位`IME_PROP_KBD_CHAR_FIRST`被置1，虚拟键盘码的高字节就是字符的ascii码。对于Unicode，当属性位`IME_PROP_KBD_CHAR_FIRST`被置1，`uVirKey`的高WORD为Unicode字符。
+`uScanCode` 指定待翻译的硬件扫描码
+`lpbKeyState` 指向256字节数组，该数组包含键盘的当前状态。输入法不要修改该数组的值。
+`lpTransMsgList` 指向用于接收翻译消息的 `TRANSMSGLIST`缓冲区。该缓冲区被定义为双WORD缓冲区，双WORD的格式为[缓冲区长度][Message1][wParam1][lParam1]{[Message2][wParam2][lParam2]{...{...{...}}}}
+`fuState` 活动菜单标志
+`hIMC` 输入上下文句柄
+** 返回值 **
+返回值描述消息的个数，如果个数比翻译消息缓冲区尺寸大，缓冲区就不够用了。系统将检查`hMsgBuf`来获取翻译消息。
+** 说明 **
+在Win2000下，新的32位虚拟键盘码可以通过`SendInput`被注入，该键盘码在wParam的低字节填充VK_PACKET，高WORD填充Unicode。
+
+对于支持IME_PROP_ACCEPT_WIDE_VKEY的ANSI版输入法，ImeToAsciiEx可以接收16位ANSI字符。它被打包成如下格式，可以通过`SendInput`并传入`VK_PACKET`参数来注入此字符：
+
+24-31位|16-23位|8-15位|0-7位
+----|----|----|----
+保留|DBCS字节|先导字节|VK_PACKET
+
+还可参见ImmToAsciiEx
+
+>ImeRegisterWord
 The ImeRegisterWord function registers a string into the dictionary of this IME.
 BOOL WINAPI
     ImeRegisterWord(
@@ -2280,19 +2559,43 @@ Style of the registered string. The following values are provided.
 Value
 Description
 
-IME_REGWORD_STYLE_EUDC
+>IME_REGWORD_STYLE_EUDC
 String is within the EUDC range
 IME_REGWORD_STYLE_USER_FIRST to IME_REGWORD_STYLE_USER_LAST
 Constants range from IME_REGWORD_STYLE_USER_FIRST to IME_REGWORD_STYLE_USER_LAST and are used for private styles of the IME ISV. The IME ISV can freely define its own style. For example:
-#define MSIME_NOUN (IME_REGWORD_STYLE_USER_FIRST)
-#define MSIME_VERB (IME_REGWORD_STYLE_USER_FISRT +1)
+>#define MSIME_NOUN (IME_REGWORD_STYLE_USER_FIRST)
+>#define MSIME_VERB (IME_REGWORD_STYLE_USER_FISRT +1)
 
-lpszString
+>lpszString
 String to be registered.
 
-Return Values
+>Return Values
 If the function is successful, the return value is TRUE. Otherwise, the return value is FALSE.
-ImeUnregisterWord
+
+## ImeRegisterWord
+该函数向输入法字典中注册一个字符串
+``` c++
+BOOL WINAPI ImeRegisterWord(
+    LPCTSTR lpszReading,
+    DWORD dwStyle,
+    LPCTSTR lpszString
+   )
+```
+** 参数 **
+`lpszReading` 注册的读入串
+`dwStyle` 注册串的风格，可取如下值：
+* `IME_REGWORD_STYLE_EUDC` 字串在EUDC的范围
+* `IME_REGWORD_STYLE_USER_FIRST` 到 `IME_REGWORD_STYLE_USER_LAST` 在此区间内的常量用来表示输入法私有风格，例如：
+``` c++
+#define MSIME_NOUN (IME_REGWORD_STYLE_USER_FIRST)
+#define MSIME_VERB (IME_REGWORD_STYLE_USER_FISRT +1)
+```
+`lpszString` 待注册的字串
+
+** 返回值 **
+成功返回TRUE，否则返回FALSE
+
+> ImeUnregisterWord
 The ImeUnregisterWord function removes a registered string from the dictionary of this IME.
 BOOL WINAPI
     ImeUnregisterWord(
@@ -2308,9 +2611,26 @@ Style of the registered string. Please refer to the ImeRegisterWord function for
 lpszString
 String to be unregistered.
 
-Return Values
+>Return Values
 If the function is successful, the return value is TRUE. Otherwise, the return value is FALSE.
-ImeGetRegisterWordStyle
+
+## ImeUnregisterWord
+该函数用于删除在输入法字典中注册的字符串。
+``` c++
+BOOL WINAPI ImeUnregisterWord(
+    LPCTSTR lpszReading,
+    DWORD dwStyle,
+    LPCTSTR lpszString
+   )
+```
+** 参数 **
+`lpszReading` 删除注册的读入串
+`dwStyle` 待注册字串的风格，可参见函数`ImeRegisterWord`来获取dwStyle的描述。
+`lpszString` 删除注册的字串
+** 返回值 **
+成功返回TRUE，失败返回FALSE。
+
+>ImeGetRegisterWordStyle
 The ImeGetRegisterWordStyle function gets the available styles in this IME.
 UINT WINAPI
     ImeGetRegisterWordStyle(
@@ -2323,9 +2643,24 @@ Maximum number of styles that the buffer can hold.
 lpStyleBuf
 Buffer to be filled.
 
-Return Values
+>Return Values
 The return value is the number of the styles copied to the buffer. If nItems is zero, the return value is the buffer size in array elements needed to receive all available styles in this IME.
-ImeEnumRegisterWord
+
+## ImeGetRegisterWordStyle
+该函数获得输入法风格。
+``` c++
+UINT WINAPI ImeGetRegisterWordStyle(
+    UINT nItem,
+    LPSTYLEBUF lpStyleBuf
+   )
+```
+** 参数 **
+`nItem` buffer中可容纳的最大风格数量
+`lpStyleBuf` 待填充的缓冲区
+** 返回值 **
+返回拷贝到缓冲区的风格的数量。如果nItems为0，返回需要向buffer填充的当前输入法的风格个数。
+
+>ImeEnumRegisterWord
 The ImeEnumRegisterWord function enumerates the information of the registered strings with specified reading string, style, and registered string data.
 UINT WINAPI
     ImeEnumRegisterWord(
@@ -2350,11 +2685,34 @@ Specifies the registered string to be enumerated. If lpszString is NULL, ImeEnum
 lpData
 Address of application-supplied data.
 
-Return Values
+>Return Values
 If the function is successful, the return value is the last value returned by the callback function. Its meaning is defined by the application.
 Comments
 If all lpszReading dwStyle, and lpszString parameters are NULL, ImeEnumRegisterWord enumerates all registered strings in the IME dictionary. If any two of the input parameters are NULL, ImeEnumRegisterWord enumerates all registered strings matching the third parameter.
-ImeGetImeMenuItems
+
+## ImeEnumRegisterWord
+该函数枚举指定读入串、风格和注册串数据的注册串信息。
+``` c++
+UINT WINAPI ImeEnumRegisterWord(
+    hKL,
+    REGISTERWORDENUMPROC lpfnEnumProc,
+    LPCTSTR lpszReading,
+    DWORD dwStyle,
+    LPCTSTR lpszString,
+    LPVOID lpData
+   )
+```
+** 参数 **
+`hKL` 输入法键盘布局句柄
+`lpfnEnumProc` 回调函数地址
+`lpszReading` 待枚举的指定读入串。如果为NULL，该函数将枚举所有符合dwStyle和lpszString参数的读入串。
+`dwStyle` 待枚举的指定风格。如果为空，该函数将枚举所有符合lpszReading和lpszString的风格。
+`lpszString` 待枚举的注册串。如果为空，该函数将枚举所有符合lpszReading和dwStyle的注册串。
+`lpData` 应用程序提供的数据地址。
+** 说明 **
+如果lpszReading、dwStyle和lpszString参数均为NULL，该函数将枚举所有在输入法字典中的注册串。如果任意两个输入参数为NULL，该函数将枚举匹配第三个参数的所有注册串。
+
+>ImeGetImeMenuItems
 The ImeGetImeMenuItems function gets the menu items that are registered in the IME menu.
 DWORD WINAPI
     ImeGetImeMenuItems(
@@ -2373,15 +2731,15 @@ Consists of the following bit combinations.
 Bit
 Description
 
-IGIMIF_RIGHTMENU
+>IGIMIF_RIGHTMENU
 If this bit is 1, this function returns the menu items for the right click Context menu.
 
-dwType
+>dwType
 Consists of the following bit combinations.
 Bit
 Description
 
-IGIMII_CMODE
+>IGIMII_CMODE
 Returns the menu items related to the conversion mode.
 IGIMII_SMODE
 Returns the menu items related to the sentence mode.
@@ -2396,15 +2754,39 @@ Returns the menu items related to others.
 IGIMII_INPUTTOOLS
 Returns the menu items related to the IME input tools that provide the extended way to input the characters.
 
-lpImeParentMenu
+>lpImeParentMenu
 Pointer to the IMEMENUINFO structure that has MFT_SUBMENU in fType. ImeGetImeMenuItems returns the submenu items of this menu item. If this is NULL, lpImeMenu contains the top-level IME menu items.
 lpImeMenu
 Pointer to the buffer to receive the contents of the menu items. This buffer is the array of IMEMENUITEMINFO structure. If this is NULL, ImeGetImeMenuItems returns the number of the registered menu items.
 dwSize
 Size of the buffer to receive the IMEMENUITEMINFO structure.
 
-Return Values
+>Return Values
 The return value is the number of the menu items that were set into lpIM. If lpImeMenu is NULL, ImeGetImeMenuItems returns the number of menu items that are registered in the specified hKL.
 Comments
 ImeGetImeMenuItems is a new function for Windows 98 and Windows 2000.
 
+## ImeGetImeMenuItems
+该函数获得输入法菜单中注册的菜单项。
+``` c++    
+DWORD WINAPI ImeGetImeMenuItems(
+    HIMC hIMC,
+    DWORD dwFlags,
+    DWORD dwType,
+    LPIMEMENUITEMINFO lpImeParentMenu,
+    LPIMEMENUITEMINFO lpImeMenu,
+    DWORD dwSize
+   )
+```
+** 参数 **
+`hIMC` lpMenuItem包含的菜单项相关的输入上下文
+`dwFlag` 如下标志的组合：
+* `IGIMIF_RIGHTMENU` 如果为1，该函数返回邮件上下文菜单的菜单项
+`dwType` 如下标志的组合：
+* `IGIMII_CMODE` 返回与转换模式相关的菜单项
+* `IGIMII_SMODE` 返回与句子模式相关的菜单项
+* `IGIMII_CONFIGURE` 返回与输入法配置相关的菜单项
+* `IGIMII_TOOLS` 返回与输入法工具相关的菜单项
+* `IGIMII_HELP` 返回与输入法帮助相关的菜单项
+* `IGIMII_OTHER` 返回与其它相关的菜单项
+* `IGIMII_INPUTTOOLS` 返回与输入法输入工具相关的菜单项，该工具用于提供输入字符串的扩展方法。
