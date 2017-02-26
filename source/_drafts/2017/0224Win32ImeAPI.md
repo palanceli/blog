@@ -1805,7 +1805,7 @@ lKL = lParam;
 ** 说明 **
 处于任务栏管理器的内部需要，输入法必须使用`PostMessage`来发送`INDICM_xxx`消息。全局ATOM值必须通过`GlobalAddAtom`或`GlobalFindAtom`来获得。
 
-# 输入法界面函数
+# 输入法接口函数
 >IMEs are provided as dynamic-link libraries (DLLs). The Input Method Manager (IMM) should handle all installed IMEs. Because IMEs are changeable at run time without rebooting, the IMM will have a structure to maintain all the entry points of each IME.
 The following topics contain all the common IME functions. These functions should not be called by an application directly.
 
