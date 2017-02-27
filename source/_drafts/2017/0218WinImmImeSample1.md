@@ -50,19 +50,27 @@ comments: true
 因此，我们在`#include <windows.h>`前必须先定义`NOIME`，让windows.h中的imm.h无效。
 如果使用`immdev.h`，则不存在头文件命名冲突的问题。不过我在编写输入法时，还是使用老版本的`imm.h`，因为不确定使用`immdev.h`能否完全与老的Windows系统兼容。
 ## 定义十五个导出函数
-关于这些函数的介绍，可以参见win2kddk，这个版本的DDK在Ntddk/src/ime/docs目录下有两份输入法开发文档，这也是为数不多的微软发布的输入法开发官方文档。下面是对这些函数的介绍。
-### ImeInquire
-该函数处理输入法的初始化，它返回一个`IMEINFO`结构体以及输入法的UI窗体类名。
+关于这些函数的介绍，可以参见win2kddk，这个版本的DDK在Ntddk/src/ime/docs目录下有两份输入法开发文档，这也是为数不多的微软发布的输入法开发官方文档。我们只挑最必须的文件重点介绍。
+## ImeInquire
+该函数在输入法首次切出时被调用，负责处理输入法的初始化，它返回一个`IMEINFO`结构体以及输入法的UI窗体类名。
 ``` c++
 BOOL ImeInquire(
-    LPIMEINFO lpIMEInfo,    // 指向IMEINFO结构体指针
-    LPTSTR lpszWndClass,    // 输入法UI窗体的窗体类名
-    DWORD dwSystemInfoFlags // 系统通过该值传入一些系统信息
+    LPIMEINFO lpIMEInfo,    // 指向IMEInfo结构体
+    LPTSTR lpszWndClass,    // 输入法通过此参数返回输入法UI窗体的窗体类名
+    DWORD dwSystemInfoFlags // 系统通过此参数提供系统信息，详见下文
    )
 ```
-dwSystemInfoFlags是由一些标志位逻辑或而成，这些标志位的含义为：
-* `dwSystemInfoFlags` 告诉输入法当前进程是Winlogon，由于还没有登录系统，此时输入法的处理应当非常小心，比如不允许修改输入法配置，因为配置可能是和Windows用户绑定的；比如绝对不允许调用打开系统explorer或者Common Dialog等操作，以防止通过输入法可以hack到系统。
-* `IME_SYSINFO_WOW16` 告诉输入法当前进程是一个16位应用程序。
+** 参数 **
+
+dwSystemInfoFlags|含义
+----|----
+IME_SYSINFO_WINLOGON|当前宿主进程是Winlogon
+IME_SYSINFO_WOW16|当前宿主进程是一个16位应用
+
+当宿主进程为Winlogon时，输入法应禁止修改配置，这是因为大多数输入法配置如全/双拼，候选个数等都是与Windows用户绑定的，此时还未登录系统，也就没有对应的Windows用户。还要特别注意的是，不要让输入法有任何机会启动explorer进程，这会让用户不登录而能访问系统文件，带来严重的安全问题。
+
+** 返回值 **
+成功返回TRUE，否则返回FALSE。
 
 # UI窗口
 ## 概述

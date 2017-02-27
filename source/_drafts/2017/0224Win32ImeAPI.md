@@ -1840,17 +1840,19 @@ If the function is successful, the return value is TRUE. Otherwise, the return v
 ## ImeInquire
 ``` c++
 BOOL ImeInquire(
-    LPIMEINFO lpIMEInfo,
-    LPTSTR lpszWndClass,
-    DWORD dwSystemInfoFlags
+    LPIMEINFO lpIMEInfo,    // 指向IMEInfo结构体
+    LPTSTR lpszWndClass,    // 输入法通过此参数返回输入法UI窗体的窗体类名
+    DWORD dwSystemInfoFlags // 系统通过此参数提供系统信息，详见下文
    )
 ```
 ** 参数 **
-`lpIMEInfo` 指向IMEInfo结构体
-`lpszWndClass` 输入法应通过此参数返回输入法UI窗体的窗体类名
-`dwSystemInfoFlags` 系统通过此参数提供系统信息，这是一些标志位组合，可能的取值有：
-* `IME_SYSINFO_WINLOGON` 告诉输入法当前宿主进程是Winlogon。此时应注意，输入法应禁止修改配置，这是因为大多数输入法配置如全/双拼，候选个数等都是与Windows用户绑定的，此时还未登录系统，也就没有对应的Windows用户。还要特别注意的是，不要让输入法有任何机会启动explorer进程，这会让用户不必登录而能访问系统文件。
-* `IME_SYSINFO_WOW16` 告诉输入法当前宿主进程是一个16位应用。
+
+dwSystemInfoFlags|含义
+----|----
+IME_SYSINFO_WINLOGON|当前宿主进程是Winlogon
+IME_SYSINFO_WOW16|当前宿主进程是一个16位应用
+
+当宿主进程为Winlogon时，输入法应禁止修改配置，这是因为大多数输入法配置如全/双拼，候选个数等都是与Windows用户绑定的，此时还未登录系统，也就没有对应的Windows用户。还要特别注意的是，不要让输入法有任何机会启动explorer进程，这会让用户不登录而能访问系统文件，带来严重的安全问题。
 
 ** 返回值 **
 成功返回TRUE，否则返回FALSE。
