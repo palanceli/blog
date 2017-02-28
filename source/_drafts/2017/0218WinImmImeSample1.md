@@ -52,25 +52,29 @@ comments: true
 ## 定义十五个导出函数
 关于这些函数的介绍，可以参见win2kddk，这个版本的DDK在Ntddk/src/ime/docs目录下有两份输入法开发文档，这也是为数不多的微软发布的输入法开发官方文档。我们只挑最必须的文件重点介绍。
 ## ImeInquire
-该函数在输入法首次切出时被调用，负责处理输入法的初始化，它返回一个`IMEINFO`结构体以及输入法的UI窗体类名。
+该函数在输入法首次切出时被调用，负责处理输入法的初始化，它返回一个`IMEINFO`结构体以及输入法的UI窗体类名。这里的实现过程为：
 ``` c++
-BOOL ImeInquire(
-    LPIMEINFO lpIMEInfo,    // 指向IMEInfo结构体
-    LPTSTR lpszWndClass,    // 输入法通过此参数返回输入法UI窗体的窗体类名
-    DWORD dwSystemInfoFlags // 系统通过此参数提供系统信息，详见下文
-   )
+BOOL WINAPI ImeInquire(LPIMEINFO lpImeInfo, LPTSTR lpszUIClass, LPCTSTR lpszOptions)
+{
+  if((DWORD_PTR)lpszOptions & IME_SYSINFO_WINLOGON )
+    return FALSE;
+
+  lpImeInfo->dwPrivateDataSize  = 0; //sizeof(t_uiExtra);
+
+  lpImeInfo->fdwProperty        = IME_PROP_COMPLETE_ON_UNSELECT | 
+                                  IME_PROP_SPECIAL_UI | IME_PROP_CANDLIST_START_FROM_1 | 
+                                  IME_PROP_UNICODE | IME_PROP_KBD_CHAR_FIRST;
+  lpImeInfo->fdwConversionCaps  = IME_CMODE_SYMBOL | IME_CMODE_SOFTKBD | IME_CMODE_FULLSHAPE;
+  lpImeInfo->fdwSentenceCaps    = IME_SMODE_NONE;
+  lpImeInfo->fdwUICaps          = UI_CAP_SOFTKBD| UI_CAP_2700;
+  lpImeInfo->fdwSCSCaps         = 0x00000000;
+  lpImeInfo->fdwSelectCaps      = 0x00000000;
+
+  _tcscpy_s(lpszUIClass, MAX_CLASSNAME_UI, UIWnd::GetUIWndClassName());
+
+  return TRUE; //always true
+}
 ```
-** 参数 **
-
-dwSystemInfoFlags|含义
-----|----
-IME_SYSINFO_WINLOGON|当前宿主进程是Winlogon
-IME_SYSINFO_WOW16|当前宿主进程是一个16位应用
-
-当宿主进程为Winlogon时，输入法应禁止修改配置，这是因为大多数输入法配置如全/双拼，候选个数等都是与Windows用户绑定的，此时还未登录系统，也就没有对应的Windows用户。还要特别注意的是，不要让输入法有任何机会启动explorer进程，这会让用户不登录而能访问系统文件，带来严重的安全问题。
-
-** 返回值 **
-成功返回TRUE，否则返回FALSE。
 
 # UI窗口
 ## 概述
