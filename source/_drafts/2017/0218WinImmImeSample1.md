@@ -79,6 +79,128 @@ BOOL WINAPI ImeInquire(LPIMEINFO lpImeInfo, LPTSTR lpszUIClass, LPCTSTR lpszOpti
   return TRUE;
 }
 ```
+系统通过该函数返回的窗体类名创建输入法UI窗体。
+## ImeProcessKey
+每当产生一个按键操作，IMM会调用该函数，输入法根据按键预判断是否要处理，如果处理返回TRUE；否则返回FALSE。这里我们只处理字符A~Z以及回车、空格和ESC：
+``` c++
+BOOL WINAPI ImeProcessKey(HIMC hImc, UINT unVirtKey, DWORD unScanCode, CONST LPBYTE achKeyState)
+{
+  ImcHandle imcHandle(hImc);
+  Comp* pComp = imcHandle.GetComp();
+  LPTSTR szCompString = pComp->GetCompString();
+  if (unVirtKey >= 0x41 && unVirtKey <= 0x5A) {
+    return TRUE;    // 从A到Z
+  }
+  if (_tcslen(szCompString) > 0 &&(unVirtKey == VK_RETURN || unVirtKey == VK_SPACE || unVirtKey == VK_ESCAPE)) {
+    return TRUE;  // 当有写作串且当前按键为回车、空格或ESC
+  }
+  return FALSE;
+}
+```
+## ImeToAsciiEx
+如果经过上一步的输入法预判断，需要处理，IMM则继续调用该函数进入处理逻辑；如果不需要处理，则不会调用该函数，而是直接把按键以WM_KEYDOWN/WM_KEYUP的形式发给应用程序。这里的处理分三个步骤：1、处理按键，通常要追加当前的输入内容进入写作串；2、完成转换，这是输入法最核心的部分，根据写作串里的拼音转成汉字；3、完成界面的更新，只需要组装相应的消息到lpdwTransBuf指向的数组中，IMM会把这些消息发送给输入法UI窗口，由UI窗口继续完成界面的处理。
+``` c++
+UINT WINAPI ImeToAsciiEx(UINT unKey, UINT unScanCode, CONST LPBYTE achKeyState, LPDWORD lpdwTransBuf, UINT fuState, HIMC hImc)
+{ 
+  ImcHandle imcHandle(hImc);
+  Comp* pComp = imcHandle.GetComp();
+  LPTSTR szCompString = pComp->GetCompString();
+  int cMsg = 0;
+  COMPOSITIONSTRING& compCore = pComp->GetCore();
+  if (HIWORD(unKey) >= 'a' && HIWORD(unKey) <= 'z') {
+    TCHAR szKey[2] = { HIWORD(unKey), 0 };
+    _tcscat_s(szCompString, Comp::c_MaxCompString, szKey);  // 将字符追加到写作串
+    compCore.dwCompStrLen = _tcslen(szCompString);
+  }
+
+  if(_tcslen(szCompString) == 0){  // 没有写作串
+    if(HIWORD(unKey) >= 'a' && HIWORD(unKey) <= 'z'){
+      lpdwTransBuf += 1;
+      lpdwTransBuf[0] = WM_IME_STARTCOMPOSITION;  // 打开写作窗
+      lpdwTransBuf[1] = 0;
+      lpdwTransBuf[2] = 0;
+      lpdwTransBuf += 3;
+      cMsg++;
+      lpdwTransBuf[0] = WM_IME_COMPOSITION; // 更新写作窗
+      lpdwTransBuf[1] = 0;
+      lpdwTransBuf[2] = GCS_COMPSTR;
+      lpdwTransBuf += 3;
+      cMsg++;
+      lpdwTransBuf[0] = WM_IME_NOTIFY;      // 打开候选窗
+      lpdwTransBuf[1] = IMN_OPENCANDIDATE;
+      lpdwTransBuf[2] = 1;
+      lpdwTransBuf += 3;
+      cMsg++;
+      lpdwTransBuf[0] = WM_IME_NOTIFY;      // 更新候选窗
+      lpdwTransBuf[1] = IMN_CHANGECANDIDATE;
+      lpdwTransBuf[2] = 1;
+      lpdwTransBuf += 3;
+      cMsg++;
+      return cMsg;
+    }
+  }else{ // _tcslen(szCompString) > 0     // 有写作串
+    if(HIWORD(unKey) >= 'a' && HIWORD(unKey) <= 'z'){
+      lpdwTransBuf += 1;
+      lpdwTransBuf[0] = WM_IME_COMPOSITION; // 更新写作窗
+      lpdwTransBuf[1] = 0;
+      lpdwTransBuf[2] = GCS_COMPSTR;
+      lpdwTransBuf += 3;
+      cMsg++;
+      lpdwTransBuf[0] = WM_IME_NOTIFY;      // 更新候选窗
+      lpdwTransBuf[1] = IMN_CHANGECANDIDATE;
+      lpdwTransBuf[2] = 1;
+      lpdwTransBuf += 3;
+      cMsg++;
+      return cMsg;
+    }else if(HIWORD(unKey) == VK_RETURN || HIWORD(unKey) == VK_SPACE){ // 回车或空格
+      LPTSTR szResultString = pComp->GetResultString();
+      _tcscpy_s(szResultString, Comp::c_MaxResultString, szCompString); // 将写作串拷入结果串
+      compCore.dwResultStrLen = _tcslen(szResultString);
+      memset(szCompString, 0, sizeof(TCHAR) * Comp::c_MaxCompString);   // 清空写作串
+      compCore.dwCompStrLen = 0;
+      lpdwTransBuf += 1;
+      lpdwTransBuf[0] = WM_IME_COMPOSITION; // 更新写作窗
+      lpdwTransBuf[1] = 0;
+      lpdwTransBuf[2] = GCS_COMPSTR | GCS_RESULTSTR;
+      lpdwTransBuf += 3;
+      cMsg++;
+      lpdwTransBuf[0] = WM_IME_ENDCOMPOSITION;  // 关闭写作窗
+      lpdwTransBuf[1] = 0;
+      lpdwTransBuf[2] = 0;
+      lpdwTransBuf += 3;
+      cMsg++;
+      lpdwTransBuf[0] = WM_IME_NOTIFY;        // 关闭候选窗
+      lpdwTransBuf[1] = IMN_CLOSECANDIDATE;
+      lpdwTransBuf[2] = 1;
+      lpdwTransBuf += 3;
+      cMsg++;
+      return cMsg;
+    }else if(HIWORD(unKey) == VK_ESCAPE){ // ESC
+      memset(szCompString, 0, sizeof(TCHAR) * Comp::c_MaxCompString);
+      compCore.dwCompStrLen = 0;
+      lpdwTransBuf += 1;
+      lpdwTransBuf[0] = WM_IME_COMPOSITION; // 更新写作窗
+      lpdwTransBuf[1] = 0;
+      lpdwTransBuf[2] = GCS_COMPSTR;
+      lpdwTransBuf += 3;
+      cMsg++;
+      lpdwTransBuf[0] = WM_IME_ENDCOMPOSITION;  // 关闭写作窗
+      lpdwTransBuf[1] = 0;
+      lpdwTransBuf[2] = 0;
+      lpdwTransBuf += 3;
+      cMsg++;
+      lpdwTransBuf[0] = WM_IME_NOTIFY;      // 关闭候选窗
+      lpdwTransBuf[1] = IMN_CLOSECANDIDATE;
+      lpdwTransBuf[2] = 1;
+      lpdwTransBuf += 3;
+      cMsg++;
+      return cMsg;
+    }
+  }
+  return cMsg;
+}
+```
+以上就是输入法最最关键的三个导出函数，即使一个丰满的输入法，主要逻辑也是在这几个函数中，尤其是`ImeProcessKey`和`ImeToAsciiEx`中。
 
 # UI窗口
 ## 概述
@@ -111,7 +233,7 @@ void UIWnd::RegisterUIWndClass(HINSTANCE hInstance)
 }
 ```
 ## 创建窗体
-输入法UI窗体和普通自定义窗体最不同之处在于窗体的创建，自定义窗体要通过调用`CreateWindow(...)`函数来完成创建，但输入法UI窗体则是由系统负责创建的。该函数的第一个参数要传入窗体类名，系统怎么知道窗体类名的呢？答案在导出函数`ImeInquire`那里，通过第二个参数输入法将UI窗体类名传给系统。
+输入法UI窗体和普通自定义窗体最不同之处在于窗体的创建，自定义窗体要通过调用`CreateWindow(...)`函数来完成创建，但输入法UI窗体则是由系统负责创建的。该函数的第一个参数要传入窗体类名，系统怎么知道窗体类名的呢？前面已经讲过：在导出函数`ImeInquire`那里。
 
 ## 窗体函数
 # 安装
