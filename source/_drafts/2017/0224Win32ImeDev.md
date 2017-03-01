@@ -1415,7 +1415,7 @@ typedef struct tagIMEInfo {
 HIWORD(fdwProperty)|含义
 ----|----
 IME_PROP_AT_CARET|ON表示输入法转换窗在光标附近，OFF表示窗口位置被调整过
-IME_PROP_SPECIAL_UI|ON标书输入法有特殊的UI，当输入法有应用程序无法显示的非标准窗口时，应当置ON
+IME_PROP_SPECIAL_UI|ON表示输入法有特殊的UI，当输入法有应用程序无法显示的非标准窗口时，应当置ON
 IME_PROP_CANDLIST_START_FROM_1|ON表示候选列表UI始于0或1，以便应用程序绘制时可以在候选前加入候选序号
 IME_PROP_UNICODE|ON表示输入法为Unicode，系统将通过Unicode接口与之通讯；否则为ANSI
 IME_PROP_COMPLETE_ON_UNSELECT|ON表示输入法被deactivate时将上屏写作串，否则将取消
