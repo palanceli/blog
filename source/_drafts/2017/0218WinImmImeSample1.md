@@ -241,3 +241,5 @@ void UIWnd::RegisterUIWndClass(HINSTANCE hInstance)
 与普通用户窗体的不同之处在于他要处理一系列的WM_IME_xxx消息，以响应来自`ImeToAsciiEx`的消息——显示或隐藏写作窗、候选窗、状态栏以及更新它们。本文我们先不着急引入这些窗口，你会看到当敲字母键的时候没有反应，而实际上输入法把这些字母“吃掉”了，再按空格或回车会一次上屏，按ESC则清空“吃掉”的字母，进入重新输入的状态。
 
 # 安装
+输入法的安装要做两件事：1、将ime文件拷贝到Windows/System32目录下；2、调用`ImmInstallIME`注册该输入法。
+需要注意，在64位机器下，应该为32位和64位生成两份ime文件，这样在64位和32位的应用程序里才能分别切出对应的输入法。64位ime文件放在Windows/System32下，32位放在Windows/SysWOW54下。 

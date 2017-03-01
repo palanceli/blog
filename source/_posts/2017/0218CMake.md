@@ -22,6 +22,11 @@ find_package(Boost COMPONENTS program_options log REQUIRED)
 ```
 这会导致CMake能找到Boost，却找不到需要的`program_options`和`log`组件，这是因为CMake要找与指定Visual Studio版本对应的libboost库文件。报出的错是找不到指定的Boost版本，其实跟Boost版本无关，跟编译它使用的VS版本有关。
 
+# 编译64位Boost
+``` bash
+$ b2.exe address-model=64
+```
+
 # 环境变量BOOST_ROOT
 如果指定环境变量，BOOST_ROOT的值为boost所在的上一级目录，比如我的目录如下：
 ``` bash
