@@ -22,9 +22,37 @@ find_package(Boost COMPONENTS program_options log REQUIRED)
 ```
 这会导致CMake能找到Boost，却找不到需要的`program_options`和`log`组件，这是因为CMake要找与指定Visual Studio版本对应的libboost库文件。报出的错是找不到指定的Boost版本，其实跟Boost版本无关，跟编译它使用的VS版本有关。
 
-# 编译64位Boost
+# 分64/32位编译和使用Boost
+编译：
 ``` bash
-$ b2.exe address-model=64
+b2.exe --build-dir=build/x64 address-model=64 threading=multi --build-type=complete --stagedir=./stage/x64 --toolset=msvc-14.0 -j 12
+b2.exe --build-dir=build/x86 address-model=32 threading=multi --build-type=complete --stagedir=./stage/x86 --toolset=msvc-14.0 -j 12
+```
+这两条命令分别将Boost的lib库生成到
+`{Boost_Root}/stage/x64/lib`和`{Boost_Root}/stage/x86/lib`。
+
+使用Boost时，在CMake中：
+``` cmake
+...
+set(BOOST_ROOT "c:/boost_1_62_0")
+
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+  set(Boost_LIBRARY_DIR "${BOOST_ROOT}/stage/x64/lib")
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
+  set(Boost_LIBRARY_DIR "${BOOST_ROOT}/stage/x86/lib")
+endif()
+
+set(Boost_USE_STATIC_LIBS ON)
+find_package(Boost COMPONENTS program_options log REQUIRED)
+
+if(NOT Boost_FOUND)
+  message("Boost not be found!")
+endif()
+
+include_directories(${Boost_INCLUDE_DIRS})
+
+add_executable(myexe "${PROJECT_SOURCE_DIR}/main.cpp")
+target_link_libraries(myexe ${Boost_LIBRARIES} imm32)
 ```
 
 # 环境变量BOOST_ROOT

@@ -242,4 +242,4 @@ void UIWnd::RegisterUIWndClass(HINSTANCE hInstance)
 
 # 安装
 输入法的安装要做两件事：1、将ime文件拷贝到Windows/System32目录下；2、调用`ImmInstallIME`注册该输入法。
-需要注意，在64位机器下，应该为32位和64位生成两份ime文件，这样在64位和32位的应用程序里才能分别切出对应的输入法。64位ime文件放在Windows/System32下，32位放在Windows/SysWOW54下。 
+需要注意，在64位机器下，应该为32位和64位生成两份ime文件，这样在64位和32位的应用程序里才能分别切出对应的输入法。64位ime文件放在Windows/System32下，32位放在Windows/SysWOW64下。 
