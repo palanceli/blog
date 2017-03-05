@@ -182,10 +182,6 @@ If the function is successful, the return value is the lock count of the IMC. Ot
 ## ImmCreateIMCC
 > The ImmCreateIMCC function creates a new component as a member of the IMC.
 
-ImmCreateIMCC函数为IMC创建一个新组件。
-``` c++
-HIMCC WINAPI ImmCreateIMCC(DWORD dwSize)
-```
 >Parameters
 dwSize
 Size of the new IMC component.
@@ -195,18 +191,15 @@ If the function is successful, the return value is the IMC component handle (HIM
 Comments
 The IMC component created by this function is initialized as zero.
 
-** 参数 **
-`dwSize` IMC新组件的尺寸
-** 返回值 **
-成功返回IMC新组建的句柄（HIMCC），否则返回NULL。
+ImmCreateIMCC函数为IMC创建一个新组件。
+``` c++
+// 成功返回新组建的句柄（HIMCC），否则返回NULL。
+HIMCC WINAPI ImmCreateIMCC(DWORD dwSize) // 参数dwSize为IMC新组件的尺寸
+```
 
 ## ImmDestroyIMCC
 >The ImmDestroyIMCC function is used by the IME to destroy the IMC component that was created as a member of the IMC.
 
-ImmDestroyIMCC函数用来销毁IMC组件。
-``` c++
-HIMCC WINAPI ImmDestroyIMCC(HIMCC hIMCC)
-```
 >Parameters
 hIMCC
 Handle of the IMC component.
@@ -214,18 +207,15 @@ Handle of the IMC component.
 >Return Values
 If the function is successful, the return value is NULL. Otherwise, the return value is equal to the HIMCC.
 
-** 参数 **
-`hIMCC` 待销毁的IMC组件的句柄。
-** 返回值 **
-成功返回NULL，否则返回HIMCC。
+ImmDestroyIMCC函数用来销毁IMC组件。
+``` c++
+// 成功返回NULL，否则返回hIMCC。
+HIMCC WINAPI ImmDestroyIMCC(HIMCC hIMCC) // 参数`hIMCC` 为IMC组件的句柄。
+```
 
 ## ImmLockIMCC
 >The ImmLockIMCC function is used by the IME to get the pointer for the IMC component that was created as a member of the IMC. The ImmLockIMC function increases the lock count for the IMCC.
 
-输入法使用ImmLockIMCC函数获取IMC组件的指针，该函数还会令IMCC的持有锁加一。
-``` c++
-LPVOID WINAPI ImmLockIMCC(HIMCC hIMCC)
-```
 >Parameters
 hIMCC
 Handle of the IMC component.
@@ -233,18 +223,15 @@ Handle of the IMC component.
 >Return Values
 If the function is successful, the return value is the pointer for the IMC component. Otherwise, the return value is NULL.
 
-** 参数 **
-`hIMCC` IMC组件的句柄。
-** 返回值 **
-成功返回执行IMC组件的指针，失败返回NULL。
+输入法使用ImmLockIMCC函数获取IMC组件的指针，该函数还会令IMCC的持有锁加一。
+``` c++
+// 成功返回hIMCC组件的指针，失败返回NULL。
+LPVOID WINAPI ImmLockIMCC(HIMCC hIMCC) // 参数`hIMCC` 为IMC组件的句柄。
+```
 
 ## ImmUnlockIMCC
 >The ImmUnlockIMC function decrements the lock count for the IMCC.
 
-ImmUnlockIMC函数将IMCC的持有锁减一。
-``` c++
-BOOL WINAPI ImmUnlockIMCC(HIMCC hIMCC)
-```
 >Parameters
 hIMCC
 Handle of the IMC component.
@@ -252,10 +239,11 @@ Handle of the IMC component.
 >Return Values
 If the lock count of the IMCC is decremeted to zero, the return value is FALSE. Otherwise, the return value is TRUE.
 
-** 参数**
-`hIMCC` IMC组件句柄
-** 返回值 **
-如果IMCC持有锁被减至0，返回FALSE，否则返回TRUE。
+ImmUnlockIMC函数将IMCC的持有锁减一。
+``` c++
+// 如果IMCC持有锁被减至0，返回FALSE，否则返回TRUE。
+BOOL WINAPI ImmUnlockIMCC(HIMCC hIMCC) // // 参数`hIMCC` 为IMC组件的句柄。
+```
 
 ##ImmReSizeIMCC
 > The ImmReSizeIMCC function changes the size of the component.
@@ -2199,15 +2187,13 @@ For IMEs that do not support IME_PROP_ACCEPT_WIDE_VKEY, Unicode IME's ImeProcess
 该函数用于预处理经过IMM的所有按键，如果输入法要处理该按键，则返回TRUE，否则返回FALSE。
 ``` c++
 BOOL ImeProcessKey(
-    HIMC hIMC,
-    UINT uVirKey,
+    HIMC hIMC,    // 输入上下文句柄
+    UINT uVirKey, // 待处理的按键虚拟键盘码
     DWORD lParam,
     CONST LPBYTE lpbKeyState
    )
 ```
 ** 参数 **
-`hIMC` 输入上下文句柄
-`uVirKey` 待处理的按键虚拟键盘码
 `lpbKeyState` 指向一个256字节的数组，该数组包含键盘当前的状态。输入法不要改变该数组的内容。
 ** 返回值 **
 成功返回TRUE，否则返回FALSE。
@@ -2517,21 +2503,18 @@ ImmToAsciiEx
 该函数通过输入法的转换引擎执行一次转换。
 ``` c++
 UINT ImeToAsciiEx(
-    UINT uVirKey,
-    UINT uScanCode,
-    CONST LPBYTE lpbKeyState,
-    LPTRANSMSGLIST lpTransMsgList,
-    UINT fuState,
-    HIMC hIMC
+    UINT uVirKey,   // 待处理的虚拟键盘码
+    UINT uScanCode, // 待处理的硬件扫描码
+    CONST LPBYTE lpbKeyState, // 指向一个字节数组，包含256个元素，指示键盘的当前状态
+    LPTRANSMSGLIST lpTransMsgList,  // 用于接收处理消息的缓冲区
+    UINT fuState, // 活动菜单标志
+    HIMC hIMC     // 输入上下文句柄
    )
 ```
 ** 参数 **
-`uVirKey` 指定待翻译的虚拟键盘码。当属性位`IME_PROP_KBD_CHAR_FIRST`被置1，虚拟键盘码的高字节就是字符的ascii码。对于Unicode，当属性位`IME_PROP_KBD_CHAR_FIRST`被置1，`uVirKey`的高WORD为Unicode字符。
-`uScanCode` 指定待翻译的硬件扫描码
-`lpbKeyState` 指向256字节数组，该数组包含键盘的当前状态。输入法不要修改该数组的值。
-`lpTransMsgList` 指向用于接收翻译消息的 `TRANSMSGLIST`缓冲区。该缓冲区被定义为双WORD缓冲区，双WORD的格式为[缓冲区长度][Message1][wParam1][lParam1]{[Message2][wParam2][lParam2]{...{...{...}}}}
-`fuState` 活动菜单标志
-`hIMC` 输入上下文句柄
+* `uVirKey` 当属性位`IME_PROP_KBD_CHAR_FIRST`被置1，虚拟键盘码的高字节就是字符的ascii码。对于Unicode，当属性位`IME_PROP_KBD_CHAR_FIRST`被置1，`uVirKey`的高WORD为Unicode字符。
+* `lpTransMsgList` 指向用于接收处理消息的 `TRANSMSGLIST`缓冲区。该缓冲区被定义为DWORD缓冲区，DWORD的格式为[缓冲区长度][Message1][wParam1][lParam1]{[Message2][wParam2][lParam2]{...{...{...}}}}
+
 ** 返回值 **
 返回值描述消息的个数，如果个数比翻译消息缓冲区尺寸大，缓冲区就不够用了。系统将检查`hMsgBuf`来获取翻译消息。
 ** 说明 **

@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Windows下创建基于IMM的输入法1——最小要求
+title: Windows下创建基于IMM的输入法——最小要求
 date: 2017-02-18 23:33:00 +0800
 categories: 随笔笔记
 tags: 输入法
@@ -13,7 +13,8 @@ comments: true
 1. 是一个DLL文件
 2. 依照imm.h导出十几个函数
 3. 有一个UI窗口
-4. 执行特定的安装过程
+4. 有一系列扩展窗口
+5. 执行特定的安装过程
 
 能最小化运转不代表能正常交互，只是技术路径上跑通了。像一个完备的输入法那样正常交互起来还要具备写作窗、候选窗，还要处理从拼音到汉字、词的转化。本节先介绍最小化运转的实现细节。
 
@@ -240,6 +241,31 @@ void UIWnd::RegisterUIWndClass(HINSTANCE hInstance)
 
 与普通用户窗体的不同之处在于他要处理一系列的WM_IME_xxx消息，以响应来自`ImeToAsciiEx`的消息——显示或隐藏写作窗、候选窗、状态栏以及更新它们。本文我们先不着急引入这些窗口，你会看到当敲字母键的时候没有反应，而实际上输入法把这些字母“吃掉”了，再按空格或回车会一次上屏，按ESC则清空“吃掉”的字母，进入重新输入的状态。
 
+# 扩展窗口
+扩展窗口包括写作窗、候选窗、状态栏等。这些窗口需要具备一些共同的特征：
+1. 关于窗体类风格，需要指定CS_IME标记。但我觉得其实只有输入法UI窗口用该风格，其余的扩展窗口应该不用，因为它们的创建是由开发者创建的。
+2. 在创建输入法窗体的时候，**必须**指定窗体风格为**WS_DISABLED**。这是因为输入法窗体不能接受输入焦点，否则就又会激活输入法，输入逻辑就嵌套了。
+3. 这些窗口可以在输入法UI窗口的WM_CREATE函数中完成注册和创建。
+4. 这些窗口里要现实的内容需要作为IMCC在IMC中创建。IMC中有一些默认的IMCC是不需要在此创建的，比如：
+``` c++
+typedef struct tagINPUTCONTEXT { 
+  ...
+  HIMCC   hCompStr; 
+  HIMCC   hCandInfo; 
+  HIMCC   hGuideLine; 
+  HIMCC   hPrivate; 
+  ...
+} INPUTCONTEXT, *PINPUTCONTEXT, NEAR *NPINPUTCONTEXT, FAR *LPINPUTCONTEXT; 
+```
+在`ImeSelect`函数中首次获得IMC，你可以尝试获得这些IMCC的尺寸，发现是非0的，说明这些IMCC已经存在了。但是为了适配自己的业务逻辑，我在`ImeSelect`中初始化IMC，调用`ImmReSizeIMCC(m_pContext->hCompStr, sizeof(Comp));`，用自己的Comp类替换掉了原先的hCompStr。
+
 # 安装
 输入法的安装要做两件事：1、将ime文件拷贝到Windows/System32目录下；2、调用`ImmInstallIME`注册该输入法。
 需要注意，在64位机器下，应该为32位和64位生成两份ime文件，这样在64位和32位的应用程序里才能分别切出对应的输入法。64位ime文件放在Windows/System32下，32位放在Windows/SysWOW64下。 
+
+通常这些活是由NSIS脚本干的，此处我写了一个ImeInstall程序来做，注意：因为要往Windows/System32下写文件，该程序必须具备管理员权限，因此在CMake文件中添加如下链接选项：
+``` CMake
+SET_TARGET_PROPERTIES(ImeInstaller PROPERTIES LINK_FLAGS "/level='requireAdministrator' /uiAccess='false'")
+```
+
+> 本文代码已提交至[WinImmImeSample-MiniIme](https://github.com/palanceli/WinImmImeSample)

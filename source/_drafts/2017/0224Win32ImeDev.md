@@ -155,9 +155,9 @@ The cbWndExtra of the UI class has to be 2 * sizeof(LONG). The purpose of this W
 The IME can register any class and create any window while working in an application.
 The following sample shows how to register the IME User Interface Class:
 
-按照这个设计思路，每个输入法都需要向系统注册它的UI类，该UI类负责响应输入法相关的功能请求。输入法应该在ime文件被attach到进程的嘶吼注册该UI类，这个时机正是使用DLL_PROCESS_ATTACH调用Dll入口函数的时候。输入法将UI类名赋给`ImeInquire`函数的第二个参数，即lpszClassName。
+按照这个设计思路，每个输入法都需要向系统注册它的UI类，该UI类负责响应输入法相关的功能请求。输入法应该在ime文件被attach到进程时注册该UI类，这个时机正是使用DLL_PROCESS_ATTACH调用Dll入口函数的时候。输入法将UI类名赋给`ImeInquire`函数的第二个参数，即lpszClassName。
 
-该UI类必须在类风格种植钉CS_IME标记，以便应用程序可以通过系统IME类使用它。输入法UI类名最多由16个字符组成（包含结尾的'\0'），这个阈值可能会在未来的版本增长。
+该UI类必须在类风格中指定CS_IME标记，以便应用程序可以通过系统IME类使用它。输入法UI类名最多由16个字符组成（包含结尾的'\0'），这个阈值可能会在未来的版本增长。
 
 该UI类的cbWndExtra必须为**2 * sizeof(LONG)**，系统要使用WndExtra来存放IMMGWL_IMC和IMMGWL_PRIVATE数据。
 
