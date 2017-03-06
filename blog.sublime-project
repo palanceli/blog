@@ -8,9 +8,6 @@
 				"*.png"
 			],
 			"path": "."
-		},
-		{
-			"path": "/Users/palance/Downloads/NumberInput_IMKit_Sample-master/object-c/NumberInput0/NumberInput.xcodeproj"
 		}
 	]
 }
