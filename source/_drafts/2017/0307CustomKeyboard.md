@@ -49,9 +49,8 @@ iOS用户还期望自动大写：在一个标准的文本输入区域，对于�
 
 当用户点击拨号输入对象时，系统将临时用系统键盘替换掉你的自定义键盘。当用户再点击其它标准输入对象时，自定义键盘又会恢复回来。
 
-app的开发者可以选择在app内部不使用自定义键盘。例如银行类app，
+app的开发者可以选择在app内部不使用自定义键盘。例如银行类app，或者必须遵守美国HIPAA隐私规则的app，可以这么干。这类app实现来自`UIApplicationDelegate`协议的[application:shouldAllowExtensionPointIdentifier:](https://developer.apple.com/reference/uikit/uiapplicationdelegate/1623122-application)方法，并返回NO，以达到使用系统键盘的效果。
 
-An app developer can elect to reject the use of all custom keyboards in their app. For example, the developer of a banking app, or the developer of an app that must conform to the HIPAA privacy rule in the US, might do this. Such an app employs the application:shouldAllowExtensionPointIdentifier: method from the UIApplicationDelegate protocol (returning a value of NO), and thereby always uses the system keyboard.
 
 Because a custom keyboard can draw only within the primary view of its UIInputViewController object, it cannot select text. Text selection is under the control of the app that is using the keyboard. If that app provides an editing menu interface (such as for Cut, Copy, and Paste), the keyboard has no access to it. A custom keyboard cannot offer inline autocorrection controls near the insertion point.
 
