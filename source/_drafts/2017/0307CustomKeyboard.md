@@ -51,20 +51,79 @@ iOS用户还期望自动大写：在一个标准的文本输入区域，对于�
 
 app的开发者可以选择在app内部不使用自定义键盘。例如银行类app，或者必须遵守美国HIPAA隐私规则的app，可以这么干。这类app实现来自`UIApplicationDelegate`协议的[application:shouldAllowExtensionPointIdentifier:](https://developer.apple.com/reference/uikit/uiapplicationdelegate/1623122-application)方法，并返回NO，以达到使用系统键盘的效果。
 
-Because a custom keyboard can draw only within the primary view of its UIInputViewController object, it cannot select text. Text selection is under the control of the app that is using the keyboard. If that app provides an editing menu interface (such as for Cut, Copy, and Paste), the keyboard has no access to it. A custom keyboard cannot offer inline autocorrection controls near the insertion point.
-
 由于自定义键盘只能绘制其[UIInputViewController](https://developer.apple.com/reference/uikit/uiinputviewcontroller)对象内的主视图，在它上面不能选择文字。选择文字是使用键盘的应用程序控制的。如果app提供了编辑菜单（如剪切、拷贝和粘贴），键盘是无权访问它的。自定义键盘不能提供在光标位置的自动inline纠错能力。
-
-Custom keyboards, like all app extensions in iOS 8.0, have no access to the device microphone, so dictation input is not possible.
-
-Finally, it is not possible to display key artwork above the top edge of a custom keyboard’s primary view, as the system keyboard does on iPhone when you tap and hold a key in the top row.
 
 在iOS8.0下，如所有扩展app一样，自定义键盘不能访问麦克风，因此不能实现语音输入。
 
-最后，
+最后，显示插图不能超过键盘的主视图上边缘，系统键盘可以，但自定义键盘不行。如下图，可以发现自定义键盘和系统输入法的差别：![按键插图不能超越上边缘](0307CustomKeyboard/img1.png)
+
+# 自定义键盘API
+本节将给出开发自定义键盘的快速入门。如下图，它展示了键盘运行过程中一些重要的对象，以及它们在开发流程中的的位置：
+![自定义键盘的基本结构](0307CustomKeyboard/img2.png)
+
+自定义键盘模板（在iOS“Application Extension”目标模板组）包含一个[UIInputViewController](https://developer.apple.com/reference/uikit/uiinputviewcontroller)的子类，它是你开发的键盘的主视图控制器。该模板包含键盘所必需的“下一个键盘”按钮的实现，它调用了`UIInputViewController`类的[advanceToNextInputMode](https://developer.apple.com/reference/uikit/uiinputviewcontroller/1618191-advancetonextinputmode)方法。如上图所示，可以在输入视图控制器的主视图（在其[inputView](https://developer.apple.com/reference/uikit/uiinputviewcontroller/1618192-inputview)属性）中添加子视图、控制器以及手势识别器等。对于其它类型的扩展应用，在目标上并不存在窗体，因此也就没有根视图控制器了。
+
+在模板的`Info.plist`文件中有预先配置好的键盘所需要的最基本的值。参见其中的`NSExtensionAttributes`字典关键字，配置一个键盘的关键字在[《配置自定义键盘的Info.plist文件》](https://developer.apple.com/library/content/documentation/General/Conceptual/ExtensibilityPG/CustomKeyboard.html#//apple_ref/doc/uid/TP40014214-CH16-SW18)中有介绍。
+
+默认，键盘不能访问网络，不能和它的app共享容器。如果要具备这种能力，必须要将`Info.plist`文件中`RequestsOpenAccess`的值置为`YES`。这需要扩展键盘的沙盒，在[《设计用户信任》](https://developer.apple.com/library/content/documentation/General/Conceptual/ExtensibilityPG/CustomKeyboard.html#//apple_ref/doc/uid/TP40014214-CH16-SW3)中有介绍相关内容。
+
+一个输入视图控制器遵从各种与文本输入对象内容交互的协议：
+
+* 响应触摸消息时如果要插入或删除文本，可以使用[UIKeyInput](https://developer.apple.com/reference/uikit/uikeyinput)协议的[insertText:](https://developer.apple.com/reference/uikit/uikeyinput/1614543-inserttext)和[deleteBackward](https://developer.apple.com/reference/uikit/uikeyinput/1614572-deletebackward)方法。可以在视图控制器的[textDocumentProxy](https://developer.apple.com/reference/uikit/uiinputviewcontroller/1618193-textdocumentproxy)属性中调用这些方法，该属性代表当前文本输入对象，它遵从[UITextDocumentProxy](https://developer.apple.com/reference/uikit/uitextdocumentproxy)协议。如下：
+``` Obj-C
+[self.textDocumentProxy insertText:@"hello "]; // Inserts the string "hello " at the insertion point
+[self.textDocumentProxy deleteBackward];       // Deletes the character to the left of the insertion point
+[self.textDocumentProxy insertText:@"\n"];     // In a text view, inserts a newline character at the insertion point
+```
+
+* 在调用[deleteBackward](https://developer.apple.com/reference/uikit/uikeyinput/1614572-deletebackward)之前要先决定删除的字符数。可以通过[textDocumentProxy](https://developer.apple.com/reference/uikit/uitextdocumentproxy/1618190-documentcontextbeforeinput)的[documentContextBeforeInput](https://developer.apple.com/reference/uikit/uiinputviewcontroller/1618193-textdocumentproxy)属性，来获得光标附近的文本上下文信息。如下：
+``` obj-c
+NSString *precedingContext = self.textDocumentProxy.documentContextBeforeInput;
+```
+
+You can then delete the appropriate text—for example, a single character, or everything back to a whitespace character. To delete by semantic unit, such as by word, sentence, or paragraph, employ the functions described in CFStringTokenizer Reference and refer to related documentation. Note that each language has its own tokenization rules.
+
+To control the insertion point position, such as to support text deletion in a forward direction, call the adjustTextPositionByCharacterOffset: method of the UITextDocumentProxy protocol. For example, to delete forward by one character, use code similar to this:
+``` obj-c
+- (void) deleteForward {
+    [self.textDocumentProxy adjustTextPositionByCharacterOffset: 1];
+    [self.textDocumentProxy deleteBackward];
+}
+```
+To respond to changes in the content of the active text object, or to respond to user-initiated changes in the position of the insertion point, implement the methods of the UITextInputDelegate protocol.
+To present a keyboard layout appropriate to the current text input object, respond to the object’s UIKeyboardType property. For each trait you support, change the contents of your primary view accordingly.
+
+To support more than one language in your custom keyboard, you have two options:
+
+Create one keyboard per language, each as a separate target that you add to a common containing app
+Create a single multilingual keyboard, dynamically switching its primary language as appropriate
+To dynamically switch the primary language, use the primaryLanguage property of the UIInputViewController class.
+Depending on the number of languages you want to support and the user experience you want to provide, pick the option that makes the most sense.
+
+Every custom keyboard (independent of the value of its RequestsOpenAccess key) has access to a basic autocorrection lexicon through the UILexicon class. Make use of this class, along with a lexicon of your own design, to provide suggestions and autocorrections as users are entering text. The UILexicon object contains words from various sources, including:
+
+Unpaired first names and last names from the user’s Address Book database
+Text shortcuts defined in the Settings > General > Keyboard > Shortcuts list
+A common words dictionary
+You can adjust the height of your custom keyboard’s primary view using Auto Layout. By default, a custom keyboard is sized to match the system keyboard, according to screen size and device orientation. A custom keyboard’s width is always set by the system to equal the current screen width. To adjust a custom keyboard’s height, change its primary view's height constraint.
+
+The following code lines show how you might define and add such a constraint:
+
+CGFloat _expandedHeight = 500;
+NSLayoutConstraint *_heightConstraint = 
+    [NSLayoutConstraint constraintWithItem: self.view 
+                                 attribute: NSLayoutAttributeHeight 
+                                 relatedBy: NSLayoutRelationEqual 
+                                    toItem: nil 
+                                 attribute: NSLayoutAttributeNotAnAttribute 
+                                multiplier: 0.0 
+                                  constant: _expandedHeight];
+[self.view addConstraint: _heightConstraint];
+NOTE
+
+In iOS 8.0, you can adjust a custom keyboard’s height any time after its primary view initially draws on screen.
 
 
-# API Quick Start for Custom Keyboards
 # Development Essentials for Custom Keyboards
 ## Designing for User Trust
 ## Providing a Way to Switch to Another Keyboard
