@@ -104,14 +104,16 @@ NSString *precedingContext = self.textDocumentProxy.documentContextBeforeInput;
 Every custom keyboard (independent of the value of its RequestsOpenAccess key) has access to a basic autocorrection lexicon through the UILexicon class. Make use of this class, along with a lexicon of your own design, to provide suggestions and autocorrections as users are entering text. The UILexicon object contains words from various sources, including:
 
 
+每种自定义键盘（需要`RequestsOpenAccess`）都可以通过[UILexicon](https://developer.apple.com/reference/uikit/uilexicon)类访问自动纠错的词典。通过使用该类，并结合你自己的词典设计，可以在用户输入过程中为他提供输入建议和自动纠错。`UILexicon`对象包含来自如下源的单词：
+* 来自用户通讯录的人名和姓
+* 在 设置 > 通用 > 键盘 > 快捷方式（文本替换） 列表
+* 通用词典
 
-Unpaired first names and last names from the user’s Address Book database
-Text shortcuts defined in the Settings > General > Keyboard > Shortcuts list
-A common words dictionary
-You can adjust the height of your custom keyboard’s primary view using Auto Layout. By default, a custom keyboard is sized to match the system keyboard, according to screen size and device orientation. A custom keyboard’s width is always set by the system to equal the current screen width. To adjust a custom keyboard’s height, change its primary view's height constraint.
+你可以使用自动布局来调整你的自定义键盘主视图的高度。默认情况下，自定义键盘会根据屏幕尺寸以及设备方向，和系统键盘的尺寸保持一致。自定义键盘的宽度通常与屏幕当前宽度一致。修改自定义键盘主视图的高度约束即可修改其高度。
 
-The following code lines show how you might define and add such a constraint:
+下面的代码展示如何定义和添加约束：
 
+``` obj-c
 CGFloat _expandedHeight = 500;
 NSLayoutConstraint *_heightConstraint = 
     [NSLayoutConstraint constraintWithItem: self.view 
@@ -122,15 +124,70 @@ NSLayoutConstraint *_heightConstraint =
                                 multiplier: 0.0 
                                   constant: _expandedHeight];
 [self.view addConstraint: _heightConstraint];
-NOTE
+```
+> ** 注意 **
+> 在 iOS8.8下，你可以在主视图画到屏幕之后的任何时间里调整键盘高度。
 
-In iOS 8.0, you can adjust a custom keyboard’s height any time after its primary view initially draws on screen.
+# 自定义键盘的开发关键
+自定义键盘开发有两个关键点：
+* **信任。** 自定义键盘能访问用户输入的内容 ，因此在键盘和用户间建立信任非常关键。
+* **“下一个键盘”键。** 通过键盘界面必须能让用户能切换到下一个键盘。
+
+## 为用户信任所做的设计
+作为自定义键盘的开发者，你首先应当考虑的是如何建立和维护用户信任。你要理解隐私策略的最佳实践并知道如何实现它才能很好地践行。
+Your first consideration when creating a custom keyboard must be how you will establish and maintain user trust. This trust hinges on your understanding of privacy best practices and knowing how to implement them.
+> 注意
+> 本节为你创建自定义键盘提供相关的开发手册，该手册要求尊重用户隐私。了解iOS编程要求，请阅读`应用商店审核手册`，`iOS人机交互手册`，`iOS开发许可协议`，请参见苹果的[《应用审核支持》](https://developer.apple.com/support/appstore/app-review/)，[《支持用户隐私》](https://developer.apple.com/library/content/documentation/iPhone/Conceptual/iPhoneOSProgrammingGuide/ExpectedAppBehaviors/ExpectedAppBehaviors.html#//apple_ref/doc/uid/TP40007072-CH3-SW6)，[《iOS应用编程指南》](https://developer.apple.com/library/content/documentation/iPhone/Conceptual/iPhoneOSProgrammingGuide/Introduction/Introduction.html#//apple_ref/doc/uid/TP40007072)。
+
+对于键盘，如下三个方面对于建立和维护用户信任至关重要：
+** 按键数据的安全。 **用户希望他们的敲键会落在文档以及输入区域内，而不是上传到服务器或者用于其他不明目的。
+** 最小化合理利用其它用户数据。 **如果你的键盘还需要使用其他用户数据，例如定位服务或者通讯录，你有义务解释这给用户带来的好处是什么。
+** 准确。 ** 把输入事件转换成文本要求精准，这本身虽然不是一个隐私话题，但他会影响到信任：每次文字转换需要体现出你的代码的精准。
+
+在信任的开发设计过程中，首先考虑的是是否要获取open access权限。尽管开启了open access权限能给自定义键盘开发带来极大便利，但这也增加了你作为开发者的责任。下面是标准的open access的能力和隐私考虑：
+
+Open Access|能力和限制|隐私考虑
+----|----|----
+Off(default)|·键盘可以执行所有基本键盘的职责<br>·可以访问通用词典以支持自动纠错和输入建议<br>·访问设置里的快捷短语<br>·不与containing应用共享容器<br>·不访问键盘容器以外的文件系统<br>·不访问键盘容器以外的文件系统<br>·不能直接或间接访问iCloud或游戏中心或应用内购买|用户了解按键仅仅被发送到当前使用键盘的应用里
+On|·具备非联网自定义键盘的所有能力<br>·在用户许可情况下可以访问位置服务和通讯录<br>·键盘和containing app可以访问共享容器<br>·键盘可以为服务器侧处理过程发送按键或其他输入事件<br>·containing app自动纠错字典提供编辑界面<br>·通过containing app键盘可以使用iCloud来保证自动纠错词典和设置的更新<br>·通过containing app，键盘可以参与到游戏中心和应用内购买<br>·如果键盘支持移动设备管理(MDM)，它可与被管理的应用共同工作|·用户了解键盘开发者会利用按键数据<br>·你必须遵守`有联网能力的键盘开发手册`和`iOS开发许可协议`，可参见[《应用审核支持》](https://developer.apple.com/support/appstore/app-review/)
 
 
-# Development Essentials for Custom Keyboards
-## Designing for User Trust
-## Providing a Way to Switch to Another Keyboard
-# Getting Started with Custom Keyboard Development
+Each keyboard capability associated with open access carries responsibilities on your part as a developer, as indicated in Table 8-2. In general, treat user data with the greatest possible respect and do not use it for any purpose that is not obvious to the user.
+
+如果你的自定义键盘不需要open access权限，系统确保敲键信息不会被发送给你的键盘以及别的地方。如果只想提供一般的键盘功能，请不要给键盘配备联网能力。由于有沙盒限制，不联网的键盘一定是满足苹果的数据隐私手册并能获得用户信任的。
+
+开启open access权限（如上所述，可以在Info.plist文件中配置），能给你的开发带来更多可能性，同时也带来更多的责任。
+
+> 注意
+> 向应用商店提交一个open-access的键盘必须遵守苹果[《应用审核支持》](https://developer.apple.com/support/appstore/app-review/)中的相关条款。
+
+每一个与open access相关的功能都需要你履行相应的责任，应当最大限度地尊重用户数据，不得用于与用户输入无关的其他任何目的。下表列出了open access带来的好处以及开发者需承担的责任：
+
+能力|用户利益示例|开发者责任
+---|---|---
+与containing app共享容器|为键盘的自动纠错词典管理UI界面|要考虑到自动纠错数据属于用户隐私。不要把他发到你的服务器，用作与输入无关的用途。
+把按键数据发到你的服务器|通过开发者的计算资源可以提供更好的按键处理结果和输入预测|只有为用户提供更好的输入体验之用时，才能保存按键和语音数据
+基于云的自动纠错词典|把人名、地名、热点新闻加入到自动纠错词典中|不要把用户身份与输入数据关联起来，不得将用户信息用作与输入体验无关的其他目的
+通讯录|把人名、地名、电话号码添加到自动纠错词典中|不得讲通讯录用作与输入体验无关的其他目的
+位置服务|将附近的地名添加到自动纠错词典中|不要在后台使用位置服务，不得将位置信息发送到你的服务器并用于与输入体验无关的其他目的
+
+一个具有open-access权限的键盘和其containing app能将按键数据发送到服务器端，通过这些数据可以为用户提供更好的输入体验。如果你使用了这些能力，当不需要这些数据的时候，请及时在服务器端删除。参见上面的表格来履行你使用open-access权限中的义务。
+
+## 提供切换到其他键盘的方法
+系统键盘的小地球按键用于切换到其他键盘，如下所示：
+![系统键盘的小地球键](0307CustomKeyboard/img03.png)
+你的自定义键盘必须提供类似的机制能切换到其他键盘。
+> 注意
+> 要通过应用审核，必须在你的键盘上提供明显允许用户切换键盘的UI标识。
+
+调用[UIInputViewController](https://developer.apple.com/reference/uikit/uiinputviewcontroller)类的[advanceToNextInputMode](https://developer.apple.com/reference/uikit/uiinputviewcontroller/1618191-advancetonextinputmode)方法可以切换到其他键盘。系统会选择下一个键盘，没有能获得键盘列表的API，也没有切换到指定键盘的API。
+
+Xcode自定义键盘模板中就已经在`下一个键盘`按钮上具备了[advanceToNextInputMode](https://developer.apple.com/reference/uikit/uiinputviewcontroller/1618191-advancetonextinputmode)的功能。为了提供最好的用户体验，应当把你的`下一个键盘`按键放在靠近系统键盘的小地球键的位置。
+
+# 开始自定义键盘的开发
+In this section you learn how to create a custom keyboard, configure it according to your goals, and run it in iOS Simulator or on a device. You’ll also learn about some UI factors to bear in mind when replacing the system keyboard.
+
+本节中你将学习到如何创建自定义键盘，根据你的目标配置并在iOS模拟器或物理机上把它运行起来。你还讲学习到一些替代系统键盘需要谨记的UI关键点。
 ## Using the Xcode Custom Keyboard Template
 ### To create a custom keyboard in a containing app
 ### To customize the keyboard group name
