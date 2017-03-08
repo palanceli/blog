@@ -80,27 +80,30 @@ app的开发者可以选择在app内部不使用自定义键盘。例如银行�
 ``` obj-c
 NSString *precedingContext = self.textDocumentProxy.documentContextBeforeInput;
 ```
+    然后就可以删除你指定的文字区域了，比如单个字符还是空格后的所有字符。如果要按照语义执行删除，比如一个单词、句子、还是一个段落，可以使用[《 CFStringTokenizer Reference》](https://developer.apple.com/reference/corefoundation/cfstringtokenizer-rf8)中描述的函数，注意每个语种的语义规则是不同的。
 
-You can then delete the appropriate text—for example, a single character, or everything back to a whitespace character. To delete by semantic unit, such as by word, sentence, or paragraph, employ the functions described in CFStringTokenizer Reference and refer to related documentation. Note that each language has its own tokenization rules.
-
-To control the insertion point position, such as to support text deletion in a forward direction, call the adjustTextPositionByCharacterOffset: method of the UITextDocumentProxy protocol. For example, to delete forward by one character, use code similar to this:
+* 为了控制光标所在位置的操作，比如支持向前删除文字，需要调用`UITextDocumentProxy`协议中的[《adjustTextPositionByCharacterOffset: 》](https://developer.apple.com/reference/uikit/uitextdocumentproxy/1618194-adjusttextposition)方法。比如向前删除一个字符，代码如下：
 ``` obj-c
 - (void) deleteForward {
     [self.textDocumentProxy adjustTextPositionByCharacterOffset: 1];
     [self.textDocumentProxy deleteBackward];
 }
 ```
-To respond to changes in the content of the active text object, or to respond to user-initiated changes in the position of the insertion point, implement the methods of the UITextInputDelegate protocol.
-To present a keyboard layout appropriate to the current text input object, respond to the object’s UIKeyboardType property. For each trait you support, change the contents of your primary view accordingly.
 
-To support more than one language in your custom keyboard, you have two options:
+* 通过实现[《UITextInputDelegate》](https://developer.apple.com/reference/uikit/uitextinputdelegate)协议中的方法，可以相应当前输入文本对象的一些变化，比如内容变化以及用户触发的光标位置的变化。
 
-Create one keyboard per language, each as a separate target that you add to a common containing app
-Create a single multilingual keyboard, dynamically switching its primary language as appropriate
-To dynamically switch the primary language, use the primaryLanguage property of the UIInputViewController class.
-Depending on the number of languages you want to support and the user experience you want to provide, pick the option that makes the most sense.
+为了展现与当前文本输入对象适配的键盘布局，需要参照该对象的[UIKeyboardType](https://developer.apple.com/reference/uikit/uikeyboardtype)属性，根据每种你的键盘所能支持的属性，变化布局内容。
+
+在自定义键盘中，有两种方式来支持多语言：
+
+* 为每个语言创建一个键盘，每个键盘都作为向容器app添加的独立的Target
+* 创建一个多语言键盘，动态切换当前语言。可以使用`UIInputViewController`类的[primaryLanguage](https://developer.apple.com/reference/uikit/uiinputviewcontroller/1618200-primarylanguage)属性来动态切换语言。
+
+根据你要支持的语言数量以及你想提供的用户体验，你可以从上面选择最合适的方案。
 
 Every custom keyboard (independent of the value of its RequestsOpenAccess key) has access to a basic autocorrection lexicon through the UILexicon class. Make use of this class, along with a lexicon of your own design, to provide suggestions and autocorrections as users are entering text. The UILexicon object contains words from various sources, including:
+
+
 
 Unpaired first names and last names from the user’s Address Book database
 Text shortcuts defined in the Settings > General > Keyboard > Shortcuts list
