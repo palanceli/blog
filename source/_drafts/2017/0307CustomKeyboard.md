@@ -175,7 +175,7 @@ Each keyboard capability associated with open access carries responsibilities on
 
 ## 提供切换到其他键盘的方法
 系统键盘的小地球按键用于切换到其他键盘，如下所示：
-![系统键盘的小地球键](0307CustomKeyboard/img03.png)
+![系统键盘的小地球键](0307CustomKeyboard/img3.png)
 你的自定义键盘必须提供类似的机制能切换到其他键盘。
 > 注意
 > 要通过应用审核，必须在你的键盘上提供明显允许用户切换键盘的UI标识。
@@ -185,11 +185,105 @@ Each keyboard capability associated with open access carries responsibilities on
 Xcode自定义键盘模板中就已经在`下一个键盘`按钮上具备了[advanceToNextInputMode](https://developer.apple.com/reference/uikit/uiinputviewcontroller/1618191-advancetonextinputmode)的功能。为了提供最好的用户体验，应当把你的`下一个键盘`按键放在靠近系统键盘的小地球键的位置。
 
 # 开始自定义键盘的开发
-In this section you learn how to create a custom keyboard, configure it according to your goals, and run it in iOS Simulator or on a device. You’ll also learn about some UI factors to bear in mind when replacing the system keyboard.
+本节中你将学习到如何创建自定义键盘，根据你的目标配置并在iOS模拟器或物理机上把它运行起来。你还将学习到一些替代系统键盘应谨记的UI要点。
 
-本节中你将学习到如何创建自定义键盘，根据你的目标配置并在iOS模拟器或物理机上把它运行起来。你还讲学习到一些替代系统键盘需要谨记的UI关键点。
-## Using the Xcode Custom Keyboard Template
-### To create a custom keyboard in a containing app
-### To customize the keyboard group name
-### To run the custom keyboard and attach the Xcode debugger
-## Configuring the Info.plist file for a Custom Keyboard
+## 使用Xcode自定义键盘模板
+创建键盘及其containing app与其他扩展应用略有不同。本节将带你领略基本键盘的开发和运行。
+
+**在一个容器app中创建键盘，步骤如下：**
+1. 在Xcode中选择`File > New > Project > iOS > Application`选择`Single View Application`模板。
+2. 点击`Next`。
+3. 填写`Project Name`（如CKIme），点击`Next`。
+4. 选择要保存的位置，点击`Create`。这样，你就有了一个空app，该app只能完成一个简单的操作，接下来它将承载键盘。在你提交到应用商店之前，你需要完成一些有用的功能。请到[应用审核支持](https://developer.apple.com/support/appstore/app-review/)参考`应用商店审核指南`。
+5. 选择`File > New > Target > iOS > Application Extension`选择`Custom Keyboard Extension`，点击`Next`。
+6. 填写`Product Name`（如CKbd），点击`Finish`。
+7. 确认`Project`和`Embed in Application`中都显示的是容器app的名字（CKIme），点击`Finish`。如果弹出`Activate “CKbd” scheme`提示让激活键盘工程，点击`Activate`。
+
+接下来你可以根据需要决定是否要自定义键盘的group name，它会出现在设置中的已购买键盘列表中。
+
+
+Choose File > Save to save your changes to property list file.
+
+Table 8-3summarizes the UI strings for your custom keyboard that you can configure in the Info.plist files for the keyboard and its containing app.
+**自定义键盘group name，步骤如下：**
+1. 在Xcode工程导航视图中，选择容器app的`Info.plist`文件，
+2. 在右侧plist编辑器中，鼠标hover到`Bundle name`上，点“+”按钮创建一行空属性。
+3. 在Key中填写`Bundle display name`，回车
+4. 双击该行的Value，填写你要自定义的键盘group name。
+5. 选择`File > Save`保存设置。
+
+下表汇总了在容器app和键盘app的`Info.plist`文件中你可以配置的UI字符串：
+
+iOSUI字符串|Info.plist关键字
+----|----
+· 在系统设置的已购键盘列表中的键盘group name|在容器app的Info.plist文件中的Bundle display name
+· 系统设置中的键盘名称<br>· 键盘换列表中的键盘名称|在键盘app的Info.plist文件中的Bundle display name
+
+现在你可以在iOS模拟器或真机上运行该键盘，看看它目前都具备什么行为和能力吧。
+
+** 运行自定义键盘并将Xcode调试器attach到它上面 **
+1. 在Xcode，你的view controller实现中设置一个断点（比如可以断在[viewDidLoad](https://developer.apple.com/reference/uikit/uiviewcontroller/1621495-viewdidload)上）。
+2. 在Xcode工具栏确保当前活动的项目为键盘项目，并对应iOS模拟器或设备。
+3. 选择菜单`Project > Run`，或点击`Build and then run the current scheme`按钮（即播放按钮）。Xcode会提示选择host app。选择一个带有输入框的，比如通讯录或Safari。
+4. 点击`Run`。
+Xcode将运行起你指定的host app。如果这是你第一次使用键盘扩展应用，需要现在设置中添加并启用键盘：
+    1. `Settings > General > Keyboard > Keyboards`
+    2. 点击`Add New Keyboard...`
+    3. 在`OTHER IPHONE KEYBOARDS`中点击你刚刚创建的键盘
+5. 在iOS模拟器或真机上，调出你的自定义键盘。
+点击任意可输入区域，将显示出系统键盘。按住小地球，选择你的自定义键盘。
+此时你将看到自定义键盘，但是调试器尚未attach上来。一个从模板构建而来的极简键盘仅有一个`Next Keyboard`按钮，点击后切换回前一个键盘。
+6. 取消你的键盘（以便在第8步中你可以再次调出键盘以命中`viewDidLoad`断点）
+7. 在Xcode中，选择`Debug > Attach to Process > By Process Identifier(PID) or Name`
+在弹出对话框中，输入你的键盘扩展应用的名字（包含空格）.默认就是该扩展应用在工程导航窗口里的group name。
+8. 点击`Attach`。
+Xcode将显示出等待attach的调试器。
+9. 在任意能输入文字的app中调出键盘。
+当你的键盘主视图开始加载时，Xcode调试器将attache到你的键盘，并命中断点。
+
+## 为自定义键盘配置Info.plist文件
+The information property list (Info.plist file) keys that are specific to a custom keyboard let you statically declare the salient characteristics of your keyboard, including its primary language and whether it requires open access.
+
+To examine these keys, open an Xcode project to which you’ve added a Custom Keyboard target template. Now select the Info.plist file in the Project navigator (the Info.plist file is in the Supporting Files folder for the keyboard target).
+
+In source text form, the keys for a custom keyboard are as follows:
+
+<key>NSExtension</key>
+<dict>
+    <key>NSExtensionAttributes</key>
+    <dict>
+        <key>IsASCIICapable</key>
+        <false/>
+        <key>PrefersRightToLeft</key>
+        <false/>
+        <key>PrimaryLanguage</key>
+        <string>en-US</string>
+        <key>RequestsOpenAccess</key>
+        <false/>
+    </dict>
+    <key>NSExtensionPointIdentifier</key>
+    <string>com.apple.keyboard-service</string>
+    <key>NSExtensionPrincipalClass</key>
+    <string>KeyboardViewController</string>
+</dict>
+
+
+Each of these keys is explained in App Extension Keys. Use the keys in the NSExtensionAttributes dictionary to express the characteristics and needs of your custom keyboard, as follows:
+
+IsASCIICapable—This Boolean value, NO by default, expresses whether a custom keyboard can insert ASCII strings into a document. Set this value to YES if you provide a keyboard type specifically for the UIKeyboardTypeASCIICapable keyboard type trait.
+
+PrefersRightToLeft—This Boolean value, also NO by default, expresses whether a custom keyboard is for a right-to-left language. Set this value to YES if your keyboard’s primary language is right-to-left.
+
+PrimaryLanguage—This string value, en-US (English for the US) by default, expresses the primary language for your keyboard using the pattern <language>-<REGION>. You can find a list of strings corresponding to languages and regions at http://www.opensource.apple.com/source/CF/CF-476.14/CFLocaleIdentifier.c.
+
+RequestsOpenAccess—This Boolean value, NO by default, expresses whether a custom keyboard wants to enlarge its sandbox beyond that needed for a basic keyboard. If you request open access by setting this key’s value to YES, your keyboard gains the following capabilities, each with a concomitant responsibility in terms of user trust:
+
+Access to Location Services, the Address Book database, and the Camera Roll, each requiring user permission on first access
+Option to use a shared container with the keyboard’s containing app, which enables features such as providing a custom lexicon management UI in the containing app
+Ability to send keystrokes, other input events, and data over the network for server-side processing
+Ability to use the UIPasteboard class
+Ability to play audio, including keyboard clicks using the playInputClick method
+Access to iCloud, which you can use, for example, to ensure that keyboard settings and your custom autocorrect lexicon are up to date on all devices owned by the user
+Access to Game Center and In-App Purchase, via the containing app
+Ability to work with managed apps, if you design your keyboard to support mobile device management (MDM)
+When considering whether to set the RequestsOpenAccess key’s value to YES, be sure to read Designing for User Trust, which describes your responsibilities for respecting and protecting user data.
