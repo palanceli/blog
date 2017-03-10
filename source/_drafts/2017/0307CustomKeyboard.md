@@ -101,9 +101,6 @@ NSString *precedingContext = self.textDocumentProxy.documentContextBeforeInput;
 
 根据你要支持的语言数量以及你想提供的用户体验，你可以从上面选择最合适的方案。
 
-Every custom keyboard (independent of the value of its RequestsOpenAccess key) has access to a basic autocorrection lexicon through the UILexicon class. Make use of this class, along with a lexicon of your own design, to provide suggestions and autocorrections as users are entering text. The UILexicon object contains words from various sources, including:
-
-
 每种自定义键盘（需要`RequestsOpenAccess`）都可以通过[UILexicon](https://developer.apple.com/reference/uikit/uilexicon)类访问自动纠错的词典。通过使用该类，并结合你自己的词典设计，可以在用户输入过程中为他提供输入建议和自动纠错。`UILexicon`对象包含来自如下源的单词：
 * 来自用户通讯录的人名和姓
 * 在 设置 > 通用 > 键盘 > 快捷方式（文本替换） 列表
@@ -135,7 +132,6 @@ NSLayoutConstraint *_heightConstraint =
 
 ## 为用户信任所做的设计
 作为自定义键盘的开发者，你首先应当考虑的是如何建立和维护用户信任。你要理解隐私策略的最佳实践并知道如何实现它才能很好地践行。
-Your first consideration when creating a custom keyboard must be how you will establish and maintain user trust. This trust hinges on your understanding of privacy best practices and knowing how to implement them.
 > 注意
 > 本节为你创建自定义键盘提供相关的开发手册，该手册要求尊重用户隐私。了解iOS编程要求，请阅读`应用商店审核手册`，`iOS人机交互手册`，`iOS开发许可协议`，请参见苹果的[《应用审核支持》](https://developer.apple.com/support/appstore/app-review/)，[《支持用户隐私》](https://developer.apple.com/library/content/documentation/iPhone/Conceptual/iPhoneOSProgrammingGuide/ExpectedAppBehaviors/ExpectedAppBehaviors.html#//apple_ref/doc/uid/TP40007072-CH3-SW6)，[《iOS应用编程指南》](https://developer.apple.com/library/content/documentation/iPhone/Conceptual/iPhoneOSProgrammingGuide/Introduction/Introduction.html#//apple_ref/doc/uid/TP40007072)。
 
@@ -150,9 +146,6 @@ Open Access|能力和限制|隐私考虑
 ----|----|----
 Off(default)|·键盘可以执行所有基本键盘的职责<br>·可以访问通用词典以支持自动纠错和输入建议<br>·访问设置里的快捷短语<br>·不与containing应用共享容器<br>·不访问键盘容器以外的文件系统<br>·不访问键盘容器以外的文件系统<br>·不能直接或间接访问iCloud或游戏中心或应用内购买|用户了解按键仅仅被发送到当前使用键盘的应用里
 On|·具备非联网自定义键盘的所有能力<br>·在用户许可情况下可以访问位置服务和通讯录<br>·键盘和containing app可以访问共享容器<br>·键盘可以为服务器侧处理过程发送按键或其他输入事件<br>·containing app自动纠错字典提供编辑界面<br>·通过containing app键盘可以使用iCloud来保证自动纠错词典和设置的更新<br>·通过containing app，键盘可以参与到游戏中心和应用内购买<br>·如果键盘支持移动设备管理(MDM)，它可与被管理的应用共同工作|·用户了解键盘开发者会利用按键数据<br>·你必须遵守`有联网能力的键盘开发手册`和`iOS开发许可协议`，可参见[《应用审核支持》](https://developer.apple.com/support/appstore/app-review/)
-
-
-Each keyboard capability associated with open access carries responsibilities on your part as a developer, as indicated in Table 8-2. In general, treat user data with the greatest possible respect and do not use it for any purpose that is not obvious to the user.
 
 如果你的自定义键盘不需要open access权限，系统确保敲键信息不会被发送给你的键盘以及别的地方。如果只想提供一般的键盘功能，请不要给键盘配备联网能力。由于有沙盒限制，不联网的键盘一定是满足苹果的数据隐私手册并能获得用户信任的。
 
@@ -201,10 +194,6 @@ Xcode自定义键盘模板中就已经在`下一个键盘`按钮上具备了[adv
 
 接下来你可以根据需要决定是否要自定义键盘的group name，它会出现在设置中的已购买键盘列表中。
 
-
-Choose File > Save to save your changes to property list file.
-
-Table 8-3summarizes the UI strings for your custom keyboard that you can configure in the Info.plist files for the keyboard and its containing app.
 **自定义键盘group name，步骤如下：**
 1. 在Xcode工程导航视图中，选择容器app的`Info.plist`文件，
 2. 在右侧plist编辑器中，鼠标hover到`Bundle name`上，点“+”按钮创建一行空属性。
@@ -242,12 +231,10 @@ Xcode将显示出等待attach的调试器。
 当你的键盘主视图开始加载时，Xcode调试器将attache到你的键盘，并命中断点。
 
 ## 为自定义键盘配置Info.plist文件
-The information property list (Info.plist file) keys that are specific to a custom keyboard let you statically declare the salient characteristics of your keyboard, including its primary language and whether it requires open access.
+自定义键盘的Info.plist文件允许静态定义键盘的现式特征，包括主要语言，以及是否需要open access权限。
 
-To examine these keys, open an Xcode project to which you’ve added a Custom Keyboard target template. Now select the Info.plist file in the Project navigator (the Info.plist file is in the Supporting Files folder for the keyboard target).
-
-In source text form, the keys for a custom keyboard are as follows:
-
+打开Xcode并切换到自定义键盘的target。在工程导航栏选择Info.plist文件，按文本格式呈现如下：
+``` xml
 <key>NSExtension</key>
 <dict>
     <key>NSExtensionAttributes</key>
@@ -266,24 +253,23 @@ In source text form, the keys for a custom keyboard are as follows:
     <key>NSExtensionPrincipalClass</key>
     <string>KeyboardViewController</string>
 </dict>
+```
+每个关键字在[App Extension Keys](https://developer.apple.com/library/content/documentation/General/Reference/InfoPlistKeyReference/Articles/AppExtensionKeys.html#//apple_ref/doc/uid/TP40014212)中都有解释。可以使用字典`NSExtensionAttributes`中的关键字来描述你的自定义键盘的特征和需求，如下：
 
+`IsASCIICapable` - 默认为NO的布尔值。用户键盘是否可以向文档中插入ASCII字串。如果要为`UIKeyboardTypeASCIICapable`属性的输入对象展现单独类型的键盘，需要将该值置为YES。
 
-Each of these keys is explained in App Extension Keys. Use the keys in the NSExtensionAttributes dictionary to express the characteristics and needs of your custom keyboard, as follows:
+`PrefersRightToLeft` - 默认为NO的布尔值。是否为从右到左的语种设计的的自定义键盘。
 
-IsASCIICapable—This Boolean value, NO by default, expresses whether a custom keyboard can insert ASCII strings into a document. Set this value to YES if you provide a keyboard type specifically for the UIKeyboardTypeASCIICapable keyboard type trait.
+`PrimaryLanguage` - 默认为`en-US`的字串。以<语种>-<区域>的形式描述键盘的主语言。可以到[http://www.opensource.apple.com/source/CF/CF-476.14/CFLocaleIdentifier.c](http://www.opensource.apple.com/source/CF/CF-476.14/CFLocaleIdentifier.c)找到对应的语种和区域。
 
-PrefersRightToLeft—This Boolean value, also NO by default, expresses whether a custom keyboard is for a right-to-left language. Set this value to YES if your keyboard’s primary language is right-to-left.
+`RequestsOpenAccess` - 默认为NO的布尔值。是否需要比基础键盘更大的沙盒范围。把该值置为YES将需要`完全访问`权限，你的键盘将获得如下能力，每个能力都伴随有相应的权限：
+* 访问定位服务，通讯录数据库，相机，每个都需要用户允许
+* 与键盘的容器app共享容器数据，以便完成比如在容器app中管理用户词库的界面的功能
+* 通过网络发送按键、输入事件之类的数据供云端处理
+* 使用[UIPasteboard](https://developer.apple.com/reference/uikit/uipasteboard)类
+* 播放音频，包括使用[playInputClick](https://developer.apple.com/reference/uikit/uidevice/1620050-playinputclick)方法播放按键音
+* 访问iCloud，可以用来根据用户身份同步比如键盘设置、自定义自动纠错词典
+* 通过容器app访问游戏中心和应用内购买
+* 如果你的键盘支持移动设备管理（MDM），可以与被管理的app无缝合作
 
-PrimaryLanguage—This string value, en-US (English for the US) by default, expresses the primary language for your keyboard using the pattern <language>-<REGION>. You can find a list of strings corresponding to languages and regions at http://www.opensource.apple.com/source/CF/CF-476.14/CFLocaleIdentifier.c.
-
-RequestsOpenAccess—This Boolean value, NO by default, expresses whether a custom keyboard wants to enlarge its sandbox beyond that needed for a basic keyboard. If you request open access by setting this key’s value to YES, your keyboard gains the following capabilities, each with a concomitant responsibility in terms of user trust:
-
-Access to Location Services, the Address Book database, and the Camera Roll, each requiring user permission on first access
-Option to use a shared container with the keyboard’s containing app, which enables features such as providing a custom lexicon management UI in the containing app
-Ability to send keystrokes, other input events, and data over the network for server-side processing
-Ability to use the UIPasteboard class
-Ability to play audio, including keyboard clicks using the playInputClick method
-Access to iCloud, which you can use, for example, to ensure that keyboard settings and your custom autocorrect lexicon are up to date on all devices owned by the user
-Access to Game Center and In-App Purchase, via the containing app
-Ability to work with managed apps, if you design your keyboard to support mobile device management (MDM)
-When considering whether to set the RequestsOpenAccess key’s value to YES, be sure to read Designing for User Trust, which describes your responsibilities for respecting and protecting user data.
+当考虑是否将这些关键字设置为YES之前，一定要先阅读[《用户信任设计》](https://developer.apple.com/library/content/documentation/General/Conceptual/ExtensibilityPG/CustomKeyboard.html#//apple_ref/doc/uid/TP40014214-CH16-SW3)，这里描述了如何尊重和保护用户数据。
