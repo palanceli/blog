@@ -2514,6 +2514,8 @@ UINT ImeToAsciiEx(
 ** 参数 **
 * `uVirKey` 当属性位`IME_PROP_KBD_CHAR_FIRST`被置1，虚拟键盘码的高字节就是字符的ascii码。对于Unicode，当属性位`IME_PROP_KBD_CHAR_FIRST`被置1，`uVirKey`的高WORD为Unicode字符。
 * `lpTransMsgList` 指向用于接收处理消息的 `TRANSMSGLIST`缓冲区。该缓冲区被定义为DWORD缓冲区，DWORD的格式为[缓冲区长度][Message1][wParam1][lParam1]{[Message2][wParam2][lParam2]{...{...{...}}}}
+  ** 特别注意 **
+  在DDK的`immdev.h`中定义的数据类型LPTRANSMSGLIST`是错误的，它定义缓冲区长度`TRANSMSGLIST::uMsgCount`的类型为UINT，其实该字段的长度在32位和64位系统下不一样，32位下是4字节，64位下是8字节。
 
 ** 返回值 **
 返回值描述消息的个数，如果个数比翻译消息缓冲区尺寸大，缓冲区就不够用了。系统将检查`hMsgBuf`来获取翻译消息。
