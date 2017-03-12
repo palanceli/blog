@@ -44,7 +44,7 @@ iOS下自定义键盘的创建方法在[《Custom Keyboard（译）》](http://p
 }
 ```
 它直接在主视图上生成了一个`Next Keyboard`按钮，并响应点击事件。完善该键盘，只需要在主视图上长出完整的键盘按钮，并响应点击事件即可。
-# 创建按键
+# Step1 创建按键布局
 为`KeyboardViewController`添加函数`createCKbdUI`，并在`KeyboardViewController::viewDidLoad`中调用它：
 ``` obj-c
 - (void)viewDidLoad {
@@ -52,9 +52,8 @@ iOS下自定义键盘的创建方法在[《Custom Keyboard（译）》](http://p
   [self createCKbdUI]; // 创建键盘布局
 }
 ```
-`createCKbdUI`的定义如下：
+## Step1.1 createCKbdUI
 ``` obj-c
-
 - (void)createCKbdUI{
   self.allButtons= [NSMutableArray array];
   self.isPressShiftKey= NO;
@@ -62,16 +61,14 @@ iOS下自定义键盘的创建方法在[《Custom Keyboard（译）》](http://p
   NSArray *titles = @[@[@"q",@"w",@"e",@"r",@"t",@"y",@"u",@"i",@"o",@"p"],
                       @[@"a",@"s",@"d",@"f",@"g",@"h",@"j",@"k",@"l"],
                       @[@"shift",@"z",@"x",@"c",@"v",@"b",@"n",@"m",@"bksp"],
-                      @[@"123",@"next",@"Space",@"return"]];
-  // 为每一行创建视图
-  NSArray *rowViews = @[[self createRowOfButtons:titles[0]],
-                    [self createRowOfButtons:titles[1]],
-                    [self createRowOfButtons:titles[2]],
-                    [self createRowOfButtons:titles[3]]];
-  [self.view addSubview:rowViews[0]];
-  [self.view addSubview:rowViews[1]];
-  [self.view addSubview:rowViews[2]];
-  [self.view addSubview:rowViews[3]];
+                      @[@"123",@"next",@"space",@"return"]];
+  // 为每一行创建视图，并加入主视图
+  NSMutableArray *rowViews = [NSMutableArray array];
+  for(NSArray *rowTitle in titles){
+    UIView* view = [self createRowOfButtons:rowTitle]; // 🏁
+    [self.view addSubview:view];
+    [rowViews addObject:view];
+  }
   // 为每行视图添加约束
   for(UIView *rowView in rowViews) {
     NSInteger index = [rowViews indexOfObject:rowView];
@@ -133,8 +130,10 @@ iOS下自定义键盘的创建方法在[《Custom Keyboard（译）》](http://p
     [self.view addConstraints:@[leftConstraint,rightConstraint,topConstraint,buttomConstraint]];
   }
 }
-
-// 为新的一行titles创建视图及内部按键
+```
+## Step1.2 createRowOfButtons
+根据buttonTitles创建包含一排按键的视图
+``` obj-c
 - (UIView* )createRowOfButtons:(NSArray*)buttonTitles{
   // 为每行按键创建一个view
   UIView *keyBoardRowView = [[UIView alloc]initWithFrame:CGRectMake(0, 0, 320, 50)];
@@ -152,12 +151,12 @@ iOS下自定义键盘的创建方法在[《Custom Keyboard（译）》](http://p
     [btn setTitleColor:[UIColor darkGrayColor]
               forState:(UIControlStateNormal)];
     // 指定响应函数
-//    [btn addTarget:self action:@selector(didTapButton:)
-//              forControlEvents:(UIControlEventTouchUpInside)];
+    [btn addTarget:self action:@selector(didTapButton:)
+              forControlEvents:(UIControlEventTouchUpInside)]; // 🏁
     [buttons addObject:btn];
+    [self.allButtons addObject:btn];
     [keyBoardRowView addSubview:btn];
   }
-  [self.allButtons addObject:buttons];
   
   // 遍历每一个按键，设置约束
   for(UIButton *button in buttons) {
@@ -228,3 +227,49 @@ iOS下自定义键盘的创建方法在[《Custom Keyboard（译）》](http://p
 ```
 运行后能看到键盘布局如下：
 ![键盘布局](0311iOSCKImeSample/img03.png)
+# Step2 指定键盘响应函数
+在Step1.2创建每个按键后，调用addTarget为之指定响应函数`didTapButton:`
+``` obj-c
+- (void)didTapButton:(UIButton*)sender{
+  //获取被点击按钮的title
+  NSString *title = [sender titleForState:(UIControlStateNormal)];
+  if([title caseInsensitiveCompare:@"shift"] == NSOrderedSame){
+    self.isPressShiftKey = !self.isPressShiftKey;
+    [self onShift]; // 切换大小写
+  }else if([title caseInsensitiveCompare:@"bksp"] == NSOrderedSame){
+    [self.textDocumentProxy deleteBackward];
+  }else if([title caseInsensitiveCompare:@"space"] == NSOrderedSame){
+    [self.textDocumentProxy insertText:@" "];
+  }else if([title caseInsensitiveCompare:@"return"] == NSOrderedSame){
+    [self.textDocumentProxy insertText:@"\n"];
+  }else if([title caseInsensitiveCompare:@"next"] == NSOrderedSame){
+    [self advanceToNextInputMode];
+  }else{
+    [self.textDocumentProxy insertText:title];
+  }
+}
+
+- (void)onShift{
+  // 遍历每一个按键，切换键帽大小写
+  for(UIButton *button in self.allButtons) {
+    NSString *title = [button titleForState:UIControlStateNormal];
+    if (self.isPressShiftKey) {
+      title = [title uppercaseString];
+    }else{
+      title = [title lowercaseString];
+    }
+    [button setTitle:title forState:(UIControlStateNormal)];
+  }
+}
+```
+参见[《自定义键盘之：自定义键盘API》](http://localhost:4000/2017/03/07/2017/0307CustomKeyboard/#自定义键盘API)，这里有键盘与输入对象之间交互的API，这也是输入法处理按键主要调用的API。
+
+# 总结
+到此一个简单的可处理按键事件的自定义键盘就完成了。和Windows的IMM框架相比，iOS的Custom Keyboard体系让输入法能最小化运行起来，要简单太多了。我分析原因如下：
+* 手机上的按键输入事件来自键盘界面；而Windows的IMM则来自系统，因此Windows须定义一套协议让按键从IMM传递给输入法，这就是那十几个Imexxx的导出函数。
+* 而且Windows处理每个按键不是一个导出函数就能完成，而需要`ImeProcessKey`和`ImeToAsciiEx`两次调用，这是我一直不理解的地方。
+* iOS下处理按键是由键盘视图驱动，处理完成后直接调用视图方法更新界面；而Windows处理完按键之后，不能直接调用界面更新，而是把待更新的内容转换成消息，通知输入法UI窗口，UI窗口再把消息翻译成更新的内容展现到子窗口上。这相当于系统有定义了一层WM_IME_xxx的消息协议。为什么不能直接控制界面呢？应该是怕卡死主进程，试想一般的Windows UI程序，假设要定时刷新界面，不是在定时器里直接绘制，而是在定时器里设置无效区域，在WM_PAINT消息中处理绘制。
+* Windows的IMC是每线程一份，这么做的好处是在不同的进程或线程之间切换焦点，可以保持上次的输入状态和内容，但也让数据和对这些数据的处理必须分离开；而iOS的上下文信息则与输入app无关，当输入焦点切换，上下文信息也就丢失了。这么做的好处是输入法不必负责根据上下文恢复当前状态，省去了逻辑的复杂性。当然，如果在Windows下状态机做得漂亮，这个复杂度倒也不大，这需要付出更大的设计成本。
+* iOS底层一定有更便利的进程间通信机制，让输入法可以和输入进程通信；这是Windows所不具备的。iOS这个机制让输入法更方便、准确地获得输入上下文，从而可以提供更好的联想候选。
+
+协议为两个模块之间的交互提供了一个抽象层，使得两个模块之间解除了耦合，但同时也增加了学习成本，如果原本就是一个模块，其内部调用也用协议来隔离，那就会把事情复杂化。Windows的Imexxx导出函数这层协议是必要的，但这十几个函数中必须的也就四五个，其它大部分用不到；WM_IME_xxx这层协议就把事情弄复杂了，但又不得不这么做。Windows每线程一份的IMC却对设计提出更高的要求，并没有带来多大的好处，，比如macOS下也没有基于进程或线程的输入上下文，也不觉得缺憾。以上就是Windows的IMM框架比iOS复杂的原因。

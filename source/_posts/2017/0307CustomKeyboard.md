@@ -76,13 +76,13 @@ app的开发者可以选择在app内部不使用自定义键盘。例如银行�
 [self.textDocumentProxy insertText:@"\n"];     // In a text view, inserts a newline character at the insertion point
 ```
 
-* 在调用[deleteBackward](https://developer.apple.com/reference/uikit/uikeyinput/1614572-deletebackward)之前要先决定删除的字符数。可以通过[textDocumentProxy](https://developer.apple.com/reference/uikit/uitextdocumentproxy/1618190-documentcontextbeforeinput)的[documentContextBeforeInput](https://developer.apple.com/reference/uikit/uiinputviewcontroller/1618193-textdocumentproxy)属性，来获得光标附近的文本上下文信息。如下：
+* 在调用[deleteBackward](https://developer.apple.com/reference/uikit/uikeyinput/1614572-deletebackward)之前要先决定删除的字符数。可以通过[textDocumentProxy](https://developer.apple.com/reference/uikit/uiinputviewcontroller/1618193-textdocumentproxy)的[documentContextBeforeInput](https://developer.apple.com/reference/uikit/uitextdocumentproxy/1618190-documentcontextbeforeinput)属性，来获得光标附近的文本上下文信息。如下：
 ``` obj-c
 NSString *precedingContext = self.textDocumentProxy.documentContextBeforeInput;
 ```
     然后就可以删除你指定的文字区域了，比如单个字符还是空格后的所有字符。如果要按照语义执行删除，比如一个单词、句子、还是一个段落，可以使用[《 CFStringTokenizer Reference》](https://developer.apple.com/reference/corefoundation/cfstringtokenizer-rf8)中描述的函数，注意每个语种的语义规则是不同的。
 
-* 为了控制光标所在位置的操作，比如支持向前删除文字，需要调用`UITextDocumentProxy`协议中的[《adjustTextPositionByCharacterOffset: 》](https://developer.apple.com/reference/uikit/uitextdocumentproxy/1618194-adjusttextposition)方法。比如向前删除一个字符，代码如下：
+* 为了控制光标所在位置的操作，比如支持向前删除文字，需要调用`UITextDocumentProxy`协议中的[adjustTextPositionByCharacterOffset:](https://developer.apple.com/reference/uikit/uitextdocumentproxy/1618194-adjusttextposition)方法。比如向前删除一个字符，代码如下：
 ``` obj-c
 - (void) deleteForward {
     [self.textDocumentProxy adjustTextPositionByCharacterOffset: 1];
@@ -90,7 +90,7 @@ NSString *precedingContext = self.textDocumentProxy.documentContextBeforeInput;
 }
 ```
 
-* 通过实现[《UITextInputDelegate》](https://developer.apple.com/reference/uikit/uitextinputdelegate)协议中的方法，可以相应当前输入文本对象的一些变化，比如内容变化以及用户触发的光标位置的变化。
+* 通过实现[UITextInputDelegate](https://developer.apple.com/reference/uikit/uitextinputdelegate)协议中的方法，可以响应当前输入文本对象的一些变化，比如内容变化以及用户触发的光标位置的变化。
 
 为了展现与当前文本输入对象适配的键盘布局，需要参照该对象的[UIKeyboardType](https://developer.apple.com/reference/uikit/uikeyboardtype)属性，根据每种你的键盘所能支持的属性，变化布局内容。
 
