@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Windows下创建基于IMM的输入法——最小要求
+title: Windows下创建基于IMM的输入法
 date: 2017-02-18 23:33:00 +0800
 categories: 随笔笔记
 tags: 输入法
@@ -99,102 +99,82 @@ BOOL WINAPI ImeProcessKey(HIMC hImc, UINT unVirtKey, DWORD unScanCode, CONST LPB
 }
 ```
 ## ImeToAsciiEx
-如果经过上一步的输入法预判断，需要处理，IMM则继续调用该函数进入处理逻辑；如果不需要处理，则不会调用该函数，而是直接把按键以WM_KEYDOWN/WM_KEYUP的形式发给应用程序。这里的处理分三个步骤：1、处理按键，通常要追加当前的输入内容进入写作串；2、完成转换，这是输入法最核心的部分，根据写作串里的拼音转成汉字；3、完成界面的更新，只需要组装相应的消息到lpdwTransBuf指向的数组中，IMM会把这些消息发送给输入法UI窗口，由UI窗口继续完成界面的处理。
+如果经过上一步的输入法预判断，需要处理，IMM则继续调用该函数进入处理逻辑；如果不需要处理，则不会调用该函数，而是直接把按键以WM_KEYDOWN/WM_KEYUP的形式发给应用程序。这里的处理分三个步骤：
+1. 处理按键，通常要追加当前的输入内容进入写作串；
+2. 完成转换，这是输入法最核心的部分，根据写作串里的拼音转成汉字；
+3. 完成界面的更新，只需要组装相应的消息到lpdwTransBuf指向的数组中，IMM会把这些消息发送给输入法UI窗口，由UI窗口继续完成界面的处理。
 ``` c++
 UINT WINAPI ImeToAsciiEx(UINT unKey, UINT unScanCode, CONST LPBYTE achKeyState, LPDWORD lpdwTransBuf, UINT fuState, HIMC hImc)
 { 
+  
   ImcHandle imcHandle(hImc);
   Comp* pComp = imcHandle.GetComp();
   LPTSTR szCompString = pComp->GetCompString();
-  int cMsg = 0;
   COMPOSITIONSTRING& compCore = pComp->GetCore();
+  size_t ccOriginCompLen = _tcslen(szCompString);
+
   if (HIWORD(unKey) >= 'a' && HIWORD(unKey) <= 'z') {
     TCHAR szKey[2] = { HIWORD(unKey), 0 };
     _tcscat_s(szCompString, Comp::c_MaxCompString, szKey);  // 将字符追加到写作串
-    compCore.dwCompStrLen = _tcslen(szCompString);
+    compCore.dwCompStrLen = (DWORD)_tcslen(szCompString);
   }
 
-  if(_tcslen(szCompString) == 0){  // 没有写作串
+  const DWORD dwBufLen = *lpdwTransBuf;
+  lpdwTransBuf += sizeof(size_t) / sizeof(DWORD);
+  UINT cMsg = 0;
+  LPTRANSMSG lpTransMsg = (LPTRANSMSG)lpdwTransBuf;
+  if(ccOriginCompLen == 0){  // 没有写作串
     if(HIWORD(unKey) >= 'a' && HIWORD(unKey) <= 'z'){
-      lpdwTransBuf += 1;
-      lpdwTransBuf[0] = WM_IME_STARTCOMPOSITION;  // 打开写作窗
-      lpdwTransBuf[1] = 0;
-      lpdwTransBuf[2] = 0;
-      lpdwTransBuf += 3;
+      lpTransMsg[0].message = WM_IME_STARTCOMPOSITION;  // 打开写作窗
+      lpTransMsg[0].wParam = 0;
+      lpTransMsg[0].lParam = 0;
       cMsg++;
-      lpdwTransBuf[0] = WM_IME_COMPOSITION; // 更新写作窗
-      lpdwTransBuf[1] = 0;
-      lpdwTransBuf[2] = GCS_COMPSTR;
-      lpdwTransBuf += 3;
+
+      lpTransMsg[1].message = WM_IME_COMPOSITION; // 更新写作窗
+      lpTransMsg[1].wParam = 0;
+      lpTransMsg[1].lParam = GCS_COMPSTR | GCS_CURSORPOS | GCS_COMPATTR;
       cMsg++;
-      lpdwTransBuf[0] = WM_IME_NOTIFY;      // 打开候选窗
-      lpdwTransBuf[1] = IMN_OPENCANDIDATE;
-      lpdwTransBuf[2] = 1;
-      lpdwTransBuf += 3;
+
+      lpTransMsg[2].message = WM_IME_NOTIFY;      // 打开候选窗
+      lpTransMsg[2].wParam = IMN_OPENCANDIDATE;
+      lpTransMsg[2].lParam = 1;
       cMsg++;
-      lpdwTransBuf[0] = WM_IME_NOTIFY;      // 更新候选窗
-      lpdwTransBuf[1] = IMN_CHANGECANDIDATE;
-      lpdwTransBuf[2] = 1;
-      lpdwTransBuf += 3;
+
+      lpTransMsg[3].message = WM_IME_NOTIFY;      // 更新候选窗
+      lpTransMsg[3].wParam = IMN_CHANGECANDIDATE;
+      lpTransMsg[3].lParam = 1;
       cMsg++;
       return cMsg;
     }
   }else{ // _tcslen(szCompString) > 0     // 有写作串
     if(HIWORD(unKey) >= 'a' && HIWORD(unKey) <= 'z'){
-      lpdwTransBuf += 1;
-      lpdwTransBuf[0] = WM_IME_COMPOSITION; // 更新写作窗
-      lpdwTransBuf[1] = 0;
-      lpdwTransBuf[2] = GCS_COMPSTR;
-      lpdwTransBuf += 3;
-      cMsg++;
-      lpdwTransBuf[0] = WM_IME_NOTIFY;      // 更新候选窗
-      lpdwTransBuf[1] = IMN_CHANGECANDIDATE;
-      lpdwTransBuf[2] = 1;
-      lpdwTransBuf += 3;
-      cMsg++;
+      // 更新写作窗
+      ...
+      // 更新候选窗
+      ...
       return cMsg;
     }else if(HIWORD(unKey) == VK_RETURN || HIWORD(unKey) == VK_SPACE){ // 回车或空格
       LPTSTR szResultString = pComp->GetResultString();
       _tcscpy_s(szResultString, Comp::c_MaxResultString, szCompString); // 将写作串拷入结果串
-      compCore.dwResultStrLen = _tcslen(szResultString);
+      compCore.dwResultStrLen = (DWORD)_tcslen(szResultString);
       memset(szCompString, 0, sizeof(TCHAR) * Comp::c_MaxCompString);   // 清空写作串
       compCore.dwCompStrLen = 0;
-      lpdwTransBuf += 1;
-      lpdwTransBuf[0] = WM_IME_COMPOSITION; // 更新写作窗
-      lpdwTransBuf[1] = 0;
-      lpdwTransBuf[2] = GCS_COMPSTR | GCS_RESULTSTR;
-      lpdwTransBuf += 3;
-      cMsg++;
-      lpdwTransBuf[0] = WM_IME_ENDCOMPOSITION;  // 关闭写作窗
-      lpdwTransBuf[1] = 0;
-      lpdwTransBuf[2] = 0;
-      lpdwTransBuf += 3;
-      cMsg++;
-      lpdwTransBuf[0] = WM_IME_NOTIFY;        // 关闭候选窗
-      lpdwTransBuf[1] = IMN_CLOSECANDIDATE;
-      lpdwTransBuf[2] = 1;
-      lpdwTransBuf += 3;
-      cMsg++;
+      // 更新写作窗
+      ...
+      // 关闭写作窗
+      ...
+      // 关闭候选窗
+      ...
       return cMsg;
     }else if(HIWORD(unKey) == VK_ESCAPE){ // ESC
       memset(szCompString, 0, sizeof(TCHAR) * Comp::c_MaxCompString);
       compCore.dwCompStrLen = 0;
-      lpdwTransBuf += 1;
-      lpdwTransBuf[0] = WM_IME_COMPOSITION; // 更新写作窗
-      lpdwTransBuf[1] = 0;
-      lpdwTransBuf[2] = GCS_COMPSTR;
-      lpdwTransBuf += 3;
-      cMsg++;
-      lpdwTransBuf[0] = WM_IME_ENDCOMPOSITION;  // 关闭写作窗
-      lpdwTransBuf[1] = 0;
-      lpdwTransBuf[2] = 0;
-      lpdwTransBuf += 3;
-      cMsg++;
-      lpdwTransBuf[0] = WM_IME_NOTIFY;      // 关闭候选窗
-      lpdwTransBuf[1] = IMN_CLOSECANDIDATE;
-      lpdwTransBuf[2] = 1;
-      lpdwTransBuf += 3;
-      cMsg++;
+      // 更新写作窗
+      ...
+      // 关闭写作窗
+      ...
+      // 关闭候选窗
+      ...
       return cMsg;
     }
   }
@@ -202,6 +182,11 @@ UINT WINAPI ImeToAsciiEx(UINT unKey, UINT unScanCode, CONST LPBYTE achKeyState, 
 }
 ```
 以上就是输入法最最关键的三个导出函数，即使一个丰满的输入法，主要逻辑也是在这几个函数中，尤其是`ImeProcessKey`和`ImeToAsciiEx`中。
+** 特别注意 **
+在DDK的`immdev.h`中定义的数据类型`LPTRANSMSGLIST`是错误的，它定义缓冲区长度`TRANSMSGLIST::uMsgCount`的类型为UINT，其实该字段的长度在32位和64位系统下不一样，32位下是4字节，64位下是8字节。因此在上面代码中有：
+```c++
+lpdwTransBuf += sizeof(size_t) / sizeof(DWORD);
+```
 
 # UI窗口
 ## 概述
