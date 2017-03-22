@@ -7,7 +7,7 @@ tags: 输入法
 toc: true
 comments: true
 ---
-首先还是要以[NumberInput_IMKit_Sample](!https://developer.apple.com/library/content/samplecode/NumberInput_IMKit_Sample/Introduction/Intro.html#)为例，研究macOS InputMethodKit输入法的编写。<!-- more -->
+首先还是要以[NumberInput_IMKit_Sample](https://developer.apple.com/library/content/samplecode/NumberInput_IMKit_Sample/Introduction/Intro.html#)为例，研究macOS InputMethodKit输入法的编写。<!-- more -->
 
 # 编译
 直接编译该例程的NumberInput0，构建的时候提示本地macOS版本低于NumberInput的部署要求版本。其实显然不是本地版本低，而是NumberInput的配置有问题。打开
