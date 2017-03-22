@@ -12,7 +12,7 @@ comments: true
 # 使用Xcode创建输入法项目
 初始步骤如下：
 1. 在Xcode中选择`File > New > Project > macOS > Cocoa`点击Next
-2. 填写`Project Name`为`IMKSample`，点击Next
+2. 填写`Project Name`为`IMKSample`，注意在`Organization Identifier`中一定要包含`.InputMethod.`如：`palanceli.inputmethod`，点击Next
 3. 选择要保存的位置`IMKSample/`，点击`Create`。
 4. 打开`Info.plist`文件编辑器，添加4个Key，见下表。
 5. 添加图标文件`IMKSample/main.tif`
@@ -67,55 +67,21 @@ int main(int argc, const char * argv[]) {
     identifier = [[NSBundle mainBundle] bundleIdentifier];
     server = [[IMKServer alloc] initWithName:(NSString*)kConnectionName bundleIdentifier:[[NSBundle mainBundle] bundleIdentifier]];
     
-//    [NSBundle loadNibNamed:@"MainMenu" owner:[NSApplication sharedApplication]];
-    
     [[NSApplication sharedApplication] run];
   }
   return 0;
 }
 ```
-# 编译
-1. 先编译生成IMKSample.app，然后将此生成文件拷贝到`/Library/Input Methods`
-2. 来到Xcode中IMKSample的配置：`Build Settings > All > Build Locations > Per-configuration Build Products Path > Debug`改为`/Library/Input Methods`
-注意一定要先做完第1步，再做第2步，以后再编译就只做第2步即可。如果跳过1直接进入第2步会提示没有权限生成文件。
+# 删除多余文件
+删除`AppDelegate.h`、`AppDelegate.m`、`ViewController.h`、`ViewController.m`这些由模板生成的文件。
 
 # 编译
-直接编译该例程的NumberInput0，构建的时候提示本地macOS版本低于NumberInput的部署要求版本。其实显然不是本地版本低，而是NumberInput的配置有问题。打开
-`NumberInput工程配置 - General - Deployment Info - Deployment Target`
-设为10.6即可。
-
-# 指定输出路径
-打开
-`工程配置 - Build Settings - All - Build Locations - Per-configuration Build Products Path - Debug`
-置为：
-`/Library/Input Methods` ——这里是系统输入法app的位置。
-
-编译后即可在`系统偏好设置 - 键盘 - 输入源 - 加号`中找到`NumberInput`，添加后即可在app中选择该输入法。
-
-# ReadMe
-NumberInput0里有四个文件，ReadMe中有一个大致的介绍。
-## NumberInputController.h
-派生自IMKInputController，声明了自己的input controller。
-
-## NumberInputController.m
-定义了自己的input controller。它实现了方法：
-`-(BOOL)inputText:(NSString*)string client:(id)sender`
-该方法定义在：
-` /System/Library/Frameworks/InputMethodKit.framework/Headers/IMKInputController.h`
-该方法最终将接收键盘输入。在本例中它只是返回NO，表示输入法不作任何处理地将键盘输入转给客户端程序。
-
-## main.m
-该文件定义了主入口。分配了IMKServer实例，该实例将通过NSConnection与客户端程序通讯，同时也会与每个输入法input controller实例进行通讯。
-
-## Info.plist
-该文件包含了输入法必须的信息。
+1. 执行`sudo chmod -R 777 /Library/Input Methods`，确保Xcode可以直接生成app文件到这里。
+2. 来到Xcode中IMKSample的配置：`Build Settings > All > Build Locations > Per-configuration Build Products Path > Debug`改为`/Library/Input Methods`。
 
 # 调试
 **不要在输入法中设置断点**，因为macOS的输入法是全局的——在某个app中修改了输入法，在其他所有app中都将生效。如果在记事本中命中了输入法的断点，此时焦点将切到xcode，xcode中的输入法也变成被调试的输入法，xcode本身也将被卡死。
 
-在`-(BOOL)inputText:(NSString*)string client:(id)sender`函数中有NSLog输出，但是当我run起NumberInput输入法后，每次按键都输出如下内容：
-```
-2017-03-05 23:25:41.893 NumberInput[46492:5200485] IMKServer Stall detected, *please Report* your user scenario attaching a spindump (or sysdiagnose) that captures the problem - (activateServerWithReply:) block performed very slowly (0.00 secs)
-... ...
-2017-03-05 23:26:09.620 NumberInput[46492:5200485] IMKServer Stall detected, *please Report* your user scenario attaching a spindump (or sysdiagnose) that captures the problem - (deactivateServerWithReply:) block performed very slowly (0.00 secs)
-```
+在`-(BOOL)inputText:(NSString*)string client:(id)sender`函数中有NSLog输出，如果是用Xcode直接运行起app，可以在其Debug area中看到输出，如果不是通过Xcode调起，也可以在控制台中看到输出。
+
+苹果关于IMKit的官方材料提供得很少，除了官方文档，还有些价值的还有`/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/Carbon.framework/Versions/A/Frameworks/HIToolbox.framework/Versions/A/Headers/TextInputSources.h`其中有大量的注释。
