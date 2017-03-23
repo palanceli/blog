@@ -238,11 +238,11 @@ IMKServer类管理客户端与输入法的连接。应当在main函数中创建I
 # IMKServerInput
 这是一个协议，它定义了处理文本事件的方法。这不是一个正式协议，因为有三种方式来处理事件，输入法选择其中之一来实现对应方法。如下：
 
-* 键盘绑定。系统试图把每一个键盘按下事件映射到到输入法的一个方法。如果成功（找到此映射方法），系统调用`didCommandBySelector:client:`，否则（没有找到该方法）调用`inputText:client:`。针对此方式，你应当实现`inputText(_:client:)` 和`didCommand(by:client:)`两个方法。
+* 键盘绑定。系统把每一个键盘按下事件映射到到输入法的一个方法。如果成功（找到此映射方法），系统调用`didCommandBySelector:client:`，否则（没有找到该方法）调用`inputText:client:`。针对此方式，你应当实现`input​Text:​client:​` 和`did​Command​By​Selector:​client:​`两个方法。
 
-* 文本数据。这种方式下你无需键盘绑定就能接收到所有键盘事件，然后解析相关的文本数据。键盘事件会包含Unicodes，产生它们的键盘码，修饰标记。该数据被发送给方法`inputText(_:key:modifiers:client:)`，你应当实现该方法。
+* 只处理文本数据。这种方式下你无需键盘绑定就能接收到所有键盘事件，然后解析相关的文本数据。键盘事件会包含Unicodes，产生它们的键盘码，修饰标记。该数据被发送给方法`input​Text:​key:​modifiers:​client:​`，你应当实现该方法。
 
-* 处理所有事件。这种方式下你会接收到来自文本服务管理器的所有方法，这些方法被封装为NSEvent对象。你必须实现方法`handle(_:client:) `。
+* 处理所有事件。这种方式下你会接收到来自文本服务管理器的所有方法，这些方法被封装为NSEvent对象。你必须实现方法`handle​Event:​client:​`。
 
 ## 支持键盘绑定
 [func inputText(String!, client: Any!)](https://developer.apple.com/reference/objectivec/nsobject/1385446-inputtext)

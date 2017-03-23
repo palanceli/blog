@@ -1,6 +1,6 @@
 ---
 layout: post
-title: macOS下基于IMK Framework的输入法
+title: macOS下基于IMK的输入法（一）——创建步骤
 date: 2017-03-05 23:33:00 +0800
 categories: 随笔笔记
 tags: 输入法
@@ -101,3 +101,5 @@ int main(int argc, const char * argv[]) {
 在`-(BOOL)inputText:(NSString*)string client:(id)sender`函数中有NSLog输出，如果是用Xcode直接运行起app，可以在其Debug area中看到输出，如果不是通过Xcode调起，也可以在控制台中看到输出。
 
 苹果关于IMKit的官方材料提供得很少，除了官方文档，还有些价值的还有`/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/Carbon.framework/Versions/A/Frameworks/HIToolbox.framework/Versions/A/Headers/TextInputSources.h`其中有大量的注释。
+
+本文代码参见[macIMKSample](https://github.com/palanceli/macIMKSample/tree/v1.0)。
