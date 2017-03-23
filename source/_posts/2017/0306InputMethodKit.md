@@ -245,18 +245,18 @@ IMKServer类管理客户端与输入法的连接。应当在main函数中创建I
 * 处理所有事件。这种方式下你会接收到来自文本服务管理器的所有方法，这些方法被封装为NSEvent对象。你必须实现方法`handle​Event:​client:​`。
 
 ## 支持键盘绑定
-[func inputText(String!, client: Any!)](https://developer.apple.com/reference/objectivec/nsobject/1385446-inputtext)
+[- (BOOL)inputText:(NSString *)string client:(id)sender;](https://developer.apple.com/reference/objectivec/nsobject/1385446-inputtext?language=objc)
 &emsp; 处理没有映射到响应方法的键盘按下事件
 
-[func didCommand(by: Selector!, client: Any!)](https://developer.apple.com/reference/objectivec/nsobject/1385394-didcommand)
+[- (BOOL)didCommandBySelector:(SEL)aSelector client:(id)sender;](https://developer.apple.com/reference/objectivec/nsobject/1385394-didcommandbyselector?language=objc)
 &emsp; 处理由用户行为产生的命令，比如按下某个按键或点击了鼠标按键
 
 ## 解析文本数据
-[func inputText(String!, key: Int, modifiers: Int, client: Any!)](https://developer.apple.com/reference/objectivec/nsobject/1385436-inputtext)
+[- (BOOL)inputText:(NSString *)string key:(NSInteger)keyCode modifiers:(NSUInteger)flags client:(id)sender;](https://developer.apple.com/reference/objectivec/nsobject/1385436-inputtext)
 &emsp; 接收unicode、键盘码以及键盘的修饰标记数据
 
 ## 直接从文本服务管理器接收事件
-[func handle(NSEvent!, client: Any!)](https://developer.apple.com/reference/objectivec/nsobject/1385363-handle)
+[- (BOOL)handleEvent:(NSEvent *)event client:(id)sender;](https://developer.apple.com/reference/objectivec/nsobject/1385363-handle)
 &emsp; 处理键盘按下和鼠标事件
 
 ## 提交写作串
@@ -304,7 +304,6 @@ IMKServer类管理客户端与输入法的连接。应当在main函数中创建I
 
 [func setValue(Any!, forTag: Int, client: Any!)](https://developer.apple.com/reference/inputmethodkit/imkstatesetting/1385412-setvalue)
 &emsp; 将值保存到key下
-
 
 # NSObject
 这是Objective-C派生体系的根类，从该类可以继承Objective-C对象的基本能力。

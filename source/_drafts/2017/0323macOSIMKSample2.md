@@ -48,12 +48,67 @@ comments: true
 默认  12:36:21.063002 +0800 IMKSample didCommandBySelector:moveLeft:
 默认  12:36:22.083668 +0800 IMKSample didCommandBySelector:moveRight:
 ```
-可以得出**结论：**
+我找不到系统在哪里做的按键与方法的映射，但可以用这种方法遍历出所有的方法选择器，可以得出**结论：**
 1. 当按下字符键，将调用`input​Text:​client:​`并传入按下的字符
-2. 当按下控制键，将调用`did​Command​By​Selector:​client:​`并传入该控制键对应的函数选择器
+2. 当按下控制键，将调用`did​Command​By​Selector:​client:​`并传入该控制键对应的方法选择器
 
 在两个函数中，如果输入法要处理该字符/控制键，则返回YES，该按键就不在传递给应用程序；否则返回NO，同时按键被发送到应用程序。
 
+两个函数本质上是一样的，都是当用户有按键时被调用，只不过一个是按字符键，一个是按控制键，输入法要做的就是根据按键内容决定是否更新写作串、候选串以及是否上屏。
 ## 实现方法
-假设要实现的输入法逻辑是：对于可显示字符暂时缓存起来，通过回车或空格上屏。实现方法：在`input​Text:​client:​`中缓存空格以外的字符，以及空格完成上屏；在`did​Command​By​Selector:​client:​`中处理回车完成上屏。
+假设要实现的输入法逻辑是：对于字符按键暂时缓存起来，通过回车或空格完成上屏。实现方法：在`input​Text:​client:​`中缓存空格以外的字符，如果是空格则上屏；在`did​Command​By​Selector:​client:​`中处理回车完成上屏。以下是这两个函数的实现：
+``` obj-c
+-(BOOL)inputText:(NSString*)string client:(id)sender
+{
+  NSLog(@"inputText:%@", string);
+  if([string isEqualToString:@" "]){  // 如果是空格则上屏
+    [self commitComposedString:sender];
+  }else{                              // 否则追加到写作串
+    [self appendComposedString:string client:sender];
+    NSLog(@"composed String:%@", [self composedString]);
+  }
+  return YES;
+}
+
+-(BOOL)didCommandBySelector:(SEL)aSelector client:(id)sender
+{
+  // 如果输入法要处理该事件，则返回YES，否则返回NO
+  NSLog(@"didCommandBySelector:%@", NSStringFromSelector(aSelector));
+  if(aSelector == @selector(insertNewline:)){ // 如果是回车则上屏
+    [self commitComposedString:sender];
+    return YES;
+  }
+  return NO;
+}
+```
+本节的实现代码参见[macIMKSample](https://github.com/palanceli/macIMKSample/tree/v1.1)。
+# 仅处理文本数据
+> 这种方式下你无需键盘绑定就能接收到所有键盘事件，然后解析相关的文本数据。键盘事件会包含Unicodes，产生它们的键盘码，修饰标记。该数据被发送给方法- (BOOL)inputText:key:modifiers:client:，你应当实现该方法。
+
+按照与键盘绑定同样的方法实现`- (BOOL)inputText:key:modifiers:client:`并观察系统传入的参数：
+``` obj-c
+- (BOOL)inputText:(NSString*)string
+              key:(NSInteger)keyCode
+        modifiers:(NSUInteger)flags
+           client:(id)sender
+{
+  NSLog(@"inputText:%@ key:0x%2lX modifiers:0x%4lX",
+        string, (long)keyCode, (unsigned long)flags);
+  return NO;
+}
+```
+如果既实现了`input​Text:​client:​`又实现了`input​Text:​key:​modifiers:​client:​`，系统会调用后者。切出输入法，按下`a`、`shift-a`、`Ctrl-a`、`Backspace`、`回车`、`Tab`以及`→`键，看到如下输出：
+```
+17/3/24 上午1:17:03.266 IMKSample[7202]: inputText:a key:0x 0 modifiers:0x   0
+17/3/24 上午1:17:06.854 IMKSample[7202]: inputText:A key:0x 0 modifiers:0x20000
+17/3/24 上午1:17:08.136 IMKSample[7202]: inputText: key:0x 0 modifiers:0x40000
+17/3/24 上午1:17:10.206 IMKSample[7202]: inputText: key:0x33 modifiers:0x   0
+17/3/24 上午1:17:10.972 IMKSample[7202]: inputText:
+ key:0x24 modifiers:0x   0
+17/3/24 上午1:17:13.244 IMKSample[7202]: inputText:    key:0x30 modifiers:0x   0
+17/3/24 上午1:17:16.203 IMKSample[7202]: inputText: key:0x7C modifiers:0xA00000
+```
+
+
+
 
