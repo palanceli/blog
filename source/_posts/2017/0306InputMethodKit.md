@@ -242,7 +242,7 @@ IMKServer类管理客户端与输入法的连接。应当在main函数中创建I
 
 * 只处理文本数据。这种方式下你无需键盘绑定就能接收到所有键盘事件，然后解析相关的文本数据。键盘事件会包含Unicodes，产生它们的键盘码，修饰标记。该数据被发送给方法`input​Text:​key:​modifiers:​client:​`，你应当实现该方法。
 
-* 处理所有事件。这种方式下你会接收到来自文本服务管理器的所有方法，这些方法被封装为NSEvent对象。你必须实现方法`handle​Event:​client:​`。
+* 处理所有事件。这种方式下输入法会接收到来自文本服务管理器的所有方法，这些方法被封装为NSEvent对象。你必须实现方法`handle​Event:​client:​`。
 
 ## 支持键盘绑定
 [- (BOOL)inputText:(NSString *)string client:(id)sender;](https://developer.apple.com/reference/objectivec/nsobject/1385446-inputtext?language=objc)

@@ -102,4 +102,4 @@ int main(int argc, const char * argv[]) {
 
 苹果关于IMKit的官方材料提供得很少，除了官方文档，还有些价值的还有`/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/Carbon.framework/Versions/A/Frameworks/HIToolbox.framework/Versions/A/Headers/TextInputSources.h`其中有大量的注释。
 
-本文代码参见[macIMKSample](https://github.com/palanceli/macIMKSample/tree/v1.0)。
+本文代码参见[macIMKSample v1.0](https://github.com/palanceli/macIMKSample/tree/v1.0)。
