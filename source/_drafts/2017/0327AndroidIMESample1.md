@@ -10,10 +10,16 @@ comments: true
 本文基于[《在Android下创建输入法（译）》](http://palanceli.com/2017/02/07/2017/0207CreatingAnInputMethod/)演示创建Android系统下的输入法。<!-- more -->
 
 # 创建工程
-打开AndroidStudio，选择`Start a new Android Studio project`，填写`Application name`为`AndroidIMESample`；`Company Domain`为`ime.palanceli.com` > Next > 选择`Add No Activity` > Next > Finish。
+打开AndroidStudio，选择`Start a new Android Studio project`，填写
+`Application name`：**AndroidIMESample**
+`Company Domain`：**ime.palanceli.com**
+点击 Next > Next > 选择`Add No Activity` > Finish。
 
 # 在manifest中添加服务
-在app上右键 > New > Service > Service，添加`ClassName`为`AndroidIMESample`，点击`Finish`，来到AndroidManifest.xml，修改自动生成的`service`部分：
+在app上右键 > New > Service > Service，填写
+`ClassName`：**AndroidIMESampleService**
+点击 Finish。
+编辑`AndroidManifest.xml`，修改自动生成的`service`部分：
 ``` xml
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
@@ -28,11 +34,13 @@ comments: true
         <service
             android:name=".AndroidIMESampleService"
             android:label="AndroidIMESample"
-            android:permission="android.permission.BIND_INPUT_METHOD">
+            android:permission="android.permission.BIND_INPUT_METHOD"
+            android:enabled="true"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.view.InputMethod" />
             </intent-filter>
-            <meta-data android:name="android.view.im"
+            <meta-data android:name="android.view.im" 
                 android:resource="@xml/method" />
         </service>
     </application>
@@ -41,7 +49,9 @@ comments: true
 ```
 在服务中引用了元数据`@xml/method`，接下来添加它。
 # 添加元数据
-在工程res中创建xml目录，为之添加`XML Resource File`，名称为`method`内容如下：
+在工程res中创建xml目录，然后在res右键 > New > Android resource file 填写
+`File name`：**method**
+点击OK。修改其内容如下：
 ``` xml
 <?xml version="1.0" encoding="utf-8"?>
 <input-method xmlns:android="http://schemas.android.com/apk/res/android">
@@ -57,7 +67,9 @@ comments: true
 `imeSubtypeLocale`是该subtype支持的语言类型
 `imeSubtypeMode`是它所支持的模式，可以是keyboard或者voice，当输入法被调起是，系统会把用户选择的mode值传给输入法。
 # 定义键盘布局
-在res上右键 > New > XML > Layout XML File，填写`Layout File name`为`keyboard`，其内容为：
+在res上右键 > New > XML > Layout XML File，填写
+`Layout File name`：**keyboard**
+点击Finish。修改其内容为：
 ``` xml
 <?xml version="1.0" encoding="utf-8"?>
 <android.inputmethodservice.KeyboardView
@@ -69,7 +81,8 @@ comments: true
     android:keyPreviewLayout ="@layout/preview"
     />
 ```
-继续在res/layout/中添加`Layout resource file`，选择`Available qualifiers`为`Keyboard`，`File name`为`preview`，其内容为：
+继续在res/layout/中添加Layout XML File，填写
+`Layout File name`：**preview**，其内容为：
 ``` xml
 <?xml version="1.0" encoding="utf-8"?>
 <TextView xmlns:android="http://schemas.android.com/apk/res/android"
@@ -136,4 +149,82 @@ comments: true
 </Keyboard>
 ```
 # 添加服务代码
-在app/java/com.palanceli.ime.androidimesample下添加Service，名称为``
+编辑文件app/java/com.palanceli.ime.androidimesample/AndroidIMESampleService.java：
+``` java
+package com.palanceli.ime.androidimesample;
+
+import android.inputmethodservice.InputMethodService;
+import android.inputmethodservice.Keyboard;
+import android.inputmethodservice.KeyboardView;
+import android.media.AudioManager;
+import android.view.KeyEvent;
+import android.view.View;
+import android.view.inputmethod.InputConnection;
+
+public class AndroidIMESampleService extends InputMethodService
+        implements KeyboardView.OnKeyboardActionListener {
+
+    private KeyboardView keyboardView; // 对应keyboard.xml中定义的KeyboardView
+    private Keyboard keyboard;         // 对应qwerty.xml中定义的Keyboard
+
+    @Override
+    public void onPress(int primaryCode) {
+    }
+
+    @Override
+    public void onRelease(int primaryCode) {
+    }
+
+    @Override
+    public void onText(CharSequence text) {
+    }
+
+    @Override
+    public void swipeDown() {
+    }
+
+    @Override
+    public void swipeLeft() {
+    }
+
+    @Override
+    public void swipeRight() {
+    }
+
+    @Override
+    public void swipeUp() {
+    }
+
+    @Override
+    public View onCreateInputView() {
+        // keyboard被创建后，将调用onCreateInputView函数
+        keyboardView = (KeyboardView)getLayoutInflater().inflate(R.layout.keyboard, null);  // 此处使用了keyboard.xml
+        keyboard = new Keyboard(this, R.xml.qwerty);  // 此处使用了qwerty.xml
+        keyboardView.setKeyboard(keyboard);
+        keyboardView.setOnKeyboardActionListener(this);
+        return keyboardView;
+    }
+
+    @Override
+    public void onKey(int primaryCode, int[] keyCodes) {
+        InputConnection ic = getCurrentInputConnection();
+        switch(primaryCode){
+            case Keyboard.KEYCODE_DELETE :
+                ic.deleteSurroundingText(1, 0);
+                break;
+            case Keyboard.KEYCODE_DONE:
+                ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER));
+                break;
+            default:
+                char code = (char)primaryCode;
+                ic.commitText(String.valueOf(code), 1);
+        }
+    }
+}
+```
+# 构建apk并安装
+点击Android Studio 菜单 Build > Build APK，构建完成后会弹出结果，在Finder中可以查看此APK。
+在模拟器中安装该输入法：打开模拟器，将APK直接拖入模拟器完成安装。
+在模拟器中点击：设置 > 语言和输入法 > 当前输入法 > 选择键盘，即可看到AndroidIMESample，将之开启。
+再重新进入：设置 > 语言和输入法 > 当前输入法，即可选择AndroidIMESample。
+随便进入一个可编辑区域，即可看到弹出的键盘。
