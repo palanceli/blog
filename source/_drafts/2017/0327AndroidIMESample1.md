@@ -44,10 +44,9 @@ comments: true
                 android:resource="@xml/method" />
         </service>
     </application>
-
 </manifest>
 ```
-在服务中引用了元数据`@xml/method`，接下来添加它。
+其中`service`的`android:label`属性定义了输入法的名称，在系统输入法列表中看到的名称就是从此处获取到的。在`service`的`meta-data`中引用了元数据`@xml/method`，接下来添加它。
 # 添加元数据
 在工程res中创建xml目录，然后在res右键 > New > Android resource file 填写
 `File name`：**method**
@@ -148,7 +147,9 @@ comments: true
     </Row>
 </Keyboard>
 ```
-# 添加服务代码
+在`AndroidIMESampleService::onCreateInputView()`函数中将根据`res/layout/keyboard.xml`来创建键盘视图，再根据`res/xml/qwerty.xml`将键盘布局创建在该视图上。
+
+# 显示输入窗口
 编辑文件app/java/com.palanceli.ime.androidimesample/AndroidIMESampleService.java：
 ``` java
 package com.palanceli.ime.androidimesample;
@@ -164,8 +165,35 @@ import android.view.inputmethod.InputConnection;
 public class AndroidIMESampleService extends InputMethodService
         implements KeyboardView.OnKeyboardActionListener {
 
-    private KeyboardView keyboardView; // 对应keyboard.xml中定义的KeyboardView
-    private Keyboard keyboard;         // 对应qwerty.xml中定义的Keyboard
+    private KeyboardView mKeyboardView; // 对应keyboard.xml中定义的KeyboardView
+    private Keyboard mKeyboard;         // 对应qwerty.xml中定义的Keyboard
+
+    @Override
+    public View onCreateInputView() {
+        // res/layout/keyboard.xml
+        mKeyboardView = (KeyboardView)getLayoutInflater().inflate(R.layout.keyboard, null);
+        mKeyboard = new Keyboard(this, R.xml.qwerty);  // res/xml/qwerty.xml
+        mKeyboardView.setKeyboard(mKeyboard);
+        // 将自己设为mKeyboardView的listener,以便接收和处理键盘消息
+        mKeyboardView.setOnKeyboardActionListener(this);
+        return mKeyboardView;
+    }
+
+    @Override
+    public void onKey(int primaryCode, int[] keyCodes) {
+        InputConnection ic = getCurrentInputConnection();
+        switch(primaryCode){
+            case Keyboard.KEYCODE_DELETE :
+                ic.deleteSurroundingText(1, 0);
+                break;
+            case Keyboard.KEYCODE_DONE:
+                ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER));
+                break;
+            default:
+                char code = (char)primaryCode;
+                ic.commitText(String.valueOf(code), 1);
+        }
+    }
 
     @Override
     public void onPress(int primaryCode) {
@@ -195,33 +223,18 @@ public class AndroidIMESampleService extends InputMethodService
     public void swipeUp() {
     }
 
-    @Override
-    public View onCreateInputView() {
-        // keyboard被创建后，将调用onCreateInputView函数
-        keyboardView = (KeyboardView)getLayoutInflater().inflate(R.layout.keyboard, null);  // 此处使用了keyboard.xml
-        keyboard = new Keyboard(this, R.xml.qwerty);  // 此处使用了qwerty.xml
-        keyboardView.setKeyboard(keyboard);
-        keyboardView.setOnKeyboardActionListener(this);
-        return keyboardView;
-    }
-
-    @Override
-    public void onKey(int primaryCode, int[] keyCodes) {
-        InputConnection ic = getCurrentInputConnection();
-        switch(primaryCode){
-            case Keyboard.KEYCODE_DELETE :
-                ic.deleteSurroundingText(1, 0);
-                break;
-            case Keyboard.KEYCODE_DONE:
-                ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER));
-                break;
-            default:
-                char code = (char)primaryCode;
-                ic.commitText(String.valueOf(code), 1);
-        }
-    }
 }
 ```
+在函数`AndroidIMESample::onCreateInputView()`中，它将自己设为键盘视图的listener，因此`AndroidIMESample`必须实现[KeyboardView.OnKeyboardActionListener](https://developer.android.com/reference/android/inputmethodservice/KeyboardView.OnKeyboardActionListener.html)定义的几个接口方法：
+* `onKey(int primaryCode, int[] keyCodes)` 向listener发送key press事件
+* `onPress(int primaryCode)` 响应用户按下按键的动作
+* `onRelease(int primaryCode)` 响应用户松开按键的动作
+* `onText(CharSequence text)`   向listener发送一个字符序列
+* `swipeDown()`    响应用户从上到下快速扫过的动作
+* `swipeLeft()` 响应用户从右到左快速扫过的动作
+* `swipeRight()` 响应用户从左到右快速扫过的动作
+* `swipeUp()` 响应用户从下到上快速扫过的动作
+
 # 构建apk并安装
 点击Android Studio 菜单 Build > Build APK，构建完成后会弹出结果，在Finder中可以查看此APK。
 在模拟器中安装该输入法：打开模拟器，将APK直接拖入模拟器完成安装。
