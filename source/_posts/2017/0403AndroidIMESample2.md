@@ -154,3 +154,5 @@ public class AndroidIMESampleService extends InputMethodService
 * `onCreateCandidatesView()`函数会在输入法初始化时被系统调用，详见[输入法生命周期](http://localhost:4000/2017/02/07/2017/0207CreatingAnInputMethod/#输入法生命周期（The-IME-Lifecycle）)
 * `onStartInput(...)`函数会在输入区域获得焦点时被系统调用，详见[处理不同的输入类型](http://localhost:4000/2017/02/07/2017/0207CreatingAnInputMethod/#处理不同的输入类型)
 * 修改`onKey(...)`中的主要逻辑为：除空格以外的字符均暂存如写作串，空格用来使首个候选上屏
+
+本文的代码可参见[AndroidIMESample v1.1](https://github.com/palanceli/AndroidIMESample/tree/v1.1)
