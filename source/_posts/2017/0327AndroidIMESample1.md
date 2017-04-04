@@ -1,6 +1,6 @@
 ---
 layout: post
-title: 创建Android下的输入法
+title: 创建Android下的输入法(一)——创建步骤
 date: 2017-03-27 23:00:00 +0800
 categories: 随笔笔记
 tags: 输入法
@@ -148,6 +148,7 @@ comments: true
 </Keyboard>
 ```
 在`AndroidIMESampleService::onCreateInputView()`函数中将根据`res/layout/keyboard.xml`来创建键盘视图，再根据`res/xml/qwerty.xml`将键盘布局创建在该视图上。
+在[android.inputmethodservice.Keyboard](https://developer.android.com/reference/android/inputmethodservice/Keyboard.html)中有对键盘xml格式的详细说明
 
 # 显示输入窗口
 编辑文件app/java/com.palanceli.ime.androidimesample/AndroidIMESampleService.java：
@@ -241,3 +242,5 @@ public class AndroidIMESampleService extends InputMethodService
 在模拟器中点击：设置 > 语言和输入法 > 当前输入法 > 选择键盘，即可看到AndroidIMESample，将之开启。
 再重新进入：设置 > 语言和输入法 > 当前输入法，即可选择AndroidIMESample。
 随便进入一个可编辑区域，即可看到弹出的键盘。
+
+本文的源码可参见[AndroidIMESample v1.0](https://github.com/palanceli/AndroidIMESample/tree/v1.0)

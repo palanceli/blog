@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Custom Keyboard（译）
+title: iOS下的自定义键盘（译）
 date: 2017-03-07 20:53:00 +0800
 categories: 随笔笔记
 tags: 输入法

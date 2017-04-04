@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Input Method Kit（译）
+title: macOS下的Input Method Kit（译）
 date: 2017-03-06 20:53:00 +0800
 categories: 随笔笔记
 tags: 输入法
