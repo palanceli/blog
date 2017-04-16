@@ -66,7 +66,8 @@ bool DictBuilder::build_dict(const char *fn_raw,
                           spl_table_->get_score_amplifier(),
                           spl_table_->get_average_score())) {...}
   ...
-  // Convert the spelling string to idxs
+  // 填充lemma_arr_数组每个元素的spl_idx_arr项，它表示每个汉字对应的音
+  // 在spl_ym_ids_中的偏移
   for (size_t i = 0; i < lemma_num_; i++) {
     for (size_t hz_pos = 0; hz_pos < (size_t)lemma_arr_[i].hz_str_len;
          hz_pos++) {
@@ -87,14 +88,16 @@ bool DictBuilder::build_dict(const char *fn_raw,
     }
   }
 
-  // Sort the lemma items according to the hanzi, and give each unique item a
-  // id
+  // 按照汉字串排序，并给每个唯一的汉字串赋予唯一id，即idx_by_hz字段
   sort_lemmas_by_hz();
-
+  // 构建单字表到scis_，并根据该单字表更新lemma_arr_中的hanzi_scis_ids字段
   scis_num_ = build_scis();
 
   // Construct the dict list
   dict_trie->dict_list_ = new DictList();
+  // 将单字序列化到scis_hz_，每个元素一个单字；
+  // 将该单字对应的splid序列化到scis_splid_，每个元素一个SpellingId；
+  // 将所有的词序列化到buf_，每个元素都是变长的词串
   bool dl_success = dict_trie->dict_list_->init_list(scis_, scis_num_,
                                                      lemma_arr_, lemma_num_);
   assert(dl_success);
@@ -547,3 +550,116 @@ SpellingNode* SpellingTrie::construct_spellings_subset(
 }
 ```
 生成的Trie树结构如下：![Trie树](0416libGooglePinyin01/img01.png)
+这是其逻辑结构，物理结构上指向子节点的指针并没有保存在父节点，而是用一个数组顺序保存子节点。例如：AI、AN、AO三个元素保存在数组中，A的first_son指针指向该数组。
+
+# Step8 SpellingParser::splstr_to_idxs(...)
+``` c++
+// src/splparser.cpp
+uint16 SpellingParser::splstr_to_idxs(const char *splstr, uint16 str_len,
+                                      uint16 spl_idx[], uint16 start_pos[],
+                                      uint16 max_size, bool &last_is_pre) {
+  ...
+  last_is_pre = false;
+
+  const SpellingNode *node_this = spl_trie_->root_;
+
+  uint16 str_pos = 0;
+  uint16 idx_num = 0;
+  if (NULL != start_pos)
+    start_pos[0] = 0;
+  bool last_is_splitter = false;
+
+  while (str_pos < str_len) {
+    char char_this = splstr[str_pos];
+    // all characters outside of [a, z] are considered as splitters
+    if (!SpellingTrie::is_valid_spl_char(char_this)) {
+      // test if the current node is endable
+      uint16 id_this = node_this->spelling_idx;
+      if (spl_trie_->if_valid_id_update(&id_this)) {
+        spl_idx[idx_num] = id_this;
+
+        idx_num++;
+        str_pos++;
+        if (NULL != start_pos)
+          start_pos[idx_num] = str_pos;
+        if (idx_num >= max_size)
+          return idx_num;
+
+        node_this = spl_trie_->root_;
+        last_is_splitter = true;
+        continue;
+      } else {
+        if (last_is_splitter) {
+          str_pos++;
+          if (NULL != start_pos)
+            start_pos[idx_num] = str_pos;
+          continue;
+        } else {
+          return idx_num;
+        }
+      }
+    }
+
+    last_is_splitter = false;
+
+    SpellingNode *found_son = NULL;
+
+    if (0 == str_pos) {
+      if (char_this >= 'a')
+        found_son = spl_trie_->level1_sons_[char_this - 'a'];
+      else
+        found_son = spl_trie_->level1_sons_[char_this - 'A'];
+    } else {
+      SpellingNode *first_son = node_this->first_son;
+      // Because for Zh/Ch/Sh nodes, they are the last in the buffer and
+      // frequently used, so we scan from the end.
+      for (int i = 0; i < node_this->num_of_son; i++) {
+        SpellingNode *this_son = first_son + i;
+        if (SpellingTrie::is_same_spl_char(
+            this_son->char_this_node, char_this)) {
+          found_son = this_son;
+          break;
+        }
+      }
+    }
+
+    // found, just move the current node pointer to the the son
+    if (NULL != found_son) {
+      node_this = found_son;
+    } else {
+      // not found, test if it is endable
+      uint16 id_this = node_this->spelling_idx;
+      if (spl_trie_->if_valid_id_update(&id_this)) {
+        // endable, remember the index
+        spl_idx[idx_num] = id_this;
+
+        idx_num++;
+        if (NULL != start_pos)
+          start_pos[idx_num] = str_pos;
+        if (idx_num >= max_size)
+          return idx_num;
+        node_this = spl_trie_->root_;
+        continue;
+      } else {
+        return idx_num;
+      }
+    }
+
+    str_pos++;
+  }
+
+  uint16 id_this = node_this->spelling_idx;
+  if (spl_trie_->if_valid_id_update(&id_this)) {
+    // endable, remember the index
+    spl_idx[idx_num] = id_this;
+
+    idx_num++;
+    if (NULL != start_pos)
+      start_pos[idx_num] = str_pos;
+  }
+
+  last_is_pre = !last_is_splitter;
+
+  return idx_num;
+}
+```
