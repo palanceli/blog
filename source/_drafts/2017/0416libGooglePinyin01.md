@@ -7,10 +7,13 @@ tags: 输入法
 toc: true
 comments: true
 ---
-我fork了一份[libGooglePinyin](https://github.com/palanceli/libgooglepinyin)，并在此基础上稍作修改，以便能跑起来。开源的代码，方便讨论，并以此为切入点研究输入法引擎当中，解决具体问题的方法。libGooglePinyin的本尊在[这里](https://code.google.com/archive/p/libgooglepinyin/)，在Github上还有很多拷贝。<!-- more -->
+Fork了一份[libGooglePinyin](https://github.com/palanceli/libgooglepinyin)，并在此基础上稍作修改，以便能跑起来。开源的代码，方便讨论，并以此为切入点研究输入法引擎当中，解决具体问题的方法。libGooglePinyin的本尊在[这里](https://code.google.com/archive/p/libgooglepinyin/)，在Github上还有很多拷贝。<!-- more -->
 本文讨论libGooglePinyin构建词库的过程，以及词库格式。由于对代码做了一些改动，我就以自己的代码树为标准来讨论。
 
-# Step0 main(...)
+词库的构建代码在tools/pinyinime_dictbuilder.cpp，生成可执行文件dictbuilder.exe，调用格式为：
+`dictbuilder.exe <rawdict_utf16_65105_freq.txt的路径> <valid_utf16.txt的路径> <系统词库dict_pinyin.dat的生成路径>`
+
+main函数的代码很简单：
 ``` c++
 // tools/pinyinime_dictbuilder.cpp
 int main(int argc, char* argv[]) {
@@ -24,7 +27,8 @@ int main(int argc, char* argv[]) {
   return 0;
 }
 ```
-文件`rawdict_utf16_65105_freq.txt`是词库的文本形式；文件`valid_utf16.txt`存放所有合法的汉字。
+文件`rawdict_utf16_65105_freq.txt`是词库的文本形式；
+文件`valid_utf16.txt`存放所有合法的汉字。
 
 # Step1 DictTrie::build_dict(...)
 ``` c++
@@ -32,8 +36,8 @@ bool DictTrie::build_dict(const char* fn_raw, const char* fn_validhzs) {
   DictBuilder* dict_builder = new DictBuilder();
 
   free_resource(true);
-  // 🏁
-  return dict_builder->build_dict(fn_raw, fn_validhzs, this);
+ 
+  return dict_builder->build_dict(fn_raw, fn_validhzs, this); // 🏁
 }
 ```
 # Step2 DictBuilder::build_dict(...)
@@ -102,7 +106,7 @@ bool DictBuilder::build_dict(const char *fn_raw,
                                                      lemma_arr_, lemma_num_);
   assert(dl_success);
 
-  // Construct the NGram information
+  // 🏁Step9 构建NGram信息
   NGram& ngram = NGram::get_instance();
   ngram.build_unigram(lemma_arr_, lemma_num_,
                       lemma_arr_[lemma_num_ - 1].idx_by_hz + 1);
@@ -237,7 +241,7 @@ size_t DictBuilder::read_raw_dict(const char* fn_raw,
       // 转成大写，双声母转成Zh、Ch、Sh
       format_spelling_str(lemma_arr_[i].pinyin_str[hz_pos]);
 
-      // Put the pinyin to the spelling table 将音节存入拼音表
+      // Put the pinyin to the spelling table 🏁Step4 将音节存入拼音表
       if (!spl_table_->put_spelling(lemma_arr_[i].pinyin_str[hz_pos],
                                     lemma_arr_[i].freq)) {
         spelling_not_support = true;
@@ -250,6 +254,9 @@ size_t DictBuilder::read_raw_dict(const char* fn_raw,
   return lemma_num;
 }
 ```
+合法汉字表是一个char16的数组，它将valid_utf16.txt中的汉字按编码顺序排列：![合法汉字表](0416libGooglePinyin01/img03.png)
+函数`DictBuilder::read_raw_dict(…)`主要生成数据结构`lemma_arr_`：![lemma_arr_](0416libGooglePinyin01/img04.png)
+这是从`rawdict_utf16_65105_freq.txt`读出系统词库并组织成数组，每个元素是一个LemmaEntry结构体。
 # Step4 SpellingTable::put_spelling(...)
 ``` c++
 // src/spellingtable.cpp
@@ -293,7 +300,7 @@ bool SpellingTable::put_spelling(const char* spelling_str, double freq) {
 # Step5 SpellingTable::arrange(...)
 该函数将raw_spellings_中的音节串按照顺序，排列到spelling_buf_中。其中每个元素包含：音节拼音串 和 音节音频，前者占7个字节，以'\0'结尾；后者占1个字节。共413个元素。
 音频的算法为：
-score_amplifier_=255/log(min_freq)
+score_amplifier=255/log(min_freq)
 score = log(freq)*score_amplifier = log(freq - min_freq) * 255
 ``` c++
 // src/spellingtable.cpp
@@ -662,4 +669,102 @@ uint16 SpellingParser::splstr_to_idxs(const char *splstr, uint16 str_len,
 
   return idx_num;
 }
+```
+# Step9 NGram::build_unigram(...)
+``` c++
+bool NGram::build_unigram(LemmaEntry *lemma_arr, size_t lemma_num,
+                          LemmaIdType next_idx_unused) {
+  ...
+  double total_freq = 0;
+  double *freqs = new double[next_idx_unused];
+  ...
+  freqs[0] = ADD_COUNT;
+  total_freq += freqs[0];
+  LemmaIdType idx_now = 0;
+  for (size_t pos = 0; pos < lemma_num; pos++) {
+    if (lemma_arr[pos].idx_by_hz == idx_now)
+      continue;
+    idx_now++;
+
+    assert(lemma_arr[pos].idx_by_hz == idx_now);
+
+    freqs[idx_now] = lemma_arr[pos].freq;
+    if (freqs[idx_now] <= 0)
+      freqs[idx_now] = 0.3;
+
+    total_freq += freqs[idx_now];
+  }
+
+  double max_freq = 0;
+  idx_num_ = idx_now + 1;
+  assert(idx_now + 1 == next_idx_unused);
+
+  for (size_t pos = 0; pos < idx_num_; pos++) {
+    freqs[pos] = freqs[pos] / total_freq;
+    assert(freqs[pos] > 0);
+    if (freqs[pos] > max_freq)
+      max_freq = freqs[pos];
+  }
+
+  // calculate the code book
+  if (NULL == freq_codes_df_)
+    freq_codes_df_ = new double[kCodeBookSize];
+  assert(freq_codes_df_);
+  memset(freq_codes_df_, 0, sizeof(double) * kCodeBookSize);
+
+  if (NULL == freq_codes_)
+    freq_codes_ = new LmaScoreType[kCodeBookSize];
+  assert(freq_codes_);
+  memset(freq_codes_, 0, sizeof(LmaScoreType) * kCodeBookSize);
+
+  size_t freq_pos = 0;
+  for (size_t code_pos = 0; code_pos < kCodeBookSize; code_pos++) {
+    bool found = true;
+
+    while (found) {
+      found = false;
+      double cand = freqs[freq_pos];
+      for (size_t i = 0; i < code_pos; i++)
+        if (freq_codes_df_[i] == cand) {
+          found = true;
+          break;
+        }
+      if (found)
+        freq_pos++;
+    }
+
+    freq_codes_df_[code_pos] = freqs[freq_pos];
+    freq_pos++;
+  }
+
+  myqsort(freq_codes_df_, kCodeBookSize, sizeof(double), comp_double);
+
+  if (NULL == lma_freq_idx_)
+    lma_freq_idx_ = new CODEBOOK_TYPE[idx_num_];
+  assert(lma_freq_idx_);
+
+  iterate_codes(freqs, idx_num_, freq_codes_df_, lma_freq_idx_);
+
+  delete [] freqs;
+
+  if (kPrintDebug0) {
+    printf("\n------Language Model Unigram Codebook------\n");
+  }
+
+  for (size_t code_pos = 0; code_pos < kCodeBookSize; code_pos++) {
+    double log_score = log(freq_codes_df_[code_pos]);
+    float final_score = convert_psb_to_score(freq_codes_df_[code_pos]);
+    if (kPrintDebug0) {
+      printf("code:%zd, probability:%.9f, log score:%.3f, final score: %.3f\n",
+             code_pos, freq_codes_df_[code_pos], log_score, final_score);
+    }
+    freq_codes_[code_pos] = static_cast<LmaScoreType>(final_score);
+  }
+
+  initialized_ = true;
+  return true;
+}
+#endif
+
+}  // namespace ime_pinyin
 ```
