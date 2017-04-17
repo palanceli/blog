@@ -257,6 +257,7 @@ size_t DictBuilder::read_raw_dict(const char* fn_raw,
 合法汉字表是一个char16的数组，它将valid_utf16.txt中的汉字按编码顺序排列：![合法汉字表](0416libGooglePinyin01/img03.png)
 函数`DictBuilder::read_raw_dict(…)`主要生成数据结构`lemma_arr_`：![lemma_arr_](0416libGooglePinyin01/img04.png)
 这是从`rawdict_utf16_65105_freq.txt`读出系统词库并组织成数组，每个元素是一个LemmaEntry结构体。
+在解析拼音串的同时，它构建了一张拼音表，在Step4中分析。
 # Step4 SpellingTable::put_spelling(...)
 ``` c++
 // src/spellingtable.cpp
@@ -297,6 +298,8 @@ bool SpellingTable::put_spelling(const char* spelling_str, double freq) {
   return false;
 }
 ```
+它生成一张哈希表`raw_spellings_`，它的有效元素即合法的音节字串个数413，这张哈希表的空间远比这个数字大，不过这个细节并不重要：
+![raw_spellings](0416libGooglePinyin01/img05.png)
 # Step5 SpellingTable::arrange(...)
 该函数将raw_spellings_中的音节串按照顺序，排列到spelling_buf_中。其中每个元素包含：音节拼音串 和 音节音频，前者占7个字节，以'\0'结尾；后者占1个字节。共413个元素。
 音频的算法为：
