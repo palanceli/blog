@@ -47,12 +47,17 @@ bool DictBuilder::build_dict(const char *fn_raw,
                              const char *fn_validhzs,
                              DictTrie *dict_trie) {
   ...
-  // 🏁 读出原始数据，形成两个数据结构：
+  // 🏁Step3 读出原始数据，形成两个数据结构：
   // 1. lemma_arr_数组，它的每个元素存放词、词频、拼音串
   // 2. raw_spellings_哈希表，它的每个元素存放一个音节、音频（所有包含该音的词频总和）
   lemma_num_ = read_raw_dict(fn_raw, fn_validhzs, 240000);
   ...
+```
+数据结构`lemma_arr_`是从`rawdict_utf16_65105_freq.txt`读出系统词库并组织成的数组，每个元素是一个LemmaEntry结构体：![lemma_arr_](0416libGooglePinyin01/img04.png)
+在解析拼音串的同时，它用哈希表`raw_spellings_`构建了一张拼音表，具体过程在Step4中分析。其有效元素即合法的音节字串个数413，这张哈希表的空间远比这个数字大，不过这个细节并不重要：
+![raw_spellings](0416libGooglePinyin01/img05.png)
 
+``` c++
   // Arrange the spelling table, and build a spelling tree
   // The size of an spelling. '\0' is included. If the spelling table is
   // initialized to calculate the spelling scores, the last char in the
@@ -64,6 +69,9 @@ bool DictBuilder::build_dict(const char *fn_raw,
   // 返回值spl_buf指向该成员
   spl_buf = spl_table_->arrange(&spl_item_size, &spl_num);
   ...
+```
+该函数将spl_table_->raw_spellings_中的音节串按照顺序，排列到spelling_buf_中。其中每个元素包含：音节拼音串 和 音节音频，前者占7个字节，以'\0'结尾；后者占1个字节。共413个元素。如下图：![spelling_buf_](0416libGooglePinyin01/img06.png)
+``` c++
   SpellingTrie &spl_trie = SpellingTrie::get_instance();
   // 🏁 Step6 把所有合法音节组织成一个Trie树
   if (!spl_trie.construct(spl_buf, spl_item_size, spl_num,
@@ -91,7 +99,9 @@ bool DictBuilder::build_dict(const char *fn_raw,
       lemma_arr_[i].spl_idx_arr[hz_pos] = spl_idxs[0];
     }
   }
+```
 
+```c++
   // 按照汉字串排序，并给每个唯一的汉字串赋予唯一id，即idx_by_hz字段
   sort_lemmas_by_hz();
   // 构建单字表到scis_，并根据该单字表更新lemma_arr_中的hanzi_scis_ids字段
@@ -255,9 +265,7 @@ size_t DictBuilder::read_raw_dict(const char* fn_raw,
 }
 ```
 合法汉字表是一个char16的数组，它将valid_utf16.txt中的汉字按编码顺序排列：![合法汉字表](0416libGooglePinyin01/img03.png)
-函数`DictBuilder::read_raw_dict(…)`主要生成数据结构`lemma_arr_`：![lemma_arr_](0416libGooglePinyin01/img04.png)
-这是从`rawdict_utf16_65105_freq.txt`读出系统词库并组织成数组，每个元素是一个LemmaEntry结构体。
-在解析拼音串的同时，它构建了一张拼音表，在Step4中分析。
+
 # Step4 SpellingTable::put_spelling(...)
 ``` c++
 // src/spellingtable.cpp
@@ -298,13 +306,9 @@ bool SpellingTable::put_spelling(const char* spelling_str, double freq) {
   return false;
 }
 ```
-它生成一张哈希表`raw_spellings_`，它的有效元素即合法的音节字串个数413，这张哈希表的空间远比这个数字大，不过这个细节并不重要：
-![raw_spellings](0416libGooglePinyin01/img05.png)
+
 # Step5 SpellingTable::arrange(...)
-该函数将raw_spellings_中的音节串按照顺序，排列到spelling_buf_中。其中每个元素包含：音节拼音串 和 音节音频，前者占7个字节，以'\0'结尾；后者占1个字节。共413个元素。
-音频的算法为：
-score_amplifier=255/log(min_freq)
-score = log(freq)*score_amplifier = log(freq - min_freq) * 255
+
 ``` c++
 // src/spellingtable.cpp
 const char* SpellingTable::arrange(size_t *item_size, size_t *spl_num) {
@@ -348,7 +352,7 @@ const char* SpellingTable::arrange(size_t *item_size, size_t *spl_num) {
     score_amplifier_ = 1.0 * 255 / min_score;
 
     double average_score = 0;
-    // 将每个音节的音频统一到[0, 255]之间的一个数，并保存在spelling_buf_数组中，
+    // 将音频统一到(0, 255)之间的数字，并保存在spelling_buf_数组中，
     // 该数组每个元素为8字节，前7字节为以'\0'结尾的音节，最后一个字节为音频
     for (size_t pos = 0; pos < spelling_num_; pos++) {
       double score = log(raw_spellings_[pos].freq) * score_amplifier_;
