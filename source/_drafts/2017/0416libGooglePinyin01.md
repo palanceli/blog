@@ -71,6 +71,8 @@ bool DictBuilder::build_dict(const char *fn_raw,
   ...
 ```
 该函数将spl_table_->raw_spellings_中的音节串按照顺序，排列到spelling_buf_中。其中每个元素包含：音节拼音串 和 音节音频，前者占7个字节，以'\0'结尾；后者占1个字节。共413个元素。如下图：![spelling_buf_](0416libGooglePinyin01/img06.png)
+
+`spl_table_->arrange`返回的spl_buf即spl_table_->spelling_buf_，继续被传入`spl_trie.construct`中：
 ``` c++
   SpellingTrie &spl_trie = SpellingTrie::get_instance();
   // 🏁 Step6 把所有合法音节组织成一个Trie树
@@ -101,7 +103,7 @@ bool DictBuilder::build_dict(const char *fn_raw,
   }
 ```
 
-```c++
+``` c++
   // 按照汉字串排序，并给每个唯一的汉字串赋予唯一id，即idx_by_hz字段
   sort_lemmas_by_hz();
   // 构建单字表到scis_，并根据该单字表更新lemma_arr_中的hanzi_scis_ids字段
@@ -407,7 +409,7 @@ bool SpellingTrie::construct(const char* spelling_arr, size_t item_size,
   ...
   splstr16_queried_ = new char16[spelling_size_];
   ...
-  // 在Step5中排过序的，这个排序是不是多余？
+  // 在Step5中排过序的，再次按照{拼音, 音频}的值排序是不是多余？
   qsort(spelling_buf_, spelling_num_, spelling_size_, compare_spl);
 
 #ifdef ___BUILD_MODEL___
@@ -427,7 +429,7 @@ bool SpellingTrie::construct(const char* spelling_arr, size_t item_size,
 
   // 包含26个SpellingNode元素的数组
   memset(level1_sons_, 0, sizeof(SpellingNode*) * kValidSplCharNum);
-  // 🏁 组织Trie树
+  // 🏁Step7 组织Trie树
   root_->first_son = construct_spellings_subset(0, spelling_num_, 0, root_);
 
   // Root's score should be cleared.
