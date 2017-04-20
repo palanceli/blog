@@ -102,6 +102,12 @@ bool DictBuilder::build_dict(const char *fn_raw,
     }
   }
 ```
+在`spl_trie.construct(...)`中，生成的数据结构比较多：
+它从参数spl_buf中拷贝了一份spelling_buf ![SpellingTrie::spelling_buf_](0416libGooglePinyin01/img07.png)
+为所有合法的音节串生成Trie树，该树的逻辑结构为：![字典树的逻辑结构](0416libGooglePinyin01/img08.png)
+实际存储结构为：![字典树的存储结构](0416libGooglePinyin01/img09.png)
+其中spelling_idx表示该节点的音节在spelling_str表中的索引。spelling_id和spelling_str是一个虚拟表，是通过一段代码提供从id到str的转换关系，它包含两部分内容，前30个元素是所有音节的首部（声母和可独立出现的韵母），又叫half；之后的元素是合法音节，又叫full。其表达的数据结构为![spl_id&spl_str](0416libGooglePinyin01/img10.png)
+
 
 ``` c++
   // 按照汉字串排序，并给每个唯一的汉字串赋予唯一id，即idx_by_hz字段
