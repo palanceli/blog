@@ -78,10 +78,25 @@ bool DictBuilder::build_dict(const char *fn_raw,
   // 🏁 Step6 把所有合法音节组织成一个Trie树
   if (!spl_trie.construct(spl_buf, spl_item_size, spl_num,
                           spl_table_->get_score_amplifier(),
-                          spl_table_->get_average_score())) {...}
-  ...
-  // 填充lemma_arr_数组每个元素的spl_idx_arr项，它表示每个汉字对应的音
-  // 在spl_ym_ids_中的偏移
+                          spl_table_->get_average_score())) 
+  {...}
+```
+在`spl_trie.construct(...)`中，生成的数据结构比较多：
+它从参数spl_buf中拷贝了一份spelling_buf ![SpellingTrie::spelling_buf_](0416libGooglePinyin01/img07.png)
+为所有合法的音节串生成Trie树，该树的逻辑结构为：![字典树的逻辑结构](0416libGooglePinyin01/img08.png)
+实际存储结构为：![字典树的存储结构](0416libGooglePinyin01/img09.png)
+来看spelling_idx的含义，当它小于30，表示它可以作为一个half音节；如果大于30，表示这是一个full音节，该值即此音节在spelling_buf_中的偏移。
+half音节是指可以作为音节首部的拼音串，包括声母（如`b`、`p`、`m`，双声母`zh`、`ch`、`sh`）和可独立出现的韵母（如`a`、`o`、`e`）。
+
+该段代码还生成了`SpellingTrie::h2f_start_`和`SpellingTrie::h2f_num_`：![h2f_start_和h2f_num_](0416libGooglePinyin01/img11.png)这两个数据结构要结合音节字典树和spelling_buf_一起来看。
+
+该代码还生成了`SpellingTrie::f2h_`：![f2h_](0416libGooglePinyin01/img12.png)该数据结构用于从full到half的对应，因此可以把相关的数据结合来看。
+
+该代码还生成了`SpellingTrie::ym_buf_`和`SpellingTrie::spl_ym_ids`前者是韵母表，后者则是音节到韵母的关系：![ym_buf_和spl_ym_ids](0416libGooglePinyin01/img13.png)，其中spl_id&spl_str这张表并不存在物理数据，这张表的转换关系是在函数`SpellingTrie::get_spelling_str(...)`中体现的。
+
+
+``` c++
+  // 填充lemma_arr_数组每个元素的spl_idx_arr项，它表示每个汉字的音对应的spl_id
   for (size_t i = 0; i < lemma_num_; i++) {
     for (size_t hz_pos = 0; hz_pos < (size_t)lemma_arr_[i].hz_str_len;
          hz_pos++) {
@@ -101,20 +116,19 @@ bool DictBuilder::build_dict(const char *fn_raw,
       lemma_arr_[i].spl_idx_arr[hz_pos] = spl_idxs[0];
     }
   }
-```
-在`spl_trie.construct(...)`中，生成的数据结构比较多：
-它从参数spl_buf中拷贝了一份spelling_buf ![SpellingTrie::spelling_buf_](0416libGooglePinyin01/img07.png)
-为所有合法的音节串生成Trie树，该树的逻辑结构为：![字典树的逻辑结构](0416libGooglePinyin01/img08.png)
-实际存储结构为：![字典树的存储结构](0416libGooglePinyin01/img09.png)
-其中spelling_idx表示该节点的音节在spelling_str表中的索引。spelling_id和spelling_str是一个虚拟表，是通过一段代码提供从id到str的转换关系，它包含两部分内容，前30个元素是所有音节的首部（声母和可独立出现的韵母），又叫half；之后的元素是合法音节，又叫full。其表达的数据结构为![spl_id&spl_str](0416libGooglePinyin01/img10.png)
-
-
-``` c++
-  // 按照汉字串排序，并给每个唯一的汉字串赋予唯一id，即idx_by_hz字段
+  // 按照汉字串排序，更新idx_by_hz字段，为每个词分配一个唯一id
   sort_lemmas_by_hz();
   // 构建单字表到scis_，并根据该单字表更新lemma_arr_中的hanzi_scis_ids字段
   scis_num_ = build_scis();
+```
+for循环则遍历`lemma_arr_`数组，更新每个元素的`spl_idx_arr`字段，它表示该词的每个字音对应的spl_id。
 
+`sort_lemmas_by_hz()`则按照汉字串对lemma_arr_排序，更新idx_by_hz字段，为每个词分配一个唯一id。
+
+`scis`是`SingleCharItems`的简写，`build_scis()`创建了单字表，并再次更新`lemma_arr_::hanzi_scis_ids`字段，该字段是每个词的每个汉字在单字表中的序号。单字表内容如下：![单字表](0416libGooglePinyin01/img14.png)
+更新后的`lemma_arr_`内容如下：![lemma_arr_](0416libGooglePinyin01/img15.png)
+
+``` c++
   // Construct the dict list
   dict_trie->dict_list_ = new DictList();
   // 将单字序列化到scis_hz_，每个元素一个单字；
