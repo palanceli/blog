@@ -137,7 +137,10 @@ for循环则遍历`lemma_arr_`数组，更新每个元素的`spl_idx_arr`字段�
   bool dl_success = dict_trie->dict_list_->init_list(scis_, scis_num_,
                                                      lemma_arr_, lemma_num_);
   assert(dl_success);
-
+```
+`dict_trie->dict_list_->init_list(...)`函数将单字表拆成两个数组：![scis_hz_&scis_splid_](0416libGooglePinyin01/img16.png)
+它把系统词库里所有汉字串成一个总串保存到`DictList::buf_`中，用`DictList::start_pos_`分别指向1字词、2字词……9字词的起点，用`DictList::start_id_`指向1字词、2字词……9字词在lemma_arr_中的起始位置：![start_pos_&start_id_](0416libGooglePinyin01/img17.png)
+``` c++
   // 🏁Step9 构建NGram信息
   NGram& ngram = NGram::get_instance();
   ngram.build_unigram(lemma_arr_, lemma_num_,
