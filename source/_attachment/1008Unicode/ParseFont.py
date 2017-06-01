@@ -109,7 +109,9 @@ if __name__ == '__main__':
     #fontParser.ParseTTF(os.path.join(fontDir, 'win7', 'simsun_1.ttf'))
     #fontParser.ParseTTF(os.path.join(fontDir, 'Android7.1', 'DroidSansFallback.ttf'))
     #fontParser.ParseTTF(os.path.join(fontDir, 'iOS9', 'PingFang_2.ttf'))
-    fontParser.ParseTTF(os.path.join(fontDir, 'macOS_Serra_10.12.3', 'PingFang.ttc'))
+    #fontParser.ParseTTF(os.path.join(fontDir, 'macOS_Serra_10.12.3', 'PingFang.ttc'))
+    for nFont in range(32):
+        fontParser.ParseTTF(os.path.join(fontDir, 'PingFang.ttc'), nFont)
     #fontParser.ParseTTF(os.path.join(fontDir, 'win7', 'mingliu', 'mingliu_2.ttf'))
     #fontParser.ParseTTF(os.path.join(fontDir, 'win7', 'msmincho', 'msmincho_1.ttf'))
     #fontParser.ParseTTF(os.path.join(fontDir, 'win7', 'batang', 'batang_0.ttf'))
