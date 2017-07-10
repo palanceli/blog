@@ -64,7 +64,7 @@ deploy:
 ```
 post_asset_folder: true
 ```
-然后在blog-dev/下执行
+然后在blog/下执行
 ```
 npm install https://github.com/CodeFalling/hexo-asset-image --save
 ```
