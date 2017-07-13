@@ -1,7 +1,7 @@
 ---
 layout: post
 title: 超级个体笔记——关于写作
-date: 2017-07-09 23:00:00 +0800
+date: 2017-05-09 23:00:00 +0800
 categories: 随笔笔记
 tags: 超级个体笔记
 toc: true
