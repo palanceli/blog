@@ -8,7 +8,7 @@ toc: true
 comments: true
 ---
 ![](0726iOSProgrammingBNRG06/img01.png)
-第五章还是这个界面，只不过是用代码的方式来实现的。本章要点：
+第六章还是这个界面，只不过是用代码的方式来实现的。本章要点：
 - 设置VC的View
 - 创建约束条件
 - 为控件关联事件
