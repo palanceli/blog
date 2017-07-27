@@ -7,7 +7,7 @@ tags: BNRG笔记
 toc: true
 comments: true
 ---
-![base ui](0723iOSProgrammingBNRG04/img01.png)
+![base ui](0724iOSProgrammingBNRG04/img01.png)
 第四章在此界面上修改degrees Fahrenheit的值，它会换算出degree Celsius的值。本章要点：
 - 响应TextField的变化事件
 - 在TextField失去焦点后收起键盘
@@ -18,7 +18,7 @@ comments: true
 # 1 布局TextField UI，并关联outlets对象
 ## 1.1 为什么在TextField的Font属性里填写了足够大的字号，但运行时还是很小？
 如下图所示，Label（"degrees Fahrenheit"）的字号只有27，TextField（"100"）的字号有50，但在运行时，Label的字体尺寸却比TextField的明显大，这是什么原因？
-![Font size](0723iOSProgrammingBNRG04/img02.png)
+![Font size](0724iOSProgrammingBNRG04/img02.png)
 TextField的字号设置没有生效，如果先给第一行TextField设置水平居中，在全选所有控件，选择行距+水平对齐，运行后结果发现Label的字号设置会生效，但TextField不生效，需要再给TextField添加一个Width约束，字号才会生效。<font color=red>这和第3章提到的字号是隐式约束不符呢：TextField的字号隐式约束没有生效。</font>
 
 # 2 响应Editbox的变化事件
@@ -26,7 +26,7 @@ TextField的字号设置没有生效，如果先给第一行TextField设置水�
 第1节中Ctrl+鼠标拖动按钮到ViewController，可以把点击按钮的动作和ViewController中的函数关联起来，如果按钮有多种动作，如何指定具体关联哪一种动作呢？比如如果此处拖动EditBox到ViewController的Action函数，那么关联的是EditBox的什么消息呢？
 
 这是Action和方法建立关联的第二种方式，对于按钮这种消息唯一的控件，直接从按钮拖到ViewController即可，对于此处可能有多种消息时，先点击产生消息的控件，在Connection Inspector中选择要关联的消息，再Ctrl拖拽到ViewController，选择函数即可。
-![关联消息响应函数](0723iOSProgrammingBNRG04/img03.png)
+![关联消息响应函数](0724iOSProgrammingBNRG04/img03.png)
 
 ## 2.2 此处的if-let判断
 ``` objc
