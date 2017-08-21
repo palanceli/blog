@@ -11,22 +11,36 @@ comments: true
 第一章实现该界面的问答功能，点击`Next Question`，显示一个新问题，点击`Show Answer`，显示该问题对应的答案。
 要点是：
 - 使用Interface Builder构建界面布局
+- 为控件关联代码变量和响应函数
 - 使用约束确保兼容不同的尺寸的设备
-- 为空间创建对应的变量，并为之关联消息响应函数。<!-- more -->
-
+- 修改app图标
+<!-- more -->
+---
 # 1 在story board上拖拽出界面
-注意在Main.storyboard上构造界面，别搞成LaunchScreen.storyboard了，后者是开机界面。
+注意在Main.storyboard上构造app主界面，别搞成LaunchScreen.storyboard了，后者是开机启动界面。
 
 ## 1.1 设定约束确保在不同的机型上布局一致
-与自动布局相关的按钮在Canvas的右下角：
+与自动布局相关的按钮在Canvas的右下角，本节涉及到第3、4个按钮，分别表示对齐和添加新的约束。
 ![自动布局相关按钮](0721iOSProgrammingBNRG01/img02.png)
-本节会涉及到第3、4个按钮，分别表示对齐和添加新的约束。
-对齐很容易理解：点击一个控件，再点击此按钮，勾选Horizontally in Container或Vertically in Container，可以让该控件在容器中水平或竖直方向居中
+点击对齐按钮展开如下面板:
 ![对齐按钮](0721iOSProgrammingBNRG01/img03.png)
-添加新约束：选择多个控件，把上下左右其中一条虚线点实，如果不填写具体值，则表示按照画布上的实际值摆放各空间之间的间隔；如果填写具体值，则表示让这些控件以该值作为行距。如果设置了Align，并选择Horizontal Center，表示被选中的每一个控件都与上方的一个保持居中对齐。
+前7个用于设置一个控件与另一个控件之间的相对关系，左/右对齐，上/下对齐，水平/竖直居中对齐，对于文本控件的Baselines对齐；
+后两个用于设置控件在所在容器中的相对位置，水平/竖直居中。
+<br>
+
+点击添加新约束按钮展开如下面板：
 ![约束按钮](0721iOSProgrammingBNRG01/img04.png)
-**其实约束条件最简单和直观的还是看左侧生成的Contraints等式：**
+Add New Constraints表示控件与邻近控件的间距；
+Width/Height用于设定控件长/宽；
+Equal Widths/Equal Heights/Aspect Ratio用于设定多个控件等宽/等高/等宽高比；
+如果设置了Align，并选择Horizontal Center，表示被选中的每一个控件都与上方的一个保持居中对齐。
+<font color='red'>这里的Align和前面的对齐是什么关系呢？</font>
+
+<br>
+
+约束条件最简单和直观也是最终极的依据是看左侧生成的Contraints等式：
 ![Contraints等式](0721iOSProgrammingBNRG01/img05.png)
+
 # 2 为Button关联响应函数
 ## 2.1 响应函数定义在哪？
 书中的图1.6给出了答案：
