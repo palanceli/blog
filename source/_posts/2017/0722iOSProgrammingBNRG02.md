@@ -106,3 +106,8 @@ for (question, answer) in qaDict {
 ```
 写在`\()`之间的内容会当做变量（也可以是函数），在运行时求值。
 
+---
+# 4. 参考资料
+[Swift 的 Optional 机制有什么用？](https://www.zhihu.com/question/28026214?sort=created)
+[Swift为什么定义Optional类型？如果说是为了类型安全，那么在其他OOP语言中是怎么解决这个问题的？](https://www.zhihu.com/question/26512698)
+[https://swiftcafe.io/2015/12/27/optional/](https://swiftcafe.io/2015/12/27/optional/)
