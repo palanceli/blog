@@ -25,4 +25,8 @@ super.viewDidLoad()
 ```
 这段代码对应的UI界面如下：
 ![base ui](0723iOSProgrammingBNRG03/img02.png)
-但此处的单位不是像素而是点，点是一个相对单位，在不同的设备上对应的像素数不同。<font color =red>那么对应关系是什么呢？</font>
+但此处的单位不是像素而是点，点是一个相对单位，在不同的设备上对应的像素数不同。
+
+> 点和像素之间的对应关系是什么呢？
+这个问题正是苹果希望隐藏的设备相关细节，在[iOS Drawing Concepts](https://developer.apple.com/library/content/documentation/2DDrawing/Conceptual/DrawingPrintingiOS/GraphicsDrawingOverview/GraphicsDrawingOverview.html#//apple_ref/doc/uid/TP40010156-CH14-SW1)中有讲：系统自动完成从视图中的点到设备像素的转换，开发者应该牢记：一个点不一定对应到一个像素。
+苹果希望同一个绘制函数在不同的设备上看到的效果尽量一致，一条宽度为1Point的线在低分屏是一个像素宽，在高分屏上就可能是两个像素宽，这样可以确保它们在视觉效果上都是一样宽的。在iOS下，Point和像素的比值是与视图相关的，每个`UIScreen`，`UIView`，`UIImage`或`CAlayer`都有一个`contentScaleFactor`属性来记录这个比值。
