@@ -41,40 +41,68 @@ var x1: Float?
 var x2: Float?
 let avg = (x1 + x2) / 2    // 这么写法会导致编译错误，因为x1和x2是optional变量，需要展开
 ```
-## 2.2 强制展开optional变量是不安全的
-这么写不安全：
-``` objc
-let avg = (x1! + x2!) / 2
-```
-如果x1或x2为nil，会导致运行时错误。
 
-## 2.3 optional binding解决安全展开的问题
-使用 if-let语句，该方法被称作optional binding
+## 2.2 为什么引入optional
+有解释归因于Swift是强类型语言，无法让nil与其他类型相兼容。swift引入optional实质的做法是为该类型包装了一个enum：
 ``` objc
-if let t1 = x1,
-let t2 = x2 {
-let avg = (t1 + t2) / 2
-} else {
-let errorString = "x1 or x2 is niil."
+enum Optional<T> {
+    case Nil
+    case Some( value:T )
+} 
+```
+这样就容易理解String?与String根本就是两种数据类型：String?的类型是Optional<String>而不再是String。而nil就是Optional.Nil。unwrap 做的事情 （ a! ）就是提取 .Some 中的 value 变量。
+
+> <font color=red>C++也是强类型语言，不就做到了nullptr与各类指针的比较么？让编译器实现nil与其他类型相比较，有什么障碍呢？A?类型判空不也得和nil比较？也就是Optional<A>.Nil和nil的比较，这俩类型也是不相同的吧？</font>
+
+## 2.3 展开optional变量
+print一个String?变量会得到在其外面包裹`Optional("")`的字符串：
+``` objc
+var x:String? = "abc"
+print(x)    // 输出：Optional("abc")
+```
+这就是因为optional变量和本尊是两种类型，此处做了转换。可以通过强制展开把String?转换成String：
+``` objc
+var x:String? = "abc"
+print(x!)    // 输出：abc。但是如果x是nil，此处会引发【运行时崩溃】！
+```
+强制展开是一种不安全的做法，它会导致运行时崩溃。还使用optional binding来安全展开：
+``` objc
+if let xx = x{
+    print(xx)
+}else{
+    print("nil")
+}
+// 上面的代码等价于：
+if x != nil{
+    let xx = x!
+    print(xx)
+}else{
+    print("nil")
 }
 ```
 
 ## 2.4 if-let的本质依然是if...else
+可以把if中的`let A=B`等效于`(let A=B) != nil`，因此在其判断列表中还可以添加更多的Bool值：
 ``` objc
 if let text = textField.text, !text.isEmpty { 
-celsiusLabel.text = text
+    celsiusLabel.text = text
 } else {
-celsiusLabel.text = "???"
+    celsiusLabel.text = "???"
 }
 ```
-if 后面是一串Bool值
-## 2.5 既没有缀?也没有缀!的变量是什么变量呢？
-# 3. 字符串插值
+
+> 既没有缀?也没有缀!的变量是什么变量呢？根据2.2的分析，应该就是本尊咯：
+``` objc
+var a:String
+a = nil     // 此处会有编译错误：Nil cannot be assigned to type 'String'
+```
+
+# 3. 在字符串内插值
 ``` objc
 let qaDict = ["What is your name?": "Palance", "How old are you?": "36"]
 for (question, answer) in qaDict {
     let msg = "Question is \(question), answer is \(answer)"
 }
 ```
-写在\(和)之间的内容会当做变量（也可以是函数），在运行时求值。
+写在`\()`之间的内容会当做变量（也可以是函数），在运行时求值。
 
