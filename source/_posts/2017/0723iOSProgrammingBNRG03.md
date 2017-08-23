@@ -7,8 +7,8 @@ tags: BNRG笔记
 toc: true
 comments: true
 ---
-![base ui](0723iOSProgrammingBNRG03/img01.png)
 第三章构造了一个这样的界面，并添加约束。本章运用的知识差不多在第一章就介绍过了。
+![base ui](0723iOSProgrammingBNRG03/img01.png)
 <!-- more -->
 
 # 1 构造UI
