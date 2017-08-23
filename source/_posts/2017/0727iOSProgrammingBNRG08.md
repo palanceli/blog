@@ -16,14 +16,14 @@ comments: true
 闭包就是一个代码块，可以参数或者返回值的形式被传递。
 
 ## 1.2 声明、定义、使用闭包的形式
-声明格式：
+声明：
 ``` objc
 (arguments) -> returnType
 ```
-定义格式：
+定义：
 ``` objc
 { (arguments) -> returnType in
-// code
+    // code
 }
 ```
 其中arguments是参数列表，returnType是返回值类型，in是关键字，在code处写要执行的代码
