@@ -7,7 +7,7 @@ tags: BNRG笔记
 toc: true
 comments: true
 ---
-
+本章介绍iOS另一种常用的UI元素——UITableView。
 ![](0729iOSProgrammingBNRG10/img01.png)
 本章要点：
 - UITableView的运作原理

@@ -40,6 +40,36 @@ UIView.animate(withDuration: 0.5, animations: animation)
 ``` objc
 UIView.animate(withDuration: 0.5, animations: {self.lableA.alpha = 1})
 ```
+## 1.3 闭包写法的若干变种
+假设Array有一个sorted(by:)函数用于排序，它接收一个闭包用于比较两个元素的大小。一般的写法如下：
+``` objc
+let volunteerCounts = [1,3,40,32,2,53,77,13]
+let volunteersSorted = volunteerCounts.sorted(by: { 
+    (i: Int, j: Int) -> Bool in
+    return i < j
+})
+```
+**省略参数和返回类型**
+``` objc
+let volunteersSorted = volunteerCounts.sorted(by: { i, j in i < j })
+```
+它省略了返回值类型，因为通过`i<j`就能推断出返回值类型为`Bool`；
+它省略了参数类型，我认为应该是根据sorted(by:)的原型推断出来的；
+它省略了`return`关键词，这是因为闭包只有一条语句，如果包含一条以上的语句，`return`是不能省略的。
+
+**省略参数名称**
+``` objc
+let volunteersSorted = volunteerCounts.sorted(by: { $0 < $1> })
+```
+Swift为闭包提供了参数的速记名称，使用`$0`、`$1`、`$2`……即可，编译器的类型推断可以分辨出每个参数应该是什么类型。
+
+**tailing closure**
+上面的闭包还可以进一步简化：
+``` objc
+let volunteersSorted = volunteerCounts.sorted{ $0 < $1> }
+```
+如果函数的最后一个参数是闭包，可以把这个闭包尾随到函数的外面。本例中sorted(by:)只有一个参数，因此可以省略参数列表，函数名后面直接尾随闭包。
+
 # 2. 动效函数
 本章介绍的动画都是由这个函数实现的
 ``` objc
@@ -67,7 +97,7 @@ class func animate(withDuration duration: TimeInterval, animations: @escaping ()
 1. 直接设置要挪动的控件坐标；
 2. 给控件添加约束，为约束关联outlet变量，设置该约束变量的值。
 
-书在本章使用了第2种方式，它的好处在于：在Interface Builder中对控件做了完备的约束。如果采用第1种方式，只能在Interface Builder中不加某个方向的约束，这会因约束不足而被warning。
+本章使用了第2种方式，它的好处在于：在Interface Builder中对控件做了完备的约束。如果采用第1种方式，只能在Interface Builder中不加某个方向的约束，这会因约束不足而被warning。
 > 注意：对于一个view，如果加了约束同时又设置了它的坐标，生效的是约束，对坐标的设置无效。
 
 ## 2.3 通过设置终局位置实现飞入/飞出动画
@@ -134,10 +164,10 @@ class ViewController: UIViewController {
 ……
 }
 ```
-这个约束值的含义和在Interface Builder中体现的一模一样：0表示居中，屏幕左边缘是-view.frame.width / 2；右边缘是view.frame.width / 2
+这个约束值的含义和在Interface Builder中体现的一模一样：0表示居中，屏幕左边缘是`-view.frame.width / 2`；右边缘是`view.frame.width / 2`。
 
 ## 2.6 为什么要使用layoutIfNeed()函数
-需要特别注意，如果要修改使徒的约束值，必须调用layoutIfNeed()函数，否则会看不到动画。而直接修改视图的坐标值则不存在这样的问题。
+需要特别注意，如果要修改视图的约束值，必须调用layoutIfNeed()函数，否则会看不到动画。而直接修改视图的坐标值则不存在这样的问题。
 书中的解释是：约束修改后，系统需要重新计算所有相关视图的frame值，如果任何一个约束条件发生变化就立刻触发该计算，这在性能上非常不划算。因此应该在修改了所有约束之后，一次调用layoutIfNeeded()函数，这样重新计算就只会发生一次。
 
 
@@ -156,3 +186,23 @@ class func animate(withDuration duration: TimeInterval,
     completion: ((Bool) -> Void)? = nil)	// 动画结束时要执行的块
 ```
 这个函数的用法应该反复使用，体会每个参数的含义。
+
+## 2.9 函数的外部参数名
+经常看到函数的参数列表中有一条下划线：
+``` objc
+override func viewWillAppear(_ animated: Bool)
+```
+这是因为Swift函数可以有外部名，比如：
+``` objc
+func printPersonalGreeting(to name: String){
+    print("Hello \(name), welcome to your playground.")
+}
+printPersonalGreeting(to: "Matt")
+```
+to:就是外部参数名。如果省略外部参数名，就可以用下划线来占位：
+``` objc
+func printPersonalGreeting(_ name: String){
+    print("Hello \(name), welcome to your playground.")
+}
+printPersonalGreeting("Matt")
+```
