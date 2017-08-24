@@ -35,7 +35,8 @@ comments: true
 这个问题问的不对，因为点击Background并不会导致TextField失去焦点。其实是在Background View的点击事件里执行的收回键盘。
 
 ## 3.2 怎么实现收回键盘？
-这里的实现是给Background View关联一个Gesture Recognizer，当在此View上点击一下，通过调用TextField的`resignFirstResponder()`函数使之失去焦点。但是这么做有个缺点：如果当前界面上的TextField实例很多怎么办呢？<font color=red>每个实例调一次有点太傻了吧？</font>
+这里的实现是给Background View关联一个Gesture Recognizer，当在此View上点击一下，通过调用TextField的`resignFirstResponder()`函数使之失去焦点。
+> 这么做有个缺点：如果当前界面上的TextField实例很多怎么办呢？每个实例调一次有点太傻了吧？[第14章](/2017/08/02/2017/0802iOSProgrammingBNRG14/#1-7-点击背景View收回键盘)有更简洁的方法。
 
 ## 3.3 怎么给View定义和关联一个手势处理函数
 第一步，从Object Library中把要定义的Gesture Recognizer拖到View上，该ViewController的标题栏会为此Gesture Recognizer添加一个图标；

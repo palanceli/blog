@@ -7,12 +7,14 @@ tags: BNRG笔记
 toc: true
 comments: true
 ---
+本章将详情界面在横屏时调整了布局：
 ![](0805iOSProgrammingBNRG17/img01.png)
 本章要点：
-- 横竖屏
+- 横竖屏支持
 <!-- more -->
-# 横竖屏
-1.1 本章如何确保在横竖屏下，图片位置不同？
+
+# 1 横竖屏
+## 1.1 如何在横竖屏下，调整界面布局
 一、在布局上在原来的Vertical Stack之外再套一层Horizontal Stack，并为之设置约束：
 ![](0805iOSProgrammingBNRG17/img02.png)
 二、如下调整ImageView在最上层StackView的位置，确保其布局和原来没有变化：
