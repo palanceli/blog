@@ -14,6 +14,7 @@ comments: true
 - 为控件关联代码变量和响应函数
 - 使用约束确保兼容不同的尺寸的设备
 - 修改app图标
+- iOS应用的UI刷新机制
 <!-- more -->
 ---
 # 1 在story board上拖拽出界面
@@ -131,14 +132,14 @@ let questiongs:Array<String> =  ["aaa", "bbb", "ccc"];
 ...
 questionLabel.text = "???";	// 即可完成刷新
 ```
->具体是什么机制以及在什么时机触发并完成的刷新呢？
-在[iOS Drawing Concepts](https://developer.apple.com/library/content/documentation/2DDrawing/Conceptual/DrawingPrintingiOS/GraphicsDrawingOverview/GraphicsDrawingOverview.html#//apple_ref/doc/uid/TP40010156-CH14-SW1)中对这个问题有描述。几种情况会令视图触发刷新：
+## 4.2 iOS的界面刷新机制
+iOS应用具体是什么机制以及在什么时机触发并完成的刷新呢？在[iOS Drawing Concepts](https://developer.apple.com/library/content/documentation/2DDrawing/Conceptual/DrawingPrintingiOS/GraphicsDrawingOverview/GraphicsDrawingOverview.html#//apple_ref/doc/uid/TP40010156-CH14-SW1)中对这个问题有描述。几种情况会令视图触发刷新：
 - 将另一个视图移入/移出本视图，会触发本视图刷新
 - 通过设置`hidden`属性为`NO`，让之前隐藏的视图显示出来，会触发它刷新
 - 将之前在屏幕以外的视图滚入屏幕，会触发它刷新
 - 显式调用`setNeedsDisplay`或`setNeedsDisplayInRect:`函数
 
-> 当视图首次展现时，iOS系统会给视图的`drawRect:`方法传入视图的整个可见矩形区域。之后可能只有部分矩形区域发生了变化，处于性能考虑，应该仅让这部分区域重绘。
+当视图首次展现时，iOS系统会给视图的`drawRect:`方法传入视图的整个可见矩形区域。之后可能只有部分矩形区域发生了变化，处于性能考虑，应该仅让这部分区域重绘。
 
 # 5 修改app图标
 ## 5.1 不同设备的app图标像素

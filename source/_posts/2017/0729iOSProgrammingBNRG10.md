@@ -7,13 +7,14 @@ tags: BNRG笔记
 toc: true
 comments: true
 ---
-本章介绍iOS另一种常用的UI元素——UITableView。
+本章引入iOS一种常用的UI元素——UITableView，本章介绍它的数据呈现方法，下一章介绍编辑。
 ![](0729iOSProgrammingBNRG10/img01.png)
 本章要点：
 - UITableView的运作原理
 - 初始化函数
 - 依赖倒置原则
 <!-- more -->
+
 # 1 UITableViewController
 ## 1.1 UITableViewController的运作原理
 在Windows下制作ListCtrl的基本步骤是创建ListCtrl的实例后，向该实例循环插入数据。UITableViewConroller的运作模式则完全不同：它把MVC的职责划分更明确，
