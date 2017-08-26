@@ -55,12 +55,200 @@ priceLabel.text = priceFormatter.string(for: price)
 
 CoreML的使用就这么简单，但越是简单的东西，越吸引人去了解它的内部构造，因为你知道它不是简单的查表，也不是一次方程算出的结果，而是根据喂进去数据训练出模型，再根据模型预测新的输入/输出关系。
 
+---
+
 # mlmodel文件
-深入的第二步就是探究这个mlmodel文件是怎么产生的。
 在官方文档上说：现在大多数第三方机器学习工具产生的数据文件，都可以通过[Core ML Tools](https://pypi.python.org/pypi/coremltools)来转换成mlmodel文件。在[coremltools 文档](https://apple.github.io/coremltools/)中可以看到它的用法。
-在我的[palanceli/IntegratingaCoreMLModelintoYourApp/testcoreml.py](https://github.com/palanceli/IntegratingaCoreMLModelintoYourApp/blob/master/testcoreml.py)中有对这个工具的测试。
+
+coremltools的作用有三点：
+- 把流行的机器学习工具（包括Keras, Caffe, scikit-learn, libsvm 和 XGBoost）转成Core ML格式（.mlmodel）
+- 使用API把数据模型写成Core ML格式
+- 在指定的平台上，使用Core ML框架进行预测来验证转换
+
 
 ## 测试mltools
+在我的[palanceli/IntegratingaCoreMLModelintoYourApp/testcoreml.py](https://github.com/palanceli/IntegratingaCoreMLModelintoYourApp/blob/master/testcoreml.py)中有对这个工具的测试。
+``` python
+# -*- coding:utf-8 -*-
+
+import coremltools
+import logging
+import os
+
+if __name__ == '__main__':
+    logFmt = '%(asctime)s %(lineno)04d %(levelname)-8s %(message)s'
+    logging.basicConfig(level=logging.DEBUG, format=logFmt, datefmt='%H:%M',)
+    
+    
+    modelFilePath = os.getcwd()
+    modelFilePath += '/MarsHabitatPricePredictor/Resources/MarsHabitatPricer.mlmodel'
+    logging.debug(modelFilePath)
+    model = coremltools.models.MLModel(modelFilePath)  # 加载mlmodel文件
+
+    # 打印各字段，这些是文件的概要信息
+    logging.info('author:              %s' % (model.author))
+    logging.info('license:             %s' % (model.license))
+    logging.info('short description:   %s' % (model.short_description))
+    logging.info('input description:   %s' % (model.input_description))
+    logging.info('output description:  %s' % (model.output_description))
+ 
+ 	# 打印spec，这里有详细的各字段信息
+    logging.info(model.get_spec())
+
+    # 根据输入的三个字段，验证输出值
+    dataList = [{'solarPanels':1.0, 'greenhouses':1.0, 'size':1024},
+                {'solarPanels':4.0, 'greenhouses':5.0, 'size':10000}]
+    logging.info('solarPanels greenhouses size   price')
+    logging.info('------------------------------------')
+    for dataItem in dataList:
+    	predictions = model.predict(dataItem)
+        logging.info('%11.1f %11d %4d  %5d' % (dataItem['solarPanels'], \
+        	dataItem['greenhouses'], dataItem['size'], predictions['price']))
+```
+运行结果如下：
+``` bash
+$ python testcoreml.py
+07:53 0014 DEBUG    /Users/test/Documents/IntegratingaCoreMLModelintoYourApp/MarsHabitatPricePredictor/Resources/MarsHabitatPricer.mlmodel
+07:53 0018 INFO     author:              Apple
+07:53 0019 INFO     license:             BSD-3
+07:53 0020 INFO     short description:   Predicts the price of a habitat on Mars.
+07:53 0021 INFO     input description:   Features(solarPanels,greenhouses,size)
+07:53 0022 INFO     output description:  Features(price)
+07:53 0025 INFO     specificationVersion: 1
+description {
+  input {
+    name: "solarPanels"
+    shortDescription: "Number of solar panels"
+    type {
+      doubleType {
+      }
+    }
+  }
+  input {
+    name: "greenhouses"
+    shortDescription: "Number of greenhouses"
+    type {
+      doubleType {
+      }
+    }
+  }
+  input {
+    name: "size"
+    shortDescription: "Size in acres"
+    type {
+      doubleType {
+      }
+    }
+  }
+  output {
+    name: "price"
+    shortDescription: "Price of the habitat (in millions)"
+    type {
+      doubleType {
+      }
+    }
+  }
+  predictedFeatureName: "price"
+  metadata {
+    shortDescription: "Predicts the price of a habitat on Mars."
+    author: "Apple"
+    license: "BSD-3"
+  }
+}
+pipelineRegressor {
+  pipeline {
+    models {
+      specificationVersion: 1
+      description {
+        input {
+          name: "solarPanels"
+          type {
+            doubleType {
+            }
+          }
+        }
+        input {
+          name: "greenhouses"
+          type {
+            doubleType {
+            }
+          }
+        }
+        input {
+          name: "size"
+          type {
+            doubleType {
+            }
+          }
+        }
+        output {
+          name: "__feature_vector__"
+          type {
+            multiArrayType {
+              shape: 3
+              dataType: DOUBLE
+            }
+          }
+        }
+      }
+      featureVectorizer {
+        inputList {
+          inputColumn: "solarPanels"
+          inputDimensions: 1
+        }
+        inputList {
+          inputColumn: "greenhouses"
+          inputDimensions: 1
+        }
+        inputList {
+          inputColumn: "size"
+          inputDimensions: 1
+        }
+      }
+    }
+    models {
+      specificationVersion: 1
+      description {
+        input {
+          name: "__feature_vector__"
+          type {
+            multiArrayType {
+              shape: 3
+              dataType: DOUBLE
+            }
+          }
+        }
+        output {
+          name: "price"
+          type {
+            doubleType {
+            }
+          }
+        }
+        predictedFeatureName: "price"
+      }
+      glmRegressor {
+        weights {
+          value: 136.726723178
+          value: 653.511013762
+          value: 5.8540790493
+        }
+        offset: -3751.05587847
+      }
+    }
+  }
+}
+
+07:53 0030 INFO     solarPanels greenhouses size   price
+07:53 0031 INFO     ------------------------------------
+07:53 0035 INFO             1.0           1 1024   3033
+07:53 0035 INFO             4.0           5 10000  58604
+```
+可见，在mlmodel文件的description中包含了数据模型的所有信息。其中input和output包括输入/输出字段的名称、描述、数据类型，metadata是文件的概要信息。<font color=red>pipelineRegressor我猜测是数据训练的相关信息，这个要把数据是怎么生成的弄清楚才能解答了。</font>
+
+最后可以看到，输入和iOS App里相同的数据，将得到相同的输出数据。
+
+到此只知道了mlmodel文件的数据框架信息，和关系数据库做个类比，相当于只知道这个文件的表结构，其中包含什么数据，有没有算法和代码还不得而知。文档里说mltools可以转其它机器学习的输出结果，但mltools自己能否直接训练数据生成模型呢？我在[coremltools.models的文档](https://apple.github.io/coremltools/coremltools.models.html)中发现应该可以，其中`coremltools.models.neural_network`和`coremltools.models.tree_ensemble`都是用来“construct CoreML models”，但显然还很不完整。
 
 # 遇到的问题
 ## 关闭SIP升级numpy
