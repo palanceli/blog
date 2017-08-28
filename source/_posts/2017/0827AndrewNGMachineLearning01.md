@@ -41,15 +41,16 @@ h的表达式为： h<sub>θ</sub>=θ<sub>0</sub>+θ<sub>1</sub>x　　…**公�
 建模的目标是得到**让误差的平方和最小的模型参数**。在上例中即θ<sub>0</sub>和θ<sub>1</sub>。
 根据定义可得**代价函数**为：
 ![代价函数](0827AndrewNGMachineLearning01/img04.gif)
+<!-- J(\theta_{0}, \theta_{1})=\frac{1}{2m}\sum_{i=1}^{m}(h_{\theta}(x^{(i)})-y^{(i)})^2 -->
 建模的目标就是求该最小值。
 > 当训练集固定，m就是常量，因此前面加一个1/2m系数对于最终结果没有影响，我猜测应该是为了便于数学计算而加的该系数。
 
 ## 梯度下降
-初始选一组随机参数(θ0, θ1, …, θn)，计算代价函数，寻找下一个能让代价函数值下降最多的参数组合。持续这么做直到找到局部最优值。
+初始选一组随机参数(θ<sub>0</sub>, θ<sub>1</sub>, …, θ<sub>n</sub>)，计算代价函数，寻找下一个能让代价函数值下降最多的参数组合。持续这么做直到找到局部最优值。
 方法：
 （1）确定下一步的步伐大小α
-（2）给定一个初始值：θ0 θ1
-（3）确定一个向下的方向，并向下走预先规定的步伐，并更新θ0 θ1
+（2）给定一个初始值：θ<sub>0</sub> θ<sub>1</sub>
+（3）确定一个向下的方向，并向下走预先规定的步伐，并更新θ<sub>0</sub> θ<sub>1</sub>
 （4）当下降的高度小于某个定义的值，则停止下降
 
 该算法的公式化描述为（**公式③**）：
@@ -58,19 +59,23 @@ h的表达式为： h<sub>θ</sub>=θ<sub>0</sub>+θ<sub>1</sub>x　　…**公�
 
 对J(θ<sub>0</sub>, θ<sub>1</sub>)求偏导得出公式④：
 ![](0827AndrewNGMachineLearning01/img06.gif)
-
+<!--   \frac{\partial }{\partial \theta_{j}}J(\theta_{0}, \theta_{1}) = \frac{\partial }{\partial \theta_{j}}\frac{1}{2m}\sum_{i=1}^{m}(h_{\theta}(x^{(i)})-y^{(i)})^2=\frac{1}{2m}\sum_{i=1}^{m}2(h_{\theta}(x^{(i)})-y^{(i)})\frac{\partial h_{\theta}}{\partial \theta_{j}} -->
 根据公式①可得（**公式⑤**）：
 ![](0827AndrewNGMachineLearning01/img07.gif)
+<!-- \frac{\partial h_{\theta}}{\partial \theta_{0}} = 1\, \, \, \, \, \, \, \, \, \, \, \, \, \,  \frac{\partial h_{\theta}}{\partial \theta_{1}} = x^{(i)} -->
 
 将公式④⑤代入公式③可得：
 ![](0827AndrewNGMachineLearning01/img08.gif)
+<!-- \theta_{0}:=\theta_{0} - \alpha \frac{1}{m}\sum_{i=1}^{m}(h_{\theta}(x^{(i)}) - y^{(i)}) -->
 ![](0827AndrewNGMachineLearning01/img09.gif)
-
+<!-- \theta_{1}:=\theta_{1} - \alpha \frac{1}{m}\sum_{i=1}^{m}((h_{\theta}(x^{(i)}) - y^{(i)})x^{(i)}) -->
 
 于是可以将算法的公式化描述改写为：
 ![](0827AndrewNGMachineLearning01/img10.png)
 
 <br>
+
+<font color=red是不是应该减去绝对值？因为这么做减法有可能向下，也有可能向上，取决于求导后的正负性了吧？</font>
 
 > **参考**
 [利用梯度下降法实现线性回归的算法及matlab实现](http://blog.csdn.net/zyqdragon/article/details/72353507)
