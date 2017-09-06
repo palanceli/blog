@@ -148,9 +148,15 @@ def SingleFeatureLearning():
 
 至于当扩大了训练集，如果后面的点不再遵循直线，那么训练方法也就应当相应地调整，采用分段预测，根据后续段落的特征选择相应地模型。总之，机器学习还没有神到只扔给它一堆数据，它就能毫无条件地预知未来的程度。模型的选择很依赖于人对现实世界的理解，这是我目前对于机器学习的理解。
 
+## 机器学习和保守主义
+最后我突然联想到“保守主义”这个思想流派，感觉机器学习跟保守主义的世界观很像——这个世界没有上帝，没有谁能自上而下地设计好一个体系规律，也就没有谁能够精确地描述出这个规律。人们能做的只是固守并基于自己掌握的信息，一点一点地扩大自己的认知边界，只信任自己认知版图内的东西。
+
+机器学习不也是如此吗？针对本节的例子，我们并没有一开始就去思考完美的计算公式是什么，只知道词条个数这一个特征，初步判断它和文件大小是个线性关系，因此我们引入一元线性回归的方法；后来我们知道除了中文词条，还有拼音词条，再引入一个特征变成了二元线性回归；随着我们认知的扩展，可能还会知道编码方式、文件头、控制符号等等，慢慢把这些特征加入到模型训练里来，直到最后的误差逼近零，那时候我们得到的公式就逐步演变成上帝视角的完美公式了。
+
 ## 参考
 [sklearn官方文档](http://scikit-learn.org/stable/)
 [pandas官方文档](http://pandas.pydata.org/pandas-docs/stable/)
 [matplotlib官方文档](http://matplotlib.org/2.0.2/contents.html)
 [numpy快速入门](https://docs.scipy.org/doc/numpy-dev/user/quickstart.html)
 [一元、二元特征的sklearn示例](http://scikit-learn.org/stable/auto_examples/linear_model/plot_ols_3d.html#sphx-glr-auto-examples-linear-model-plot-ols-3d-py)
+[《10 Minutes to pandas》中文版](http://www.cnblogs.com/chaosimple/p/4153083.html)
