@@ -76,4 +76,81 @@ def SingleFeatureLearning():
 
 
 # 两个变量的线性回归练习
-两个变量的线性回归练习中，词库里包含中文词条和拼音串，二者个数不一定相等，输出变量是词库大小。
+两个变量的线性回归练习中，词库里包含中文词条和拼音串。两个参数的个数不一定相等，有的词仅有中文词条，有的词只有汉语拼音。输出变量是词库大小。主干代码如下：
+``` python
+	def Main(self):
+		# 二元线性回归学习过程
+	    dataCreator = DataCreator()
+	    # 生成训练样本
+	    trainingDataFrame = self.createSampleDataFrame(dataCreator, 30)
+
+	    # 建立线性回归模型
+	    regr = sklearn.linear_model.LinearRegression()
+
+	    # 拟合
+	    regr.fit(trainingDataFrame[['hanziLines', 'pinyinLines']].values.reshape(-1, 2), trainingDataFrame['bytes'])
+
+	    # 生成测试样本
+	    testingDataFrame = self.createSampleDataFrame(dataCreator, 5)
+
+	    # 验证预测
+	    predictBytes = regr.predict(testingDataFrame[['hanziLines', 'pinyinLines']].values.reshape(-1, 2))
+	    print(predictBytes)
+
+
+	    # 打印测试样本和预测结果
+	    print(pandas.concat([testingDataFrame, pandas.Series(predictBytes, name="predict")], axis=1))
+
+	    # 画图
+	    fig = matplotlib.pyplot.figure()
+	    ax = mpl_toolkits.mplot3d.Axes3D(fig)
+	    # 绘制训练样本
+	    ax.scatter(trainingDataFrame['hanziLines'], trainingDataFrame['pinyinLines'], trainingDataFrame['bytes'])
+	    # 绘制测试样本
+	    ax.scatter(testingDataFrame['hanziLines'], testingDataFrame['pinyinLines'], testingDataFrame['bytes'], marker='+', color='red')
+	    # 绘制预测样本
+	    ax.scatter(testingDataFrame['hanziLines'], testingDataFrame['pinyinLines'], predictBytes, marker='X', color='green')
+
+	    # 绘制预测平面
+	    xSurf, ySurf = numpy.meshgrid(numpy.linspace(trainingDataFrame['hanziLines'].min(), trainingDataFrame['hanziLines'].max(), 100),
+	    	numpy.linspace(trainingDataFrame['pinyinLines'].min(), trainingDataFrame['pinyinLines'].max(), 100))
+
+	    zSurf = predictBytes[0] * xSurf + predictBytes[1] * ySurf + predictBytes[2]
+	    # ax.plot_surface(xSurf, ySurf, zSurf, color='None', alpha = 0.4)
+	    
+	    # 设置坐标轴
+	    matplotlib.pyplot.title('[hanziLines, pinyinLines] - file bytes relationship')
+	    ax.set_xlabel('hanziLines')
+	    ax.set_ylabel('pinyinLines')
+	    ax.set_zlabel('bytes')
+	    matplotlib.pyplot.show()
+```
+输出结果如下：
+``` bash
+   hanziLines  pinyinLines  bytes      predict
+0         318          562   6017  6152.173395
+1         581          500   7477  7270.284704
+2         182          272   3175  3145.866178
+3         614          246   5619  5554.244139
+4         278          181   3040  3038.543497
+```
+`hanziLines`、`pinyinLines`是测试集的输入参数，`bytes`是测试集的输出参数，`predict`是预测结果。图形如下：
+![](0903AndrewNGMachineLearning03/img03.png)
+还不会绘制平面，我把它翻转个视角，可以看到这个训练模型的平面：
+![](0903AndrewNGMachineLearning03/img04.png)
+
+# 总结
+做到这里，已经跟研究没多大关系了，研究的方法在前面两节，这里只是工程实现，numpy、pandas、sklearn和matplotlib的使用了。
+
+在做第一个练习的时候感到有些失望，这个练习只不过是通过散落在一条直线上的若干个点描绘出这条直线而已，如果知道截距和斜率，直接画出来就可以了。在完全不知道机器学习能做什么的时候，我脑子里认为的是扔给他一堆数据，它能自己找出规律，预测结果。从这个例子上看来还不是要靠人判断曲线的走向，进而选择线性回归的方法，才能训练出一条直线嘛。价值只是在于这条直线和各点距离平方和最小，我们称之为训练误差。而且当训练集继续延伸，后续的点未必遵循这条直线，到那时候，这个模型就不准确了。那么机器学习的智能性如何体现呢？
+
+我觉得这取决于我们如何看待这个世界的运行规律。如果是机械论的世界观，认为世界的运行由若干个参数决定，只要收集全了这些参数，就一定能推导出它的运行轨迹，那么从方法论上来讲，就应该找出运行规律和和参数，不过这些大数据目前恐怕只有上帝掌握。针对本节的例子，我们通过词条个数，平均词长或者每一条词的长度就能精确知道它所占用的文件大小。但在现实世界中，我们很可能拿不到这些数据，或者根本不知道还有词长这个参数在计算文件大小时会起作用，其实相关的参数还有编码方式、文件头等等。在拿不全这些参数的情况下，传统的计算方式只能束手无策。而机器学习的思路在初步判断这近似是条直线或者平面的情况下，根据一批数据就能判断更多的case，和传统方式相比确实解决了问题。
+
+至于当扩大了训练集，如果后面的点不再遵循直线，那么训练方法也就应当相应地调整，采用分段预测，根据后续段落的特征选择相应地模型。总之，机器学习还没有神到只扔给它一堆数据，它就能毫无条件地预知未来的程度。模型的选择很依赖于人对现实世界的理解，这是我目前对于机器学习的理解。
+
+## 参考
+[sklearn官方文档](http://scikit-learn.org/stable/)
+[pandas官方文档](http://pandas.pydata.org/pandas-docs/stable/)
+[matplotlib官方文档](http://matplotlib.org/2.0.2/contents.html)
+[numpy快速入门](https://docs.scipy.org/doc/numpy-dev/user/quickstart.html)
+[一元、二元特征的sklearn示例](http://scikit-learn.org/stable/auto_examples/linear_model/plot_ols_3d.html#sphx-glr-auto-examples-linear-model-plot-ols-3d-py)
