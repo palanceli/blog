@@ -87,6 +87,30 @@ print(x)
   [1 1 1 1]
   [1 1 1 1]]]
 ```
+如下使用array、linspace和zeros三种写法得出的数据结构是相同的：
+``` python
+  x = numpy.array([[1, 2], [3, 4], [5, 6]], numpy.uint8)        # ①
+  y = numpy.linspace(1, 6, 6, dtype=numpy.uint8).reshape(3, 2)  # ②
+  z = numpy.zeros((3, 2), numpy.uint8)                          # ③
+  z[:, 0] = [1, 3, 5]
+  z[:, 1] = [2, 4, 6]
+
+  print(x)
+  print(y)
+  print(z)
+```
+输出：
+```
+[[1 2]  ① x
+ [3 4]
+ [5 6]]
+[[1 2]  ② y
+ [3 4]
+ [5 6]]
+[[1 2]  ③ z
+ [3 4]
+ [5 6]]
+```
 
 # 矩阵赋值
 ``` python
