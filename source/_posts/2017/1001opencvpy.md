@@ -223,6 +223,20 @@ background[0:rows, 0:cols] = dst
 把要混合的两张图对方的部分转成黑色，然后把这两张图做个逻辑相加。
 怎么做到“把对方的部分转成黑色”呢？在本例中，把logo的前景转成黑色，背景转成白色，即`mask_inv`，再与另一张图`roi`做逻辑与，这就得到`img1_bg`。而`logo`的背景本来就是纯色的，转成黑色很容易。
 
+## 缩放
+``` python
+logo = cv2.imread('opencv_logo.png')
+# 设置x/y轴的缩放因子均为0.8
+res1 = cv2.resize(logo, None, fx=0.8, fy=0.8, interpolation=cv2.INTER_CUBIC)
+
+# 设置宽高的实际值为原来的1.5倍
+height, width = logo.shape[:2]
+res2 = cv2.resize(logo, (int(width*1.5), int(height*1.5)), interpolation=cv2.INTER_CUBIC)
+
+self.waitToClose(res1)
+self.waitToClose(res2)
+```
+缩放的代码非常简单，有两种方式完成缩放：1、设置x/y轴的缩放因子；2、设置缩放后的尺寸。
 # 参考
 本文例程放在了[opencvSample.py](https://github.com/palanceli/HandWriting/blob/master/opencvSample.py)
 
