@@ -182,7 +182,46 @@ self.waitToClose(img)
 ![](1001opencvpy/img11.png)
 
 ## 图像混合
+``` python
+background = cv2.imread('messi.jpg')
+logo = cv2.imread('opencv_logo.png')
 
+# 在background上截取与logo相同大小的图片
+rows, cols, channels = logo.shape
+roi = background[0:rows, 0:cols]
+
+logogray = cv2.cvtColor(logo, cv2.COLOR_BGR2GRAY)	# logo转成灰度图
+ret, mask = cv2.threshold(logogray, 20, 255, cv2.THRESH_BINARY)	# 前景纯白，背景纯黑
+mask_inv = cv2.bitwise_not(mask)					# 翻转：前景纯黑，背景纯白
+
+# img1_bg = if(mask≠0){roi ^ roi}else{mask}
+img1_bg = cv2.bitwise_and(roi, roi, mask = mask_inv) # 在messi中把logo部分变黑
+
+img2_fg = cv2.bitwise_and(logo, logo, mask = mask)
+
+dst = cv2.add(img1_bg, img2_fg)
+background[0:rows, 0:cols] = dst
+return
+
+dst = cv2.add(img1_bg, img2_fg)
+background[0:rows, 0:cols] = dst
+```
+`background`：
+![](1001opencvpy/img12.png)
+`logo`：
+![](1001opencvpy/img13.png)
+`roi`是在`background`上截取了与`logo`相同大小的区域；`logogray`是将`logo`转成灰度图；`mask`是将`logogray`转成前景纯白，背景纯黑；`mask_inv`是将`logogray`转成前景纯黑，背景纯白。
+这四张图如下：
+![](1001opencvpy/img14.png)
+`img1_bg`是将`roi`中`logo`的部分转成黑色；`img2_fg`是将`logo`中背景转成黑色；`dst`是将`img1_bg`和`img2_fg`取逻辑与，也即混合两张图中非黑色的部分。
+这三张图如下：
+![](1001opencvpy/img15.png)
+最后，将混合后的`dst`贴到背景图上：
+![](1001opencvpy/img16.png)
+
+### 总结
+把要混合的两张图对方的部分转成黑色，然后把这两张图做个逻辑相加。
+怎么做到“把对方的部分转成黑色”呢？在本例中，把logo的前景转成黑色，背景转成白色，即`mask_inv`，再与另一张图`roi`做逻辑与，这就得到`img1_bg`。而`logo`的背景本来就是纯色的，转成黑色很容易。
 
 # 参考
 本文例程放在了[opencvSample.py](https://github.com/palanceli/HandWriting/blob/master/opencvSample.py)
