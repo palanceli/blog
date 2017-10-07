@@ -145,5 +145,53 @@ self.waitToClose(img)
 ```
 效果如下：
 ![](1001opencvpy/img10.png)
+
+# 读取图片
+## 读取图片时的标记参数
+函数原型为：`cv2.imread(filename[, flags]) → retval`
+在官方文档中说flag取值为`CV_LOAD_IMAGE_ANYDEPTH`、`CV_LOAD_IMAGE_COLOR`或`CV_LOAD_IMAGE_GRAYSCALE`。
+但是我并没有从cv2中找到这些常量：
+``` python
+IMAGE = [i for i in dir(cv2) if 'IMAGE' in i]
+logging.debug(IMAGE)
+```
+```bash
+['CALIB_CB_NORMALIZE_IMAGE', 'CAP_IMAGES', 'CAP_INTELPERC_IMAGE', 'CAP_INTELPERC_IMAGE_GENERATOR', 'CAP_OPENNI_BGR_IMAGE', 'CAP_OPENNI_GRAY_IMAGE', 'CAP_OPENNI_IMAGE_GENERATOR', 'CAP_OPENNI_IMAGE_GENERATOR_OUTPUT_MODE', 'CAP_OPENNI_IMAGE_GENERATOR_PRESENT', 'CAP_OPENNI_IR_IMAGE', 'CAP_PROP_IMAGES_BASE', 'CAP_PROP_IMAGES_LAST', 'CAP_PROP_XI_IMAGE_BLACK_LEVEL', 'CAP_PROP_XI_IMAGE_DATA_BIT_DEPTH', 'CAP_PROP_XI_IMAGE_DATA_FORMAT', 'CAP_PROP_XI_IMAGE_DATA_FORMAT_RGB32_ALPHA', 'CAP_PROP_XI_IMAGE_IS_COLOR', 'CAP_PROP_XI_IMAGE_PAYLOAD_SIZE', 'CASCADE_SCALE_IMAGE']
+```
+
+文档还提到，如果flag大于0，则为3通道图片；flag等于0为灰度图；flag小于0为带alpha通道的图片。这是靠谱的：
+``` python
+img = cv2.imread('dot.png')
+logging.debug(img.shape)  # 打印行像素数、列像素数、颜色
+img = cv2.imread('dot.png', -1)
+logging.debug(img.shape)
+```
+``` bash
+23:47 0120 DEBUG    (41, 36, 3)   # 表示3通道RGB
+23:47 0122 DEBUG    (41, 36, 4)   # 表示4通道ARGB
+```
+当然，如果图片本身是3通道的，即使传入flag=1，得到的通道数还是3。
+
+遗憾的是，虽然能读出ARGB的图片数据，但是opencv-python只能以灰度图的形式显示它：
+``` python
+img = cv2.imread('dot.png', -1)
+logging.debug(img.shape)
+self.waitToClose(img)
+```
+如下左半部分是在photo中看到的样子，右半部分则是用这段代码显示出来的样子：
+![](1001opencvpy/img11.png)
+
+## 图像混合
+
+
 # 参考
 本文例程放在了[opencvSample.py](https://github.com/palanceli/HandWriting/blob/master/opencvSample.py)
+
+## 安装
+$ pip install opencv-python
+使用brew install opencv是不行滴
+
+## 入门文档
+[OpenCV Python Tutorial中文版](https://github.com/makelove/OpenCV-Python-Tutorial)
+或者到官网下载
+[OpenCV Python Tutorials英文版](http://readthedocs.org/projects/opencv-python-tutroals/downloads/)
