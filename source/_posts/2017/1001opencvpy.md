@@ -243,6 +243,8 @@ self.waitToClose(res2)
 ## 安装
 $ pip install opencv-python
 使用brew install opencv是不行滴
+如果是python3，可以执行：
+$ python3 -m pip install opencv-python
 
 ## 入门文档
 [OpenCV Python Tutorial中文版](https://github.com/makelove/OpenCV-Python-Tutorial)

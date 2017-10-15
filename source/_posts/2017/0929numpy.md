@@ -187,3 +187,9 @@ x相当于由2个3*4的矩阵组成，此处给每个矩阵的第1列赋值为[2
 [官网手册](https://docs.scipy.org/doc/)
 [NumPy v1.11手册中文版](http://python.usyiyi.cn/translate/NumPy_v111/index.html)
 本文涉及的代码放在[numpySamples.py](https://github.com/palanceli/MachineLearningSample/blob/master/UtilSamples/numpySamples.py)
+
+## 安装
+如果是python2
+$ pip install scipy
+如果是python3，可以执行：
+$ python3 -m pip install scipy
