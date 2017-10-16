@@ -1,7 +1,7 @@
 ---
 layout: post
 title: 《Android Programming BNRG》笔记一
-date: 2017-09-10 20:00:00 +0800
+date: 2016-09-10 20:00:00 +0800
 categories: Android Programming
 tags: BNRG笔记
 toc: true
@@ -21,7 +21,7 @@ comments: true
 ![base ui](0909AndroidProgrammingBNRG01/img05.png)
 首先要做的是布局，书中介绍的根布局还是RelativeLayout，我使用的Android Studio版本是2.3.3，它默认生成的根布局改成了ConstraintLayout。
 
-ConstraintLayout是Google I/O 2016推出，将成为主流布局样式，完全替代其他布局。有点事减少布局层级，优化渲染性能。这和iOS的布局方式很像了。
+ConstraintLayout是Google I/O 2016推出，将成为主流布局样式，完全替代其他布局。优点是减少布局层级，优化渲染性能。它和iOS的布局方式很像了。
 ## 基本使用
 基本格式为
 ```
@@ -133,7 +133,7 @@ Android中的组件需要用一个int类型的值来表示，这个值就是id�
 上文中，在`true_button`中对齐`false_button`的时候，由于`false_button`变量还未生成，所以必须带加号。之后在定义`false_button`的时候，该变量已经存在了，所以可以把加号去掉。
 
 
-## setContentView(...)函数都做了什么？
+# setContentView(...)函数都做了什么？
 在`QuizActivity.java`中的`onCreate(...)`函数中，除了调用父类的同名函数外，还调用了`setContentView(...)`：
 ``` java
 public class QuizActivity extends AppCompatActivity {
@@ -150,17 +150,15 @@ public class QuizActivity extends AppCompatActivity {
 
 在编译Android应用的时候，aapt（Android Asset Packaging Tool）会把所有资源编译成一个压缩文件，打到apk包里，以便在运行时被`setContentView(...)`访问。
 
-## 其它
+# 其它
 在xml中可以看到元素的宽高值被设为`match_parent`或`wrap_content`，他们的含义分别是：
 `match_parent`：与父窗口等大
 `wrap_content`：与内容等大
 
 尽管ConstraintLayout是xml的根布局元素，但它仍然有父窗口——app的最顶层view，因此ConstraintLayout的宽高均为`match_parent`。
 
-## 如何关联xml中的控件到java变量？
-通过Activity的成员函数
-`public View findViewById(int id)`
-可以访问xml中的控件，因此根据id可以很方便地提领到按钮：
+# 如何关联xml中的控件到java变量？
+通过Activity的成员函数`public View findViewById(int id)`可以访问xml中的控件，因此根据id可以很方便地提领到按钮：
 ``` java
 public class QuizActivity extends AppCompatActivity {
     private Button mTrueButton;
@@ -177,7 +175,7 @@ public class QuizActivity extends AppCompatActivity {
 }
 ```
 
-## 如何响应按钮消息？
+# 如何响应按钮消息？
 给按钮变量设置Listener对象，在该对象中可以实现响应处理。
 ``` java
 public class QuizActivity extends AppCompatActivity {
@@ -210,8 +208,9 @@ mTrueButton.setOnClickListener(...)的参数是一个匿名内部类的实例。
 Toast是一个提示气泡，可以在指定的时间消失。
 
 ## 怎么显示Toast
-调用`Toast`的静态函数`Toast Toast::makeText(Constext context, int resId, int duration)`来生成气泡。其中参数`context`是`Activity`实例，`resId`是气泡中的文字，`duration`是显示多久后消失。
-调用`Toast::show()`显示气泡：
+1. 调用`Toast`的静态函数`Toast Toast::makeText(Constext context, int resId, int duration)`来生成气泡。
+其中参数`context`是`Activity`实例，`resId`是气泡中的文字，`duration`是显示多久后消失。
+2. 调用`Toast::show()`显示气泡：
 ``` java
 public class QuizActivity extends AppCompatActivity {
     private Button mTrueButton;
@@ -233,3 +232,4 @@ public class QuizActivity extends AppCompatActivity {
 }
 ```
 需要注意：`makeText`的第一个参数不能直接使用`this`，因为此时在一个内部匿名类里，这个`this`表示该匿名类，需要指定`QuizActivity.this`表明是Activity的this指针。
+<font color='red'>不过这个语法怎么理解呢？"QuizActivity."表示class的属性，它为什么有this呢？</font>
