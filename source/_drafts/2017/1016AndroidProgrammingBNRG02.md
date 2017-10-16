@@ -7,8 +7,8 @@ tags: BNRG笔记
 toc: true
 comments: true
 ---
-![](1016AndroidProgrammingBNRG02/img12.png)
 本章加入了问答题目列表，点击Next会轮询问题。
+![](1016AndroidProgrammingBNRG02/img12.png)
 本章要点：
 - AndroidStudio的一些基础操作
 - 介绍Android的MVC结构
