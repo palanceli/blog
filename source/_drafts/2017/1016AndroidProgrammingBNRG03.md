@@ -7,8 +7,11 @@ tags: BNRG笔记
 toc: true
 comments: true
 ---
-本章实现了。
+本章解决了当屏幕旋转时，因activity被销毁而导致的数据丢失问题。
 本章要点：
+- Activity的生命周期即关键回调
+- 在不同情境下，当Activity退出时，保存/恢复数据的方法
+- 在屏幕旋转、按下Home、按下Back等情景下，Activity的生命周期经历了什么
 <!-- more -->
 # Activity的生命周期
 ## Activity的状态迁移图
@@ -115,6 +118,16 @@ public class QuizActivity extends AppCompatActivity {
 
 ## activity record在什么时候消失？
 activity record数据只是瞬态信息，而不是永久数据，系统可能会清除该数据。当用户点击Back按钮，或者系统重启，都会导致该数据被清除。
+
+## 系统回收内存的机制
+当出现低内存时，系统回收内存的单位不是activity，而是整个进程。拥有前台（resumed）activity或者可见（paused）activity的进程具有较高的优先级。系统清理资源的时候会选择低优先级的进程。对于前台/可见进程，除非发生了严重的错误，否则系统不会回收它们。
+
+## 让应用退出时即销毁
+需要开启开发者模式：设置 > 最下面的关于 > 版本号 连续点击：
+![](1016AndroidProgrammingBNRG03/img10.png)
+进入开发者选项，找到“不保留活动”，打开。这样当使用Home键退出activity时就和Back一样了：
+![](1016AndroidProgrammingBNRG03/img11.png)
+这个选项的用处并不是很大，因为要模拟这种情况只需要使用Back键即可，平时应关闭该选项，因为它会拖累性能。
 
 # 其它
 ## 关键字@Override的作用
