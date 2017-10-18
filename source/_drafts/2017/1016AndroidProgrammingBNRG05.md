@@ -7,7 +7,7 @@ tags: BNRG笔记
 toc: true
 comments: true
 ---
-本章添加了新的Activity，用于显示作弊界面。
+本章添加了新的Activity，用于显示作弊界面。由原来的Activity可以跳转到新界面，并在两个Activity之间可以传递数据。
 本章要点：
 - 添加Activity，并为之生成布局
 - 从一个Activity跳转到另一个Activity
