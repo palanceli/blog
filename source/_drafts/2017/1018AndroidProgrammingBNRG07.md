@@ -7,7 +7,7 @@ tags: BNRG笔记
 toc: true
 comments: true
 ---
-本章介绍了编写Android应用时几个版本号的含义。
+本章开启了一个新的应用，list-details模式，在接下来的几章中都会完善该应用。本章引入了Fragment，用于显示details的信息。
 本章要点：
 - fragment的概念、使用步骤、使用原则
 - Android依赖关系的引入
@@ -34,13 +34,11 @@ native fragment和support fragment。
 ``` xml
 <?xml version="1.0" encoding="utf-8"?>
     <android.support.constraint.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/fragment_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 ```
+其中最重要的是`android:id`标签，这在后面将Fragment添加到Activity时还会用到。
 第二步 创建fragment UI。这个步骤和创建activity UI一致：
 1. 在layout文件中布局控件。res/layout右键，选择New > Layout resource file
 ![](1018AndroidProgrammingBNRG07/img04.png)
@@ -126,14 +124,28 @@ public class CrimeActivity extends AppCompatActivity {
 }
 ```
 需要注意：
-- Activity派生自AppCompatActivity，调用getSupportFragmentManager()来获取Support Fragment Manager；Activity派生自Activity，调用getFragmentManager()来获取Native Fragment Manager
+- 如果Activity派生自AppCompatActivity，调用getSupportFragmentManager()来获取Support Fragment Manager；如果Activity派生自Activity，调用getFragmentManager()来获取Native Fragment Manager
 
-- `FragmentManager::beginTransaction()`返回`FragmentTransaction`，`FragmentTransaction::add(...)`的一个参数是Fragment的ContainerID，该ID有两个作用：
-    1. 告诉FragmentManager加入的fragment应该展现到activity view的什么地方
-    2. 作为Fragment list中的UID
+- `FragmentManager::beginTransaction()`返回`FragmentTransaction`。
+`FragmentTransaction::add(...)`的一个参数是Fragment的ContainerID，第二个参数是Fragment对象，第三个参数是Fragment的tag名，指定tag的好处是可以通过`Fragment1 frag = getSupportFragmentManager().findFragmentByTag("f1")`从FragmentManager中查找Fragment对象。
 
-- 如果两个Fragment都要加入到同一个Activity中，那应该怎么写呢？在书中P578提到：应该为每个fragment分别创建Container View，每个Container有各自的ID。
+- ContainerID有两个作用：1、告诉FragmentManager加入的fragment应该展现到activity view的什么地方；2、作为Fragment list中的UID
+如果两个Fragment都要加入到同一个Activity中，那应该怎么写呢？在书中P578提到：应该为每个fragment分别创建Container View，每个Container有各自的ID。
 <font color=red>本节的容器就是activity的布局，如何在一个Activity中容纳多个fragment？</font>
+
+- `commit()`是异步操作，内部通过`mManager.enqueueAction()`加入处理队列。对应的同步方法为`commitNow()`。commit()内部会有checkStateLoss()操作，如果开发人员使用不当（比如commit()操作在onSaveInstanceState()之后），可能会抛出异常，而commitAllowingStateLoss()方法则是不会抛出异常版本的commit()方法，但是尽量使用commit()，而不要使用commitAllowingStateLoss()。<font color=red>为什么？checkStateLoss()做了什么？为什么会抛异常？</font>
+
+- `addToBackStack("fname")`是可选的。FragmentManager拥有回退栈（BackStack），类似于Activity的任务栈，如果添加了该语句，就把该事务加入回退栈，当用户点击返回按钮，会回退该事务（回退指的是如果事务是add(frag1)，那么回退操作就是remove(frag1)）；如果没添加该语句，用户点击返回按钮会直接销毁Activity。
+
+> [《Android基础：Fragment，看这篇就够了》](https://mp.weixin.qq.com/s/dUuGSVhWinAnN9uMiBaXgw)中提到：
+Fragment有一个常见的问题，即Fragment重叠问题，这是由于Fragment被系统杀掉，并重新初始化时再次将fragment加入activity，因此通过在外围加if语句能判断此时是否是被系统杀掉并重新初始化的情况。
+该异常出现的原因是：commit()在onSaveInstanceState()后调用。首先，onSaveInstanceState()在onPause()之后，onStop()之前调用。onRestoreInstanceState()在onStart()之后，onResume()之前。
+<font color=red>没有理解根本原因是什么。</font>
+
+## 向创建的Fragment传入参数
+需要通过`setArguments(Bundle bundle)`的方式添加，而不是在构造函数传入。因为通过`setArguments()`方式添加，当内存紧张导致Fragment被系统杀掉并回复时能保留这些数据。
+
+传入的参数可以在Fragment的`onAttach()`中通过`getArgments()`获得。
 
 ## fragment的生命周期
 ![](1018AndroidProgrammingBNRG07/img07.png)
