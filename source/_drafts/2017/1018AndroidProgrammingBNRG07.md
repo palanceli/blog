@@ -7,7 +7,8 @@ tags: BNRG笔记
 toc: true
 comments: true
 ---
-本章开启了一个新的应用，list-details模式，在接下来的几章中都会完善该应用。本章引入了Fragment，用于显示details的信息。
+本章开启了一个新的应用，list-details模式，在接下来的几章中都会完善该应用。本章只实现了details的部分。引入了Fragment，用于显示details的信息。
+![](1018AndroidProgrammingBNRG07/img09.png)
 本章要点：
 - fragment的概念、使用步骤、使用原则
 - Android依赖关系的引入
