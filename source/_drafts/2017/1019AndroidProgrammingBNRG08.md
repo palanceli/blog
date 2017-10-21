@@ -97,3 +97,91 @@ public class CrimeActivity extends SingleFragmentActivity {
 
 </manifest>
 ```
+
+# 怎么实现一个RecyclerView
+
+## ViewHolder的职责
+它负责维护一个具体的View
+为什么需要ViewHolder这一层抽象？它抽象的又是什么？
+
+在P620中提到ViewHolder让itemView和Crime的连接更简单，更有效率，具体怎么连接的呢？为什么简单，有效率？
+
+## Adapter的职责
+Adapter位于RecyclerView和Model之间，它的职责是：
+1. 创建必要的ViewHolders
+2. 绑定ViewHolder和Modle层之间的数据
+
+Adapter和RecyclerView之间的关系如下：
+![](1019AndroidProgrammingBNRG08/img02.png)
+可见有RecyclerView和Adapter、ViewHolder共同完成了“可复用View”的协议部分：RecyclerView负责“可复用View”的业务逻辑，Adapter负责实现复用资源，ViewHolder负责表示资源。由Adapter和ViewHolder的派生类负责实现具体业务的业务逻辑。
+
+但在P624中提到：当这些调用完成后，RecyclerView将把list item显示到屏幕上。onCreateViewHolder(...)的调用次数会比onBindViewHolder(...)少得多，因为一旦创建了足够多的ViewHolder之后，RecyclerView将不再调用onCreateViewHolder(...)。
+我的问题是：这一串调用是需要开发者自己写还是固化在RecyclerView内的？它怎么判断是否有“足够”多的ViewHolder呢？
+
+# RecyclerView的具体实现步骤
+## 添加RecyclerView的依赖
+项目 > 右键 > Open Module Settings：
+![](1019AndroidProgrammingBNRG08/img03.png)
+app > Dependencies > +号 > Library dependency：
+![](1019AndroidProgrammingBNRG08/img04.png)
+搜索recyclerview，并选择com.android.support:recyclerview-v7：
+![](1019AndroidProgrammingBNRG08/img05.png)
+但实际情况是添加了次依赖会导致如下错误：
+> Manifest merger failed : Attribute meta-data#android.support.VERSION@value value=(25.3.1) from [com.android.support:appcompat-v7:25.3.1] AndroidManifest.xml:27:9-31
+is also present at [com.android.support:recyclerview-v7:26.0.0-alpha1] AndroidManifest.xml:24:9-38 value=(26.0.0-alpha1).
+Suggestion: add 'tools:replace="android:value"' to element at AndroidManifest.xml:25:5-27:34 to override.
+
+这主要是android.support:appcompat-v7:25.3.1和android.support:recyclerview-v7:26.0.0-alpha1有冲突，修改`app/build.gradle`：
+```
+...
+dependencies {
+    ...
+    compile 'com.android.support:recyclerview-v7:26.0.0-alpha1'
+    compile 'com.android.support:appcompat-v7:26.0.0-alpha1'
+}
+```
+
+## 为list的Fregment创建layout文件
+在res/layout右键，选择New > layout resource file，命名为fragment_crime_list.xml
+``` xml
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.v7.widget.RecyclerView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/crime_recycler_view"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"/>
+```
+## 为list的布局创建java代码
+``` java
+public class CrimeListFragment extends Fragment {
+    private RecyclerView mCrimeRecyclerView;
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState){
+        View view = inflater.inflate(R.layout.fragment_crime_list, container, false);
+        mCrimeRecyclerView = (RecyclerView)view.findViewById(R.id.crime_recycler_view);
+        mCrimeRecyclerView.setLayoutManager(new LinearLayoutManager(getActivity()));
+        return view;
+    }
+}
+```
+注意：RecyclerView必须需要一个LayoutManager实例才能正常工作，因为它并不直接负责布局itmes，而是通过这个LayoutManager实例来完成的，除了负责布局每一个item，LayoutManager还负责定义如何滚动。
+
+## 实现itemView
+### 布局文件
+``` xml
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical" android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TextView android:id="@+id/crime_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Crime Title"/>
+
+    <TextView
+        android:id="@+id/crime_date"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Crime Date"/>
+</LinearLayout>
+```
