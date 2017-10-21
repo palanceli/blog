@@ -3,7 +3,7 @@ layout: post
 title: 《Android Programming BNRG》笔记五
 date: 2016-10-16 23:00:00 +0800
 categories: Android Programming
-tags: BNRG笔记
+tags: Android BNRG笔记
 toc: true
 comments: true
 ---
