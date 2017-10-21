@@ -8,6 +8,8 @@ toc: true
 comments: true
 ---
 本章继续实现CriminalIntent的list部分，并且抽象出供list和details公用Fragment的布局和java类。
+这是一个RecyclerView，点击每个Item弹出Toast：
+![](1019AndroidProgrammingBNRG08/img06.png)
 本章要点：
 - 抽象一个通用的Fragment，包括xml容器和java实现
 - RecyclerView的设计思想，实现步骤
