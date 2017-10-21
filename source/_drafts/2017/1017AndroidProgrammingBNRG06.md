@@ -67,6 +67,8 @@ android {
 
 注意：修改了这些版本之后，需要执行Tools > Android > Sync Project with Gradle Files
 ![](1017AndroidProgrammingBNRG06/img01.png)
+或者点击工具条
+![](1017AndroidProgrammingBNRG06/img02.png)
 通知Android Studio更新。
 
 ## 在运行时根据系统版本执行不同代码
