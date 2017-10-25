@@ -115,7 +115,7 @@ public class CrimeActivity extends SingleFragmentActivity {
 ```
 
 # 退出details后更新list
-在[笔记五·从启动的Activity返回数据](http://localhost:4000/2016/10/16/2017/1016AndroidProgrammingBNRG05/#从启动的Activity返回数据)中，讲到了Activity启动Activity时，通过`startActivityForResult(...)`启动Activity，被启动方调用`setResult(...)`设置返回数据，启动方收到回调`onActivityResult(...)`接收返回数据。
+在[笔记五·从启动的Activity返回数据](/2016/10/16/2017/1016AndroidProgrammingBNRG05/#从启动的Activity返回数据)中，讲到了Activity启动Activity时，通过`startActivityForResult(...)`启动Activity，被启动方调用`setResult(...)`设置返回数据，启动方收到回调`onActivityResult(...)`接收返回数据。
 
 在传递数据的机制上，Fragment和Activity只有一点点不同，Fragment有`Fragment::startActivityForResult(...)`和`Fragment::onActivityResult(...)`，但是没有`setResult(...)`函数，它需要调用它所在的Activity的该函数来设置返回值：
 ``` java
