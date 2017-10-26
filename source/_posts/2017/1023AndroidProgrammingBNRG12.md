@@ -1,117 +1,221 @@
 ---
 layout: post
-title: 《Android Programming BNRG》笔记十一
-date: 2016-10-22 20:00:00 +0800
+title: 《Android Programming BNRG》笔记十二
+date: 2016-10-23 20:00:00 +0800
 categories: Android Programming
 tags: Android BNRG笔记
 toc: true
 comments: true
 ---
-本章完成了Details界面的左右滑屏，引入了ViewPager。当进入某一条item的Details后，无需退回list，左右滑屏直接切换到相邻的item details中：
-![](1022AndroidProgrammingBNRG11/img02.png)
-
+本章在Details界面中点击了日期后，弹出选择日期的DatePicker Dialog。
+![](1023AndroidProgrammingBNRG12/img02.png)
 本章要点：
-- ViewPager的使用
+- 创建和调起Dialog
+- 在同一个Activity内的不同Fragment之间传递数据
 <!-- more -->
 
-# 创建ViewPager的步骤
-共分三步：
-① 创建CrimePagerActivity，并提领ViewPager实例
-② 在CrimePagerActivity中，为ViewPager实例创建和关联适配器
-③ 修改CrimeHolder.onClick(...)，令其启动CrimePagerActivity而不是CrimeActivity
-
-## 创建CrimePagerActivity的java代码和xml布局：
+# 如何创建和使用Dialog
+## 创建Dialog
+派生DialogFragment子类，并实现`onCreateDialog(Bundle savedInstanceState)`方法
 ``` java
-// CrimePagerActivity.java
-public class CrimePagerActivity extends AppCompatActivity {
+// DatePickerFragment
+public class DatePickerFragment extends DialogFragment {
     @Override
-    protected void onCreate(Bundle savedInstanceState){
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_crime_pager);
-        // 提领xml中的ViewPager
-        mViewPager = (ViewPager)findViewById(R.id.crime_view_pager);
+    public Dialog onCreateDialog(Bundle savedInstanceState){
+        return new android.support.v7.app.AlertDialog.Builder(getActivity())
+            .setTitle(R.string.date_picker_title)
+            .setPositiveButton(android.R.string.ok, null)
+            .create();
     }
 }
 ```
+当Activity需要将Dialog展现在屏幕上时，会调用此方法。应该在此方法内创建并展现Dialog。
+
+## 显示Dialog
+调用DialogFragment的下面两个方法：
+`public void show(FragmentManager manager, String tag)`
+`public void show(FragmentTransaction transaction, String tag)`
+它们都能显示Dialog。
+参数`tag`是DialogFragment实例的唯一标识；
+如果传入参数`FragmentTransaction`，你需要负责创建和提交transaction；
+如果传入参数`FragmentManager`，manager会负责创建和提交transaction。
+点击details中日期按钮的响应代码如下：
+``` java
+// CrimeFragment.java
+mDateButton.setOnClickListener(new View.OnClickListener(){
+    @Override
+    public void onClick(View v){
+        FragmentManager manager = getFragmentManager();
+        DatePickerFragment dialog = new DatePickerFragment();
+        dialog.show(manager, DIALOG_DATE);
+    }
+});
+```
+此时弹出的Dialog如下：
+![](1023AndroidProgrammingBNRG12/img01.png)
+
+## 定制Dialog的UI
+可以通过调用AlertDialog.Build的`setView(View v)`方法来定制Dialog的顶部标题到底部按钮之间的UI。具体步骤还是xml+代码：
+dialog_date.xml
 ``` xml
-<!-- activity_crime_pager.xml -->
-<android.support.v4.view.ViewPager
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/crime_view_pager"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent">
-</android.support.v4.view.ViewPager>
+<DatePicker xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/dialog_date_picker"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:calendarViewShown="false">
+</DatePicker>
 ```
 
-## 为ViewPager关联Adapter
-ViewPager也需要一个适配器，这和[RecyclerView的设计思想](/2016/10/19/2017/1019AndroidProgrammingBNRG08/#RecyclerView的设计思想)是类似的：ViewPager是码头，适配器是调度中心，由调度中心负责创建集装箱——CrimeFragment，货物是Crime实例。将ViewPager和适配器关联起来就是把该Adapter设置给ViewPager，适配器需要具备的最小接口集合是`getItem(int)`和`getCount()`，用于获得“集装箱”和总数信息。关联发生在CrimePagerActivity，具体代码如下：
 ``` java
-// CrimePagerActivity.java
-public class CrimePagerActivity extends AppCompatActivity {
-    private ViewPager mViewPager;
-    private List<Crime> mCrimes;
-
+// DatePickerFragment.java
+public class DatePickerFragment extends DialogFragment {
     @Override
-    protected void onCreate(Bundle savedInstanceState){
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_crime_pager);
-        mViewPager = (ViewPager)findViewById(R.id.crime_view_pager);
+    public Dialog onCreateDialog(Bundle savedInstanceState){
+        View v = LayoutInflater.from(getActivity()) 
+            .inflate(R.layout.dialog_date, null);		// 加载布局
+        return new android.support.v7.app.AlertDialog.Builder(getActivity())
+            .setView(v)							// 定制UI
+            .setTitle(R.string.date_picker_title)
+            .setPositiveButton(android.R.string.ok, null)
+            .create();
+    }
+}
+```
 
-        mCrimes = CrimeLab.get(this).getCrimes();	// 获取model
-        fragmentManager = getSupportFragmentManager();
+## 向DialogFragment传入参数
+传入参数和[笔记七· 向创建的Fragment传入参数](http://localhost:4000/2016/10/18/2017/1018AndroidProgrammingBNRG07/#向创建的Fragment传入参数)完全一致，使用Argument。① 把创建实例的代码封装到DatePickerFragment类的内部；② 在`onCreateDialog(...)`中解析传入参数，并更新UI。代码如下：
+``` java
+// DatePickerFragment.java
+public class DatePickerFragment extends DialogFragment {
+    private static final String ARG_DATE = "date";
+    private DatePicker mDatePicker;
 
-        // 创建Adapter，并设置给mViewPager
-        mViewPager.setAdapter(new FragmentStatePagerAdapter(fragmentManager) {
-            @Override   // 根据位置获取Fragment
-            public Fragment getItem(int position) {
-                Crime crime = mCrimes.get(position);
-                return CrimeFragment.newInstance(crime.getId());
-            }
-            @Override	// 获取model中数据元素的总数
-            public int getCount() {	
-                return mCrimes.size();
-            }
-        });
-        // 这个参数是由发起方设置的，传入初始应当显示的crimeId
-        UUID crimeId = (UUID)getIntent().getSerializableExtra(EXTRA_CRIME_ID);
-        // 设置初始显示的crimeId
-        for(int i=0; i<mCrimes.size(); i++){
-            if(mCrimes.get(i).getId().equals(crimeId)){
-                mViewPager.setCurrentItem(i);
-                break;
-            }
+    // 创建DatePickerFragment实例，并传入Date参数
+    public static DatePickerFragment newInstance(Date date) {
+        Bundle args = new Bundle();
+        args.putSerializable(ARG_DATE, date);
+
+        DatePickerFragment fragment = new DatePickerFragment();
+        fragment.setArguments(args);
+        return fragment;
+    }
+    @Override
+    public Dialog onCreateDialog(Bundle savedInstanceState){
+        // 解析输入参数，并展现到UI
+        Date date = (Date)getArguments().getSerializable(ARG_DATE);
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(date);
+        int year = calendar.get(Calendar.YEAR);
+        int month = calendar.get(Calendar.MONTH);
+        int day = calendar.get(Calendar.DAY_OF_MONTH);
+
+        View v = LayoutInflater.from(getActivity())
+                .inflate(R.layout.dialog_date, null);
+
+        mDatePicker = (DatePicker) v.findViewById(R.id.dialog_date_picker);
+        mDatePicker.init(year, month, day, null);
+
+        return new android.support.v7.app.AlertDialog.Builder(getActivity())
+                .setView(v)
+                .setTitle(R.string.date_picker_title)
+                .setPositiveButton(android.R.string.ok, null)
+                .create();
+    }
+}
+```
+原先响应Date按钮点击，创建和显示DatePickerFragment的代码修改如下：
+``` java
+// CrimeFragment.java
+    mDateButton.setOnClickListener(new View.OnClickListener(){
+        @Override
+        public void onClick(View v){
+            FragmentManager manager = getFragmentManager();
+            // 创建DatePickerFragment，并传入Date参数
+            DatePickerFragment dialog = DatePickerFragment.newInstance(mCrime.getDate());
+            dialog.show(manager, DIALOG_DATE);
+        }
+    });
+```
+
+## 从DialogFragment返回数据
+在本节中CrimeFragment和DatePickerFragment同在CrimeActivity之中，CrimeFragment启动DatePickerFragment之后怎么从DatePickerFragment返回数据呢？
+① 把CrimeFragment设置为DatePickerFragment的TargetFragment：
+`public void setTargetFragment(Fragment fragment, int requestCode)`
+TargetFragment将根据requestCode来分辨从哪个Fragment返回。
+② DatePickerFragment调用`CrimeFragment.onActivityResult(int, Intent)`将返回值传递给CrimeFragment。在[笔记五·从启动的Activity返回数据](http://localhost:4000/2016/10/16/2017/1016AndroidProgrammingBNRG05/#从启动的Activity返回数据)中讲到，在Activity之间返回数据时，由ActivityManager负责调用`Activity.onActivityResult(int, Intent)`，Activity在收到此回调后，其FragmentManager会调用自己每个Fragment的`Fragment.onActivityResult(int, Intent)`。
+此处在Fragment返回给Fragment时，我们借用此机制。
+③ 给DatePickerFragment的OK按钮设置ClickListener，当点击OK时执行②中的回传。
+④ 实现`CrimeFragment.onActivityResult(int, Intent)`令其更新界面。
+
+具体代码如下：
+``` java
+// CrimeFragment.java
+    mDateButton.setOnClickListener(new View.OnClickListener(){
+        @Override
+        public void onClick(View v){
+            FragmentManager manager = getFragmentManager();
+            DatePickerFragment dialog = DatePickerFragment.newInstance(mCrime.getDate());
+            dialog.setTargetFragment(CrimeFragment.this, REQUEST_DATE); // ①
+            dialog.show(manager, DIALOG_DATE);
+        }
+    });
+```
+
+``` java
+
+public class DatePickerFragment extends DialogFragment {
+    ...
+    public static final String EXTRA_DATE = "com.bnrg.bnrg07.date";
+
+    private void sendResult(int resultCode, Date date){ // ②
+        if(getTargetFragment() == null)
+            return;
+
+        Intent intent = new Intent();
+        intent.putExtra(EXTRA_DATE, date);
+        getTargetFragment().onActivityResult(getTargetRequestCode(), resultCode, intent);
+    }
+
+    ...
+    @Override
+    public Dialog onCreateDialog(Bundle savedInstanceState){
+        ...
+        return new android.support.v7.app.AlertDialog.Builder(getActivity())
+                .setView(v)
+                .setTitle(R.string.date_picker_title)
+                .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener(){
+                    @Override
+                    public void onClick(DialogInterface dialog, int which){ // ③
+                        int year = mDatePicker.getYear();
+                        int month = mDatePicker.getMonth();
+                        int day = mDatePicker.getDayOfMonth();
+                        Date date = new GregorianCalendar(year, month, day).getTime();
+                        sendResult(Activity.RESULT_OK, date);
+                    }
+                })
+                .create();
+    }
+}
+```
+
+``` java
+
+public class CrimeFragment extends Fragment {
+    ...
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data){ // ④
+        if(resultCode != Activity.RESULT_OK)
+            return;
+        
+        if(requestCode == REQUEST_DATE){
+            Date date = (Date)data.getSerializableExtra(DatePickerFragment.EXTRA_DATE);
+            mCrime.setDate(date);
+            updateDate();
         }
     }
+
+    private void updateDate() {
+        mDateButton.setText(mCrime.getDate().toString());
+    }
 }
 ```
-
-默认情况下，ViewPager仅加载相邻的一个页面，而不是所有页面，通过调用其setOffscreenPageLimit(int)可以指定加载相邻的几个页面。
-
-最后一步把CrimeActivity改为CrimePagerActivity就不演示了，没什么新东西。只需要完成上面的代码，进入ViewPager之后的左右滑屏都已经由ViewPager自动完成了。
-
-# FragmentStatePagerAdapter vs FragmentPagerAdapter
-二者的区别在于如何处理暂时不显示的Fragment，下图很清楚地表达这一点：
-![](1022AndroidProgrammingBNRG11/img01.png)
-使用FragmentStatePagerAdapter，不需要的Fragment会被销毁；而FragmentPagerAdapter只会调用detach(Fragment)而不是remove(Fragment)，这只会销毁Fragment的View 而不会销毁Fragment。
-前者更节省资源，后者会更流畅。对于本节的例子，数据量可能很大，因此使用前者；对于要现实的页面是固定的几页，比如tab页的情况，就比较适合使用后者。
-
-> 在P802中提到，FragmentStatePagerAdapter会在被销毁的时候把Fragment的状态保存到Bundle，如果用户返回，它会再从Bundle中恢复Fragment。这和FragmentStatePagerAdapter vs FragmentPagerAdapter的区别有关系么？是说只有前者才有这种恢复的能力？
-
-# 为什么不能使用RecyclerView?
-RecyclerView是由CrimeHolder来充当“集装箱”，由其基类ViewHolder负责创建“货物”View，而不是Fragment，可参见[为RecyclerView创建java代码
-](/2016/10/19/2017/1019AndroidProgrammingBNRG08/#为RecyclerView创建java代码)。“货物”的类型不能随意指定，因此Android引入了ViewPager。
-
-当ViewPager盛放的不是Fragment而是一般的View时，则需要派生PagerAdapter，并实现如下三个接口：
-``` java
-// 创建itemView并添加到container
-public Object instantiateItem(ViewGroup container, int position)
-// 删除itemView
-public void destroyItem(ViewGroup container, int position, Object object)
-// 判断view和object是否为同一个实例
-public abstract boolean isViewFromObject(View view, Object object)
-```
-ViewPager调用`instantiateItem(ViewGroup, 5)`返回objA，如果调用`isViewFromObject(View, objA)`并传入item5，则返回true，否则返回false。
-
-> 不过本节并没有讲透为什么要实现这三个接口，只是说这是一个复杂的过程，并没有讲PagerAdapter和ViewPager具体是怎么配合的。
-
-
