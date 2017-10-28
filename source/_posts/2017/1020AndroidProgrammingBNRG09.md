@@ -114,3 +114,15 @@ style="?android:listSeparatorTextViewStyle"
 />
 ```
 这是带有一个分割线的TextView，每个Android theme都包含listSeparatorTextViewStyle，他们描述了不同的分割线外观。
+
+一个app的theme定义在`AndrodiManifest.xml`文件中：
+``` xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" ...>
+    <application
+        ...
+        android:theme="@style/AppTheme">
+        ...
+    </application>
+</manifest>
+```
+该theme的属性值定义在`res/values/styles.xml`。
