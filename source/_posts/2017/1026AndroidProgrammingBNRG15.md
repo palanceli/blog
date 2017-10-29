@@ -151,3 +151,4 @@ Activity会在其manifest文件中通过intent filter向操作系统宣告自己
         mSuspectButton.setEnabled(false);
     }
 ```
+PackageManager知道所有安装在本地设备上的应用，调用其`resolveActivity(...)`方法会查找与Intent匹配的Activity，参数`MATCH_DEFAULT_ONLY`把搜索限制在有`CATEGORY_DEFAULT`标志的Activity，确保和`startActivity(Intent)`的逻辑一致。
