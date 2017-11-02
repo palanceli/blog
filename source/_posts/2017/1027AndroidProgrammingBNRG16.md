@@ -7,9 +7,11 @@ tags: Android BNRG笔记
 toc: true
 comments: true
 ---
-本章
+本章使用摄像头为Details界面添加照片。
 本章要点：
-- 
+- 摄像头的使用
+- Bitmap类的使用
+- users-feature声明
 <!-- more -->
 
 # 文件和目录相关的Context API返回信息
@@ -164,7 +166,7 @@ public class PictureUtils {
 }
 ```
 
-# feature声明
+# users-feature声明
 当app需要使用依赖设备特性的功能，如本节需要使用相机，最好把这个信息告诉Android系统，当Google Play分发应用时，它会根据这些信息决定是否在特定设备上分发。具体操作是在Manifest.xml中添加如下内容：
 ``` xml
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
