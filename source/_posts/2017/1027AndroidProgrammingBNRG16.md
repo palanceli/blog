@@ -129,3 +129,49 @@ public class CrimeLab {
     }
 }
 ```
+
+## 4.将拍到的照片显示出来
+更新照片的时机有两个：1、当Fragment初始化之后；2、重新拍摄照片之后。
+对于1需要注意，在Fragment初始化之后，是不知道自己尺寸的，它最先获得自己的尺寸是在`onCreate(...)` > `onStart(...)` > `onResume(...)`之后。因此如果计算Bitmap应该的大小，要么是在`onResume(...)`里做；要么是在`onCreateView(...)`里做，但是只能粗略估算，本节是采用了后者。这个时候虽然不知道Fragment的具体尺寸，但能知道屏幕尺寸，本节就是根据屏幕尺寸确定照片的缩放比例。
+<font color=red>此处待确认</font>
+
+# 加载Bitmap
+Bitmap仅对图像文件做了简单的封装，如果加载一个压缩的图像文件，载入到Bitmap对象后，将被完全解压。也就是说对于一个5M的压缩图片，加载到Bitmap的内存中可能会膨胀好几倍！
+
+本节根据设备的尺寸对图像做了缩放，代码如下：
+``` java
+// PictureUtils.java
+public class PictureUtils {
+    public static Bitmap getScaledBitmap(String path, int destWidth, int destHeight){
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(path, options);
+        float srcWidth = options.outWidth;  // 获得源图尺寸
+        float srcHeight = options.outHeight;
+
+        int inSampleSize = 1;               // 计算缩放系数
+        if(srcHeight > destHeight || srcWidth > destWidth){
+            float heightScale = srcHeight / destHeight;
+            float widthScale = srcWidth / destWidth;
+            inSampleSize = Math.round(heightScale > widthScale? heightScale: widthScale);
+        }
+        options = new BitmapFactory.Options();
+        options.inSampleSize = inSampleSize;
+        // 对源图缩放，获得新图
+        return BitmapFactory.decodeFile(path, options);
+    }
+    ...
+}
+```
+
+# feature声明
+当app需要使用依赖设备特性的功能，如本节需要使用相机，最好把这个信息告诉Android系统，当Google Play分发应用时，它会根据这些信息决定是否在特定设备上分发。具体操作是在Manifest.xml中添加如下内容：
+``` xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.bnrg.bnrg07">
+    <uses-feature android:name="android.hardware.camera"
+        android:required="false"/>
+    ...
+</manifest>
+```
+其中`android:required="false"`表示即使没有摄像头，app也能正常运行，只是某些功能会受限。
