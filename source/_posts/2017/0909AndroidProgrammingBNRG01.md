@@ -1,7 +1,7 @@
 ---
 layout: post
 title: 《Android Programming BNRG》笔记一
-date: 2016-09-10 20:00:00 +0800
+date: 2017-09-10 20:00:00 +0800
 categories: Android Programming
 tags: Android BNRG笔记
 toc: true

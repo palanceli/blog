@@ -49,3 +49,25 @@ More info: [Deployment](https://hexo.io/docs/deployment.html)
 # 设置锚点
 <a name="anchor1"></a>
 锚点
+
+# 表格
+
+<style>
+table th:nth-of-type(1){
+    width: 80px;
+}
+table th:nth-of-type(2){
+    width: 200px;
+}
+</style>
+
+API level|Codename|Device fireware version
+---|---|---
+24|Nougat|7.0
+23|Marshmallow|6.0
+22<br>21|Lollipop|5.1<br>5.0
+19|KitKat|4.4
+18<br>17<br>16|Jelly Bean|4.3<br>4.2<br>4.1
+15|Ice Cream Sandwich(ICS)|4.0.3<br>4.0.4
+10|Gingerbread|2.3.3-2.3.7
+8|Froyo|2.2
