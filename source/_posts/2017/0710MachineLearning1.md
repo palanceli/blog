@@ -2,7 +2,7 @@
 layout: post
 title: 《机器学习》预备知识
 date: 2017-07-10 23:00:00 +0800
-categories: Machine Learning
+categories: 机器学习
 tags: Andrew NG Machine Learning
 toc: true
 comments: true

@@ -7,9 +7,11 @@ tags: Android BNRG笔记
 toc: true
 comments: true
 ---
-本章
+本章创建了适配tablet的界面布局——在phone下默认是list，点击item后展现detail；在tablet下是list|detail双视图模式。
+![](1028AndroidProgrammingBNRG17/img04.png)
 本章要点：
-- 
+- 为资源创建别名
+- 为不同尺寸的屏幕创建不同的布局
 <!-- more -->
 
 # 使用资源别名
