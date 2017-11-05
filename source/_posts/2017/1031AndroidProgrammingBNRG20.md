@@ -11,3 +11,6 @@ comments: true
 本章要点：
 - 
 <!-- more -->
+
+什么是data binding？
+什么是Model-View-ViewModel，MVVM？
