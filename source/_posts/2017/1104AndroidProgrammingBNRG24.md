@@ -155,7 +155,7 @@ startActivity(intent);
 也就是说`□`看到的卡片栈是任务栈，而不是进程。
 ![](1104AndroidProgrammingBNRG24/img03.png)
 
-<font color=red>我有一个问题：任务的本质是什么？它和进程的关系是什么？两个分属不同进程的Activity，在同一个任务下， 和两个不同任务的Activity，它们叠放起来有什么差别呢？</font>
+<font color=red>但是我发现这种现象不稳定，在有的Android系统上，启动不同的app表现不一样；同一个app在不同的Android系统上表现也不一样，这是为什么？</font>
 
 调用`Intent::setFags(Intent.FLAG_ACTIVITY_NEW_TASK)`可以在新任务中启动Activity，如果该Activity已经在运行，则只是将其切到任务栈顶：
 ``` java
