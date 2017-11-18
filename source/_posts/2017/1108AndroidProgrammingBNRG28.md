@@ -151,7 +151,12 @@ void setRepeating (int type,            // alarm类型
 `AlarmManager::Cancel(Pending)`用于取消alarm。
 
 # Notifications
-在系统的顶部，有一个通知栏，下拉显示通知列表。创建Notification实例可以发送通知。一个Notification至少需要包含：
+在系统的顶部，有一个通知栏，下拉显示通知列表。但是按照本书的写法，在AndroidO上不能正常运行，会弹出如下错误：
+<font color=red></font>
+因为在AndroidO中引入了通知频道（Notification Channel）的概念，开发者为需要发送的每个不同的通知类型创建一个通知渠道，所有发布至通知渠道的通知都具有相同的行为。当用户修改任何`重要性`、`声音`、`光`、`振动`、`在锁屏上显示`、`替换免打扰模式`这些特性的行为时，修改将作用于通知渠道。
+
+
+创建Notification实例可以发送通知。一个Notification至少需要包含：
 <font color=red>此处应该贴个图</font>
 具体代码如下：
 ``` java
