@@ -7,7 +7,7 @@ tags: Android BNRG笔记
 toc: true
 comments: true
 ---
-本章
+本章引入了一个Service，用来下载缩略图，如果有新的内容则弹出通知。
 本章要点：
 - Service
 - 检测网络是否可用
@@ -63,7 +63,84 @@ Service的Intent被称为命令，命令被发送给Service通知它完成约定
 Intent i = PollService.newIntent(getActivity());
 getActivity().startService(i);
 ```
-<font color=red>不是说好收到第一个命令后，会自动档调起吗？为什么此处变手动挡呢？</font>
+不是说好收到第一个命令后，会自动档调起吗？为什么此处变手动挡呢？自动挡在下面引入定时Alarm的时候会用上，下面是定时向PollService发送请求：
+``` java
+// 每10秒钟发一次
+private static final long POLL_INTERVAL_MS = 
+                                    TimeUnit.SECONDS.toMillis(10);
+...
+Intent i = new Intent(context, PollService.class);
+PendingIntent pi = PendingIntent.getService(context, 0, i, 0);
+
+AlarmManager alarmManager = 
+        (AlarmManager)context.getSystemService(Context.ALARM_SERVICE);
+alarmManager.setRepeating(AlarmManager.ELAPSED_REALTIME, 
+        SystemClock.elapsedRealtime(),POLL_INTERVAL_MS, pi);
+...
+```
+
+## Service是什么
+和Activity一样，Service是应用程序的一类组件，它提供生命周期回调函数给应用程序的主线程调用。**注意：这些回调是在主线程中调用的。**大部分的Service都需要配备一个后台线程辅以工作，IntentService提供了后台线程并管理它，所以通常建议使用IntentService。
+
+## Service的生命周期
+- `onCreate(...)` 在Service被创建的时候调用。
+- `onStartCommand(Intent, int, int)` 每次通过`startService(Intent)`启动service的时候都会被调用。第一个整型参数是一个标志位，表明该Intent是被重复发送还是首次发送；第二个整型参数的值每次都不同，用来区分每次调用的startID。
+- `onDestroy()` Service在销毁前被调用。根据不同类型的Service，`onDestroy()`的调用时机会有不同。`onStartCommand(Intent, int, int)`用返回值来表明Service的类型。
+
+### Service的类型
+按照是否Sticky分为两类：
+- `Non-sticky Service` 该类型的Service主动声明自己停止，`onStartCommand(Intent, int, int)`返回`START_NOT_STICKY`或`START_REDELIVER_INTENT`时，属于这种类型。Service通过调用`stopSelf()`或`stopSelf(int)`来终止自己，前者是无条件终止，不管`onStartCommand(...)`被调用过多少次；后者则根据`onStartCommand(...)`的参数startID，停止与它最接近的那个。
+- `Sticky Service` 该类型的Service需要等别人调用`Context.stopService(Intent)`才会停止。`onStartCommand(Intent, int, int)`返回`START_STICKY`时，属于这种类型。
+
+更细的，按照`onStartCommand(...)`的返回值，分为三类：
+- `START_NOT_STICKY` 当Service运行的进程被Android系统强制杀掉之后，不会重新创建该Service，如果想重新实例化该Service，就必须重新调用`startService(...)`来启动。如果Service在执行工作中被中断几次无关紧要或者对“Android内存紧张的情况下需要被杀掉且不立即重新创建”也可接受的话，可以设置该值，如定时从服务器中获取最新数据。
+- `START_REDELIVER_INTENT` 当Service运行的进程被Android系统强制杀掉之后，Android系统会将再次重新创建该Service，并执行`onStartCommand(...)`回调方法，并将Service在被杀掉之前最后一次传入onStartCommand方法中的Intent再次保留下来并再次传入到重新创建的Service的`onStartCommand(...)`方法中。如果我们的Service需要依赖具体的Intent才能运行（需要从Intent中读取相关数据信息等），并且在强制销毁后有必要重新创建运行，这种情况就适合使用START_REDELIVER_INTENT。
+- `START_STICKY` 当Service运行的进程被Android系统强制杀掉之后，Android系统会将该Service依然设置为started状态（即运行状态），但是不再保存onStartCommand方法传入的intent对象，然后Android系统会尝试再次重新创建该Service，并执行`onStartCommand(...)`回调方法，这时该回调的Intent参数为null，即虽然会执行但是获取不到intent信息。如果你的Service可以在任意时刻运行或结束都没什么问题，而且不需要intent信息，就可以使用这种类型，比如一个用来播放背景音乐的Service就适合返回该值。
+
+## bind Service
+调用`bindService(Intent, ServiceConnection, int)`，可以有机会直接调用Service的方法。`ServiceConnection`用来接收和binding相关的回调。书中提供这样一段示例：
+``` java
+private ServiceConnection mServiceConnection = new ServiceConnection(){
+    public void onServiceConnected(ComponentName className, IBinder service){
+        MyBinder binder = (MyBinder)service;
+    }
+    public void onServiceDisconnected(ComponentName className){
+    }
+};
+@Override
+public void onCreate(Bundle savedInstanceState){
+    super.onCreate(savedInstanceState);
+    Intent i = new Intent(getActivity(), MyService.class);
+    getActivity().bindService(i, mServiceConnection, 0);
+}
+@Override
+public void onDestroy(){
+    super.onDestroy();
+    getActivity().unbindService(mServiceConnection);
+}
+```
+在Service侧，binding引入了两个生命周期回调：
+- `onBind(Intent)` 每次Service被bind，并通过`ServiceConnection::onServiceConnected(...)`返回IBind对象时被调用。
+- `onUnbind(Intent)` 每次binding终止时被调用。
+
+### 本地service binding
+如果service存在于本进程内，这就是本地binding，此时它会提供直接调用service的函数：
+``` java
+private class MyBinder extends IBinder{
+    public MyService getService(){
+        return MyService.this;
+    }
+    @Override 
+    public void onBind(Intent intent){
+        return enw MyBinder();
+    }
+};
+```
+但是不建议这么用，因为如果MyBinder存在于本地，直接调用就好了，为什么要通过Binder来绕弯子？
+
+### 远端service binding
+这是binding Service的主要用途，因为它提供了跨进程调用的机制。
+<font color=red>本书没有详细讲解具体用法，稍后应该回过头来把它和android源码的binder打通。</font>
 
 # 检测是否有网络可用
 在Android系统下，用户可以关闭后台应用的联网权限，这对于控制手机的低功耗运行非常有帮助。应用程序需要对此作出判断，如果网络不可用，就不要再做后续的联网尝试了。
@@ -151,31 +228,55 @@ void setRepeating (int type,            // alarm类型
 `AlarmManager::Cancel(Pending)`用于取消alarm。
 
 # Notifications
-在系统的顶部，有一个通知栏，下拉显示通知列表。但是按照本书的写法，在AndroidO上不能正常运行，会弹出如下错误：
-<font color=red>记得贴图</font>
+系统顶部有通知栏，下拉显示通知列表。但是按照本书的写法，在AndroidO上不能正常运行，会弹出如下错误：
+![](1108AndroidProgrammingBNRG28/img03.png)
 因为在AndroidO中引入了通知频道（Notification Channel）的概念，开发者为需要发送的每个不同的通知类型创建一个通知渠道，所有发布至通知渠道的通知都具有相同的行为。当用户修改任何`重要性`、`声音`、`光`、`振动`、`在锁屏上显示`、`替换免打扰模式`这些特性的行为时，修改将作用于通知渠道。
 
-先来看一下通知的直观表现：
+先来看一下通知的交互逻辑和对应字段：
 ![](1108AndroidProgrammingBNRG28/img02.png)
 
 创建Notification实例可以发送通知。一个Notification至少需要包含：
 <font color=red>此处应该贴个图</font>
 具体代码如下：
 ``` java
-Resources resources = getResources();
-Intent i = PhotoGalleryActivity.newIntent(this);
-PendingIntent pi = PendingIntent.getActivity(this, 0, i, 0);
-Notification notification = new
-        NotificationCompat.Builder(this)
-        .setTicker(resources.getString(R.string.new_pictures_title))
-        .setSmallIcon(android.R.drawable.ic_menu_report_image)
-        .setContentTitle(resources.getString(R.string.new_pictures_title))
-        .setContentText(resources.getString(R.string.new_pictures_text))
-        .setContentIntent(pi)
-        .setAutoCancel(true)
-        .build();
 
-NotificationManagerCompat notificationManager =
-                        NotificationManagerCompat.from(this);
-notificationManager.notify(0, notification);
+private void doNotifiy(){
+    Resources resources = getResources();
+    Intent i = PhotoGalleryActivity.newIntent(this);
+    PendingIntent pi = PendingIntent.getActivity(this, 0, i, 0);
+
+    NotificationManager notificationManager =
+            (NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
+    // 创建通知频道
+    String notificationChannelId = getString(R.string.notify_channel_id);
+    CharSequence channelName = getString(R.string.notify_channel_name);
+    String channelDescription = getString(R.string.notify_channel_description);
+    int channelImportance = NotificationManager.IMPORTANCE_HIGH;
+    // 传入频道ID、名称和级别
+    NotificationChannel notificationChannel = new NotificationChannel(
+            notificationChannelId, channelName, channelImportance);
+    notificationChannel.setDescription(channelDescription);
+    notificationChannel.enableLights(true); // 闪光灯和颜色
+    notificationChannel.setLightColor(Color.RED);
+    notificationChannel.enableVibration(true);  // 震动和节奏
+    notificationChannel.setVibrationPattern(new long[]{100, 200, 300, 400, 500, 400, 300, 200, 400});
+    notificationManager.createNotificationChannel(notificationChannel);
+    // 创建通知Builder
+    Notification notification = new
+            Notification.Builder(this)
+            .setTicker(resources.getString(R.string.new_pictures_title))
+            .setSmallIcon(android.R.drawable.ic_menu_report_image)
+            .setContentTitle(resources.getString(R.string.new_pictures_title))
+            .setContentText(resources.getString(R.string.new_pictures_text))
+            .setContentIntent(pi)
+            .setAutoCancel(true)
+            .setChannelId(notificationChannelId)
+            .build();
+    // 弹出通知
+    notificationManager.notify(0, notification);
+}
 ```
+
+# JobScheduler 和JobService
+Android Lollipop引入了`JobScheduler`和`JobService`，可以更方便地完成诸如本节的“定期跑任务，跑起之前检查是否已经有该任务在跑，检查网络是否可用”这套组合拳。
+<font color=red>但是本节讲得太浅，就不在这总结了。回头应该进一步扩展阅读，补上这一节。</font>
