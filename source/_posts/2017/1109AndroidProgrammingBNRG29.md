@@ -271,18 +271,11 @@ signatureOrSystem|有两种应用可以申请该权限：①和该apk用相同�
 ![](1109AndroidProgrammingBNRG29/img03.png)
 本节引入了有序广播
 ![](1109AndroidProgrammingBNRG29/img04.png)
-无序广播像是散弹枪，打出去多少人中枪，谁先谁后是不知道的；有序广播则像是击鼓传花，大家排排坐，确保收到广播的顺序，同时某个成员还有决定要不要继续往下传的权利。
+无序广播像是散弹枪，打出去多少人中枪，谁先谁后是不知道的；有序广播则像是击鼓传花，大家排排坐，确保收到广播的顺序，有序广播的接收者还可以再被传递的花中附上自己的返回值。本节正是利用这一特性实现了：当app在前台时不处理广播，仅在app处于后台时才处理广播，弹出通知。
 
-<font color=red>怎么实现有序性？怎么阻止有序广播继续传播？</font>
-
-### 阻止有序广播继续传播
-在接收端和无序广播的实现是类似的，只是可以通过调用`setResultCode(int code)`来告知广播的传播者是否继续往下传播：
-- `RESULT_OK`则继续传播
-- `RESULT_CANCELED`则终端传播
-
-<font color=red>P2001是这么介绍的，但是在[setResultCode的官方文档](https://developer.android.com/reference/android/content/BroadcastReceiver.html#setResultCode)中提到这个值的含义依赖于广播的发送者。在P2001中还提到：该返回值还能被发送到广播链中的其他接收者。那这个“终止”又有什么意义呢？</font>
-
-还可以通过`setResultData(String)`、`setResultExtras(Bundle)`或`setResult(int, String, Bundle)`返回更多种类型的数据，一旦设置了这些返回值，后续所有的receiver都能收到。
+### 设置返回值
+在接收端和无序广播的实现是类似的，只是可以通过调用`setResultCode(int code)`来设置自己的返回值。
+还可以通过`setResultData(String)`、`setResultExtras(Bundle)`或`setResult(int, String, Bundle)`返回更多种类型的数据，一旦设置了这些返回值，后续所有的receiver都能收到。结合有序性，可以令高级别的receiver在符合一定条件时设置返回值，低级别的receiver在收到广播后根据返回值决定要不要继续处理，这样就能实现广播的过滤，相当于通过高级别的receiver终止了广播的继续处理。
 
 ### 发送有序广播
 调用`sendOrderedBroadcast(...)`发送有序广播，该函数的参数说明如下：
