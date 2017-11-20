@@ -156,7 +156,7 @@ public abstract class VisibleFragment extends Fragment {
     };
 }
 ```
-在注册dynamic reciever的时候需要传入一个BoradcastReceiver实例，我们定义内部类并实例化mOnShowNotification。
+在注册dynamic reciever的时候需要传入一个BoradcastReceiver和一个IntentFilter实例。定义内部类并实例化mOnShowNotification，IntentFilter则与XML文件中<intent-filter>等效，相应的可以调用`addCategory(String)`、`addAction(String)`或`addDataPath(String)`来配置。
 
 以上的代码不涉及业务逻辑，具体到本节解决的问题是：
 <font color=red>我咋觉得解决的问题和实际方案是反的？他希望仅在应用没有打开的时候得到notification，而到目前为止，必须要求应用在打开的时候才能收到notification！</font>
@@ -189,4 +189,109 @@ public class PollService extends IntentService {
 public class PhotoGalleryFragment extends VisibleFragment {
     ...
 }
+```
+
+## 限定broadcast的传播范围
+本节希望应用程序发出的广播仅能被自己接收到，提出了两个方案：
+### 1.为receiver添加exported属性
+在AndroidManifest.xml的receiver标签中添加`android:exported="false"`属性，以声明该receiver仅用于内部应用。<font color=red>我的疑问是：难道不应该在broadcast源声明仅内部receiver才能接收么？在端处声明我仅能接收内部broadcast阻挡不住应用外的receiver截胡吧？</font>
+
+### 2.使用自定义permission
+在AndroidManifest.xml中加入`permission`标签创建自定义权限，接下来使用`uses-permission`来声明使用该权限，和声明使用系统预定义的权限类似，只是该权限是自定义的：
+``` xml
+<manifest ...>
+    <permission android:name="com.bnrg.photogallery.PRIVATE"
+        android:protectionLevel="signature"/><!-- 创建自定义权限 -->
+    ...
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- 使用自定义权限 -->
+    <uses-permission android:name="com.bnrg.photogallery.PRIVATE"/>
+
+    <application ...>
+        ...
+    </application>
+</manifest>
+```
+最后在发送广播的时候，指定接收范围：
+``` java
+// PollService.java
+public class PollService extends IntentService {
+    ...
+    public static final String ACTION_SHOW_NOTIFICATION = "com.bnrg.photogallery.SHOW_NOTIFICATION";
+    public static final String PERM_PRIVATE = "com.bnrg.photogallery.PRIVATE";
+
+    @Override
+    protected void onHandleIntent(Intent intent){
+        ...
+        sendBroadcast(new Intent(ACTION_SHOW_NOTIFICATION), PERM_PRIVATE);
+        ...
+    }
+    ...
+}
+```
+这样，只有声明了该权限的应用才能接收到该广播。<font color=red>如果别的应用知道了我的私有权限，是不是也能盗用监听到我的私有广播呢？能屏蔽吗？</font>
+
+最最后，为了防止我的receiver还能接收到其它应用发送同样的广播，引诱我执行，可以在注册receiver的时候也缀上私有权限：
+``` java
+public abstract class VisibleFragment extends Fragment {
+    ...
+    @Override
+    public void onStart(){
+        ...
+        IntentFilter filter = new IntentFilter(PollService.ACTION_SHOW_NOTIFICATION);
+        getActivity().registerReceiver(mOnShowNotification, filter,
+                PollService.PERM_PRIVATE, null);
+    }
+```
+还是没有太理解，所谓的私有权限只是一个字符串，我理解和广播的名称并没有本质区别吧？如果被泄露了，不一样会被引诱执行吗？这个问题是由protection levels解决的。
+
+### 3.protection levels
+在创建自定义权限时，还有一段`android:protectionLevel="signature"`属性，signature表示如果其他应用需要使用该权限，他必须使用和本应用一样的签名。其它的开发者不可能拿到你的签名，因此使用signature是限定应用内权限的有效方式。发出broadcast时，没有相同签名的其它应用的receiver收不到；接收broadcast时，如果发送者没有和我相同的签名，也无法欺骗让我接收。
+
+protection levels的所有取值和含义如下：
+
+<style>
+table th:nth-of-type(1){
+    width: 80px;
+}
+table th:nth-of-type(2){
+    width: 200px;
+}
+</style>
+
+取值|含义
+---|---
+normal|默认值。任何应用都可以申请，安装应用时，不会直接提示用户，点击全部才会展示。
+dangerous|任何应用都可以申请，在安装应用时，会直接提示给用户。
+signature|只有和该apk用相同的私钥签名的应用才可以申请该权限。
+signatureOrSystem|有两种应用可以申请该权限：①和该apk用相同的私钥签名的应用；②在/system/app目录下的应用
+
+## 有序广播
+本节要解决的问题是：让前面动态注册的receiver能优先接收到`PollService.ACTION_SHOW_NOTIFICATION`广播，并且不再让广播继续传播。之前介绍的无序广播模型是单向无序的：
+![](1109AndroidProgrammingBNRG29/img03.png)
+本节引入了有序广播
+![](1109AndroidProgrammingBNRG29/img04.png)
+无序广播像是散弹枪，打出去多少人中枪，谁先谁后是不知道的；有序广播则像是击鼓传花，大家排排坐，确保收到广播的顺序，同时某个成员还有决定要不要继续往下传的权利。
+
+<font color=red>怎么实现有序性？怎么阻止有序广播继续传播？</font>
+
+### 阻止有序广播继续传播
+在接收端和无序广播的实现是类似的，只是可以通过调用`setResultCode(int code)`来告知广播的传播者是否继续往下传播：
+- `RESULT_OK`则继续传播
+- `RESULT_CANCELED`则终端传播
+
+<font color=red>P2001是这么介绍的，但是在[setResultCode的官方文档](https://developer.android.com/reference/android/content/BroadcastReceiver.html#setResultCode)中提到这个值的含义依赖于广播的发送者。在P2001中还提到：该返回值还能被发送到广播链中的其他接收者。那这个“终止”又有什么意义呢？</font>
+
+还可以通过`setResultData(String)`、`setResultExtras(Bundle)`或`setResult(int, String, Bundle)`返回更多种类型的数据，一旦设置了这些返回值，后续所有的receiver都能收到。
+
+### 发送有序广播
+调用`sendOrderedBroadcast(...)`发送有序广播，该函数的参数说明如下：
+``` java
+void sendOrderedBroadcast (Intent intent,   // 待广播的Intent
+        String receiverPermission,  // receiver必须具备的权限
+        BroadcastReceiver resultReceiver,  // 最后一个接收广播的receiver
+        Handler scheduler, // 自定义的handler，用来执行resultReceiver的回调，如果为null则在主线程执行
+        int initialCode,    // resultCode的初始值，通常为null，通常为Activity.RESULT_OK
+        String initialData, // resultData的初始值，通常为null
+        Bundle initialExtras)// resultExtras的初始值，通常为null
 ```
