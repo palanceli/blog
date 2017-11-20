@@ -7,9 +7,13 @@ tags: Android BNRG笔记
 toc: true
 comments: true
 ---
-本章
+本章引入了各种广播，当后台下载缩略图的线程下到新的数据，会发送有序广播，GalleryFragment在前台时会注册动态receiver，推倒后台则注销，该动态receiver设置广播的resultCode为`Activity.RESULT_CANCEL`。应用程序还有一个低级别的standalone receiver，发现resultCode不等于`Activity.RESULT_OK`时直接退出。通过这样的配合，使得应用程序仅在后台时，广播才有效。
 本章要点：
-- 
+- 创建、注册standalone receiver
+- 创建、注册dynamic reciever
+- 使用receiver
+- 限定broadcast的传播范围
+- 有序广播
 <!-- more -->
 
 # Broadcast Intents
@@ -288,3 +292,23 @@ void sendOrderedBroadcast (Intent intent,   // 待广播的Intent
         String initialData, // resultData的初始值，通常为null
         Bundle initialExtras)// resultExtras的初始值，通常为null
 ```
+和“击鼓传花”类似，有序广播的有序性是通过接收者的座次来实现，receiver有一个android:priority属性，介于(SYSTEM_LOW_PRIORITY, SYSTEM_HIGH_PRIORITY)之间（即-1000 ~ 1000，详情参见[intent-filter](https://developer.android.com/guide/topics/manifest/intent-filter-element.html)）。本节引入了两个receiver，一个是standalone，在`AndroidManifest.xml`中定义如下：
+``` xml
+<receiver android:name=".NotificationReceiver"
+    android:exported="false">
+    <intent-filter android:priority="-999">
+        <action android:name="com.bnrg.photogallery.SHOW_NOTIFICATION"/>
+    </intent-filter>
+</receiver>
+```
+另一个是dynamic receiver，没有显式定义优先级，默认为0。因此在本节中，该dynamic receiver先收到有序广播，之后才是NotificationReceiver。
+
+## 总结
+本节的逻辑有点深，读这本书的目的是学习Android系统机制，但在本节中，机制结合逻辑设计共同完成了特定效果，所以最后还是有必要把逻辑梳理一下。
+- 1）`PhotoGalleryFragment::onOptionsItemSelected(...)`当点击了菜单项“Start polling”，将调用`PollService::setServiceAlarm(...)`启动后台service
+- 2）`PollService::setServiceAlarm(...)`调用`AlarmManager::setRepeating(...)`设置指定时间间隔，定时启动`PollService`
+- 3）`PollService`启动后将调用`PollService::onHandleIntent(...)`，下载缩略图，如果有新图更新，调用`PollService::doNotify(...)`弹通知
+- 4）`PollService::doNotify(...)`准备好通知数据，调用`PollService::showBackgroundNotification(...)`发起有序广播。
+- 5）`PollService::showBackgroundNotification(...)`调用`sendOrderedBroadcast(...)`发起有序广播"com.bnrg.photogallery.SHOW_NOTIFICATION"。
+- 6a）`VisibleFragment::onStart()`注册动态receiver，接收广播"com.bnrg.photogallery.SHOW_NOTIFICATION"；`VisibleFragment::onStop()`销毁该receiver；该动态receiver的`onReceive(...)`中调用`setResultCode(Activity.RESULT_CANCELED);`设置resultcode。
+- 6b）`AndroidManifest.xml`注册了standalone receiver`NotificationReceiver`，它也接收广播"com.bnrg.photogallery.SHOW_NOTIFICATION"，该receiver具有最低优先级，在`NotificationReceiver::onReceive(...)`中判断如果getResultCode() == Activity.RESULT_OK，则调用`NotificationManager::notify(...)`将通知发出
