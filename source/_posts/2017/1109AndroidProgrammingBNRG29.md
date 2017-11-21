@@ -305,10 +305,9 @@ void sendOrderedBroadcast (Intent intent,   // 待广播的Intent
 
 ## 总结
 本节的逻辑有点深，读这本书的目的是学习Android系统机制，但在本节中，机制结合逻辑设计共同完成了特定效果，所以最后还是有必要把逻辑梳理一下。
-- 1）`PhotoGalleryFragment::onOptionsItemSelected(...)`当点击了菜单项“Start polling”，将调用`PollService::setServiceAlarm(...)`启动后台service
-- 2）`PollService::setServiceAlarm(...)`调用`AlarmManager::setRepeating(...)`设置指定时间间隔，定时启动`PollService`
-- 3）`PollService`启动后将调用`PollService::onHandleIntent(...)`，下载缩略图，如果有新图更新，调用`PollService::doNotify(...)`弹通知
-- 4）`PollService::doNotify(...)`准备好通知数据，调用`PollService::showBackgroundNotification(...)`发起有序广播。
-- 5）`PollService::showBackgroundNotification(...)`调用`sendOrderedBroadcast(...)`发起有序广播"com.bnrg.photogallery.SHOW_NOTIFICATION"。
-- 6a）`VisibleFragment::onStart()`注册动态receiver，接收广播"com.bnrg.photogallery.SHOW_NOTIFICATION"；`VisibleFragment::onStop()`销毁该receiver；该动态receiver的`onReceive(...)`中调用`setResultCode(Activity.RESULT_CANCELED);`设置resultcode。
-- 6b）`AndroidManifest.xml`注册了standalone receiver`NotificationReceiver`，它也接收广播"com.bnrg.photogallery.SHOW_NOTIFICATION"，该receiver具有最低优先级，在`NotificationReceiver::onReceive(...)`中判断如果getResultCode() == Activity.RESULT_OK，则调用`NotificationManager::notify(...)`将通知发出
+![](1109AndroidProgrammingBNRG29/img05.png)
+本节的代码和书上不太一样，为了适配AndroidO，我把弹出通知的一坨代码封装成`doNotify(...)`函数，我的代码可以去[PhotoGallery](https://github.com/palanceli/TempAndroid/tree/master/PhotoGallery)下载。
+广播发出后，如果PhotoGalleryFragment处于前台，必定调用过`onStart()`函数，注册了动态receiver，它会先收到广播，并且设置resultCode为RESULT_CANCELED，轮到NotificationReceiver接收广播时就不再处理了。此时广播的流向路径是A-B。
+如果PhotoGalleryFragment处于后台，必定调用过`onStop()`函数，注销了动态receiver，广播流向直接走C，NotificationReceiver收到广播fA线resultCode为RESULT_OK，则发出通知。
+
+<font color=red>但是我发现如果PhotoGalleryFragment处于后台，当发出第一次有序广播后，就不再继续发送了，理论上来说只要定时器满足应该不断发送才对，我还没搞明白为什么。这个问题以后待查。</font>
