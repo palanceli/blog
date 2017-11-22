@@ -10,7 +10,8 @@ comments: true
 本章继续PhotoGallery，点击图片缩略图后将浏览该图片所在的网页，本章使用两种方法浏览：1、使用系统浏览器；2、使用WebView。
 
 本章要点：
-- 
+- 使用WebView
+- 令Activity不随转屏重建
 <!-- more -->
 
 # 使用系统浏览器打开缩略图所在网页
