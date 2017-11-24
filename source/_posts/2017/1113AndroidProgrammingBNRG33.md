@@ -7,9 +7,11 @@ tags: Android BNRG笔记
 toc: true
 comments: true
 ---
-本章
+本章引入随Google Play Services带的LocationService，使用地理位置信息，并向Flickr请求和位置信息相关的图片。
 本章要点：
-- Play Services
+- Google Play Services
+- LocationService，申请权限，请求服务，使用结果
+- 在模拟器上模拟位置变化
 <!-- more -->
 
 # Play Services
@@ -151,7 +153,7 @@ public class LocatrFragment extends Fragment {
 第一个参数是请求的权限列表；第二个参数是requestCode，用来区分每个请求。当用户选择允许或者拒绝权限申请后，会收到回调，这是④干的事儿了。
 ④在回调中，首先根据requestCode分辨是哪一个请求。然后判断如果具备了LOCATION权限，说明用户通过了，接下来`findImage()`使用Location Service。也可以根据参数`grantResults`，这是得到授权的权限。
 
-## 使用Location Service
+## 4.使用Location Service
 ``` java
 // LocatrFragment.java
 public class LocatrFragment extends Fragment {
@@ -244,3 +246,19 @@ public class LocatrFragment extends Fragment {
 ④构造一个LocationRequest，待会儿会把它发送给LocationServices。除了这里设定的更新频次、次数、精度级别外，还可以设置到期时间，触发Location更新的最小移动距离。
 ⑤将LocationRequest发给LocationServices，如果位置信息发生变化，将收到回调`onLocationChanged(...)`，通过模拟器的设置界面可以修改经纬度，点击`SEND`即可更新到模拟器：
 ![](1113AndroidProgrammingBNRG33/img07.png)
+以上代码接收到位置发生变化后，打印输出如下：
+`11-24 02:10:54.348 3017-3017/com.bnrg.locatr I/LocatrFragment: Got a fix: Location[fused 37.421998,-122.099998 hAcc=20 et=+1m33s663ms alt=0.0 vAcc=??? sAcc=??? bAcc=???]`
+
+## 5.使用Location结果
+从`LocationServices`请求得到的是一个Location数据，可以调用其成员函数获取经纬度：
+``` java
+// FlickrFetchr.java
+    private String buildUrl(Location location){
+        return ENDPOINT.buildUpon()
+                .appendQueryParameter("method", SEARCH_METHOD)
+                .appendQueryParameter("lat", "" + location.getLatitude())
+                .appendQueryParameter("lon", "" + location.getLongitude())
+                .build().toString();
+    }
+```
+本节剩下的部分就是纯业务逻辑了——把经纬度信息传入url中，获取和位置相关的图片。
