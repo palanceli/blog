@@ -75,3 +75,12 @@ deploy:
   repository: https://github.com/palanceli/palanceli.github.io.git
   branch: master
   
+
+search:
+  path: search.xml
+  field: post
+  format: html
+  limit: 10000
+
+sitemap:
+  path: sitemap.xml
