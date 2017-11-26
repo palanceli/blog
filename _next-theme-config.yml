@@ -239,8 +239,9 @@ mathjax:
 
 
 # Swiftype Search API Key
-#swiftype_key:
-# swiftype_key:
+swiftype_key: 1Grug_XAD_ps3zyBywoo
+local_search:
+  enable:true
 
 # Baidu Analytics ID
 #baidu_analytics:
@@ -346,12 +347,6 @@ use_motion: true
 
 # Fancybox
 fancybox: true
-
-search:
-  path: search.xml
-  field: post
-  format: html
-  limit: 10000
 
 # Script Vendors.
 # Set a CDN address for the vendor you want to customize.
