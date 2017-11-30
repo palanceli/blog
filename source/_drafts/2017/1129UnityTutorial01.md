@@ -82,3 +82,29 @@ R：切换到缩放模式，可以任意缩放平台，改变它的大小
 ![](1129UnityTutorial01/img16.png)
 
 # 7.编写脚本
+``` csharp
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerController : MonoBehaviour {
+	public float speed;
+
+	// Use this for initialization
+	void Start () { }
+	
+	// Update is called once per frame
+	void Update () { }
+
+	void FixedUpdate(){
+		float moveHorizontal = Input.GetAxis ("Horizontal");
+		float moveVertical = Input.GetAxis ("Vertical");
+
+		Vector3 movement = new Vector3 (moveHorizontal, 0.0f, moveVertical);
+		GetComponent<Rigidbody> ().AddForce (movement * speed * Time.deltaTime);
+	}
+}
+```
+在Inspector窗口中可以看到public变量speed，为之设置初始值500：
+![](1129UnityTutorial01/img17.png)
+点击IDE顶部的三角按钮，就可以运行了，按方向键会为之加速。
