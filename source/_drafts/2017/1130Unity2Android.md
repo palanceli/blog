@@ -45,3 +45,41 @@ Publishing Settings > Keystore，和Android App相同（截图还没设置，因
 ## 运行导出的apk
 点击Build and Run或者把Export Project勾掉，将生成apk，把生成的apk装入Android可以直接运行，而且在虚拟机下能直接接收键盘控制，这是Unity官网的Roll a Ball例程：
 ![](1130Unity2Android/img11.png)
+
+# 在Android中调用Unity
+本节的例程我放到了[unitySample](https://github.com/palanceli/unitySample)，其中`Roll a Ball`是Unity工程，`AndroidRollABall`是Android工程。
+## 将Unity导出的文件拷贝到Android工程
+Unity的导出目录为`build`，`Android`工程目录为`AndroidRollABall`，需要拷贝文件：
+`build/Roll a Ball/libs/*` -> `AndroidRollABall/app/libs/`
+`build/Roll a Ball/src/main/assets/bin/` -> `AndroidRollABall/app/src/main/assets/bin/`
+`build/Roll a Ball/src/main/jniLibs/` -> `AndroidRollABall/app/src/main/jniLibs/`
+`build/Roll a Ball/src/main/java/com/sample/palance/rollaball/UnityPlayerActivity.java` -> `AndroidRollABall/app/src/main/java/com/sample/palance/rollaball/UnityPlayerActivity.java`
+我写了一个脚本[Roll a Ball/setup.sh](https://github.com/palanceli/unitySample/tree/master/Roll%20a%20Ball)完成这些文件的拷贝，只需要在`unitySample`目录下执行`sh setup.sh`即可。
+
+在Android Studio打开工程的Project视图，在app/libs/unity-classes.jar右键 > Add As Library...，这会在app/build.gradle中添加依赖：
+```
+dependencies {
+    ...
+    implementation files('libs/unity-classes.jar')
+} 
+```
+
+## 使用UnityPlayer播放动画
+在Activity代码中引入UnityPlayer，并在`onCreate(...)`中将该widget加入布局中：
+``` java
+// MainActivity.java
+import com.unity3d.player.UnityPlayer;
+
+public class MainActivity extends AppCompatActivity {
+    protected UnityPlayer mUnityPlayer;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        ...
+        mUnityPlayer = new UnityPlayer(this);
+        ConstraintLayout layout = (ConstraintLayout)findViewById(R.id.layout);
+        layout.addView(mUnityPlayer);
+    }
+}
+
+```
