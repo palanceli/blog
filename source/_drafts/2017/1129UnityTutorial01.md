@@ -108,3 +108,119 @@ public class PlayerController : MonoBehaviour {
 在Inspector窗口中可以看到public变量speed，为之设置初始值500：
 ![](1129UnityTutorial01/img17.png)
 点击IDE顶部的三角按钮，就可以运行了，按方向键会为之加速。
+
+# 8.让摄像头随球移动
+选中我们的摄像头（Main Camera），可以看到，在Scene窗口的右下角有一个小窗口，显示摄像机看到的内容。将摄像头的Position的Y和Z分别调至5和-6，然后把其的Rotation的X值调至45：
+![](1129UnityTutorial01/img18.png)
+将摄像机变成球的子对象，可以让摄像机的属性随球一起变化：
+![](1129UnityTutorial01/img19.png)
+运行动画，摄像机的确随球运动了，但是不止位移发生，角度跟着一起变了:(
+
+看来这一招不行，恢复摄像头和球的平级关系，为摄像机添加脚本来搞定：
+``` csharp
+public class CameraController : MonoBehaviour {
+	public GameObject player;	// 摄像机跟随谁运动
+	private Vector3 offset;		// 摄像机初始位置
+
+	// Use this for initialization
+	void Start () {
+		offset = transform.position;	// 记录初始位置
+	}
+	
+	// Update is called once per frame
+	void Update () { }
+
+	void LateUpdate(){
+		// 摄像机的位置=球体位置+初始偏移位置
+		transform.position = player.transform.position + offset;
+	}
+}
+```
+完成后摄像机会多出一个`Player`属性，点击右侧原点，选择代表球的变量`Player`，这样就把球和代码中的`player`关联起来了：
+![](1129UnityTutorial01/img20.png)
+
+# 9.只做围墙防止球体抛出平台
+为了不让球体超出平台边界后掉下去，需要为平台加一圈围墙。新建Empty对象，命名为Walls，在其下创建四个cube对象，分别命名为WWall、EWall、NWall和SWall，调整它们的位置和尺寸，使之形成4个围墙：
+![](1129UnityTutorial01/img21.png)
+
+# 10.添加一个旋转方块
+被艹方块，是一个cube，命名为PickUp，设置Rotation的X、Y、Z均为45，创建脚本令它自动旋转：
+``` csharp
+public class Rotator : MonoBehaviour {
+	// Use this for initialization
+	void Start () { }
+	
+	// Update is called once per frame
+	void Update () {
+		// 随时间变化而旋转
+		transform.Rotate (new Vector3 (15, 30, 45) * Time.deltaTime);
+	}
+}
+```
+
+# 11.制作一个Prefab和使用Global模式
+为了创建多个同样的方块，先制作一个Prefab（预制件）。制作预制件有以下好处：
+- 一次制作，重复使用：可以在任何项目中使用Prefab
+- 一次修改，全部变化：修改Prefab的属性，所有使用该Prefab的对象属性都会跟着发生变化
+
+在Assets下创建Prefabs文件夹，拖动Pickup对象到Prefabs，一个Prefab就创建好了：
+![](1129UnityTutorial01/img22.png)
+然后将Prefab拖入Scene即可。
+
+# 12.让球体拾取方块
+选中Assets/Prefabs/PickUp > Inspector > Tag，选择Add Tag：
+![](1129UnityTutorial01/img23.png)
+点击+号，将新加的Tag命名为`PickUp`
+![](1129UnityTutorial01/img24.png)
+再选中Assets/Prefabs/PickUp > Inspector > Tag，选择`PickUp`：
+![](1129UnityTutorial01/img25.png)
+同时勾选`Is Trigger`，这会确保当它被艹的时候会调用球的`OnTriggerEnter`函数，接下来编辑球的脚本：
+``` csharp
+public class PlayerController : MonoBehaviour {
+	...
+	void OnTriggerEnter(Collider other){
+		// 发现被艹的物体含有PickUp标签，就把它置为disactive
+		if (other.gameObject.tag == "PickUp") {
+			other.gameObject.SetActive (false);
+			Debug.Log ("xxx");
+		}
+	}
+}
+```
+
+# 13.制作一个计分板
+需要一个计分板鼓励玩家多拾取方块，向Hierachy中添加一个UI/Text，命名为CountText，选择位置为左上角，设置颜色、字号等属性：
+![](1129UnityTutorial01/img26.png)
+编辑球的脚本：
+``` csharp
+...
+using UnityEngine.UI;
+
+public class PlayerController : MonoBehaviour {
+	...
+	private int count;		// 记录得分
+	public Text countText;	// 现实得分
+
+	void Start () {
+		count = 0;
+		setCountText ();
+	}
+	
+	void Update () { }
+
+	...
+	void OnTriggerEnter(Collider other){
+		if (other.gameObject.tag == "PickUp") {
+			other.gameObject.SetActive (false);
+			count++;
+			setCountText ();
+		}
+	}
+
+	void setCountText(){
+		countText.text = "Count: " + count;
+	}
+}
+```
+最后将CountText拖入Player的`Count Text`属性即可：
+![](1129UnityTutorial01/img27.png)

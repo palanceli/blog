@@ -8,35 +8,37 @@ toc: true
 comments: true
 ---
 从facerig下到两个[人体3D模型](https://pan.baidu.com/s/1c2Nds1i)，我想把其中的`yexample`弄到unity让她动起来。
-![](1201Unitydroid/img01.png)
+![](1201Unitydroid01/img01.png)
 
 本章要点：
-- 
+- 添加Animation
+- 通过Unity代码控制动画
+- 将Unity导入Android
 
 <!-- more -->
 
 # 创建Project和前期准备
 使用Unity创建一个新Project，取名为MGril。点击菜单 > Assets > Import New Asset... > 导入`yexample/anim/_laugh.dae`：
-![](1201Unitydroid/img02.png)
+![](1201Unitydroid01/img02.png)
 按键⌘+s，保存为Assets/MGirlLaugh。
 
 先调好各项导出设置，具体步骤可参见[Unity导出Android设置](/2017/11/30/2017/1130Unity2Android/#project导出设置)，点击`Export`确认都没问题。
 
 # 添加Animation
 将Assets中的`_laugh`拖入Scene中，并设置Position，确保照相机对准她：
-![](1201Unitydroid/img03.png)
+![](1201Unitydroid01/img03.png)
 
 在Hierarchy选中`_laugh`，在Inspector中点击 Add Component > Animation 为`_laugh`添加动画
-![](1201Unitydroid/img04.png)
+![](1201Unitydroid01/img04.png)
 将`_laugh`中的Take 001指定为Animation：
-![](1201Unitydroid/img05.png)
+![](1201Unitydroid01/img05.png)
 
 点击Unity IDE顶部的三角，即可播放：
-![](1201Unitydroid/img06.gif)
+![](1201Unitydroid01/img06.gif)
 
 # 通过Unity代码控制动画
 由于勾选了`Play Automatically`，点击播放会自动启动动画，把该选项勾掉。点击Hierarchy/_laugh > Inspector/Add Component > New Script > 填写Name，创建脚本：
-![](1201Unitydroid/img07.png)
+![](1201Unitydroid01/img07.png)
 ``` csharp
 public class MGirlLaugh : MonoBehaviour {
 	public Animation mAnimation;
