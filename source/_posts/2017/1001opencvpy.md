@@ -237,6 +237,21 @@ self.waitToClose(res1)
 self.waitToClose(res2)
 ```
 缩放的代码非常简单，有两种方式完成缩放：1、设置x/y轴的缩放因子；2、设置缩放后的尺寸。
+
+# 读取摄像头并实时显示
+方法很简单，在做人脸识别的时候直接在PC上调试很方便：
+``` python
+cap = cv2.VideoCapture(0) # 获取摄像头
+while True:
+    cameraImg = cap.read()[1] # 读取图像
+
+    cv2.imshow('image', cameraImg)
+    key = cv2.waitKey(1)
+
+    if cv2.waitKey(20) & 0xFF == 27:
+        break
+```
+
 # 参考
 本文例程放在了[opencvSample.py](https://github.com/palanceli/HandWriting/blob/master/opencvSample.py)
 
