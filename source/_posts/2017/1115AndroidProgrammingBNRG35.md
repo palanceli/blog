@@ -45,38 +45,38 @@ comments: true
 - 创建约束条件
 - 为控件关联事件
 
-[笔记七](/10/18/2017/1018AndroidProgrammingBNRG07/)
+[笔记七](/2017/10/18/2017/1018AndroidProgrammingBNRG07/)
 - Localization的基本概念
 - 控件尺寸校验
 
-[笔记八](/10/19/2017/1019AndroidProgrammingBNRG08/)
+[笔记八](/2017/10/19/2017/1019AndroidProgrammingBNRG08/)
 - animate函数的使用
 
-[笔记九](/10/20/2017/1020AndroidProgrammingBNRG09/)
+[笔记九](/2017/10/20/2017/1020AndroidProgrammingBNRG09/)
 - 调试技巧
 
-[笔记十](/10/21/2017/1021AndroidProgrammingBNRG10/)
+[笔记十](/2017/10/21/2017/1021AndroidProgrammingBNRG10/)
 - UITableView的运作原理
 - 初始化函数
 - 依赖倒置原则
 
-[笔记十一](/10/22/2017/1022AndroidProgrammingBNRG11/)
+[笔记十一](/2017/10/22/2017/1022AndroidProgrammingBNRG11/)
 - UITableView的编辑模式
 - Alerts的使用
 
-[笔记十二](/10/23/2017/1023AndroidProgrammingBNRG12/)
+[笔记十二](/2017/10/23/2017/1023AndroidProgrammingBNRG12/)
 - 子类化UITableViewCell
 - 让字体随系统设置动态调整
 
-[笔记十三](/10/24/2017/1024AndroidProgrammingBNRG13/)
+[笔记十三](/2017/10/24/2017/1024AndroidProgrammingBNRG13/)
 - 创建菜单，并关联响应函数
 - 添加系统图标
 - 设置层级导航关系
 
-[笔记十四](/10/25/2017/1025AndroidProgrammingBNRG14/)
+[笔记十四](/2017/10/25/2017/1025AndroidProgrammingBNRG14/)
 - SQLite数据的操作步骤
 
-[笔记十五](/10/26/2017/1026AndroidProgrammingBNRG15/)
+[笔记十五](/2017/10/26/2017/1026AndroidProgrammingBNRG15/)
 - 在字符串资源中定义格式化字符
 - 使用隐式Intents
 
