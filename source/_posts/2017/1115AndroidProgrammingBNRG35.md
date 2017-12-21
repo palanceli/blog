@@ -41,11 +41,13 @@ comments: true
 - 在项目中添加图片资源
 
 [笔记六](/2017/10/17/2017/1017AndroidProgrammingBNRG06/)
+- Android API level版本号和发行版的对应关系
 - 设置VC的View
 - 创建约束条件
 - 为控件关联事件
 
 [笔记七](/2017/10/18/2017/1018AndroidProgrammingBNRG07/)
+- Fragment的概念、使用步骤
 - Localization的基本概念
 - 控件尺寸校验
 
