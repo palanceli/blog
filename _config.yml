@@ -82,5 +82,10 @@ search:
   format: html
   limit: 10000
 
+# MathJax Support
+mathjax:
+  enable: true
+  per_page: true
+
 sitemap:
   path: sitemap.xml
