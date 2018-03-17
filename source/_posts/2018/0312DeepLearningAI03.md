@@ -153,7 +153,14 @@ b^{[2]}=np.zeros((n^{[1]}, 1))$
 接下来使用隐藏层有4个节点的双层神经网络，计算结果如下：
 ![](0312DeepLearningAI03/img11.png)
 
+> 注意：网上的版本有个bug：`load_planar_dataset()`函数返回$X\in (2, 400)， Y\in(1, 400)$，而在绘制这些点的时候  
+ `plt.scatter(X[0, :], X[1, :], c=y, cmap=plt.cm.Spectral)`  
+其中的颜色参数c直接传入Y是有问题的，需要做如下转换：  
+`plt.scatter(X[0, :], X[1, :], c=y.reshape(X.shape[1]), cmap=plt.cm.Spectral)`
+
 我开始体会到了使用神经网络是一种编程思维的切换。
+
+本节的作业在(https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)(https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)中的`class Coding1_2`。
 
 # 思考
 神经网络一方面增加了神经元的层次，提高思考的深度，另一方面也在同一层次上布局了多个神经元，提高了思考的广度。这些神经元彼此连接便成了“神经网络”。再次申明，这都是我的直观理解，并没有理论依据。这么做增加了思考的抽象程度，但是也更加让思考过程变得越发不可理解。为什么经过这么多层的运算就比简单“神经元”有效？每一层的含义是什么？神经网络的深度、每一层的神经元个数与模型的效果是什么关系？我不知道！继续学习吧。
