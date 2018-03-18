@@ -89,3 +89,151 @@ dA^{[l-1]}=dZ^{[l]}·W^{[l]}\end{cases}$
 本节解释了神经网络中的神经元与大脑神经元的形似之处，但Andrew也提到这种形似被越来越少得提及，因为人脑的神经元是如何工作的，至今并未完全弄清楚。“神经网络”只是一个听起来很高大上的名字，其实与人脑并没有太大关系。
 
 # 作业
+## 神经网络算法的基本框架
+![](0317DeepLearningAI04/img03.png)
+
+- 第一步，初始化参数W和b
+- 第二步，完成正向传播，计算各层的Z和A：  
+$Z^{[l]}=W^{[l]}·A^{[l-1]}，\; A^{[l]}=g^{[l]}(Z^{[l]})$  
+- 第三步，计算成本函数，$cost=-\sum(Y\log{A^{[L]} + (1 - Y)log{(1-A^{[L]})}}$
+- 第四步，完成反向传播，计算各层的dW、db和后一层dA：    
+$dW^{[l]}=\frac{1}{m}dZ^{[l]}， \; db^{[l]}=\frac{1}{m}np.sum(dZ^{[l]})， \; dA^{[l-1]}=dZ^{[l]}· W^{[l]}$ 
+- 第五步，更新W和b：  
+$W := W - α·dW， \; b := b - α· db$  
+- 第六步，跳到第二步不断循环，直到成本函数的变化率低于某个阈值
+- 第七步，使用迭代训练出的W和b，输入待预测的数据，计算输出层，得到预测结果。
+
+其中，第二步正向传播算法的目的是为了从输入层到输出层逐层计算出各层各节点的A，以便在下一步计算出成本函数。计算成本函数的目的是为了比较两次迭代的成本函数的变化率，以决定是否可以停止学习。反向传播算法的目的是为了从输出层到输入层逐层计算各层各节点的dW和db，以便计算出下一轮迭代的W和b。
+
+## 参数初始化
+该函数传入各层节点的个数，生成各层节点的W、b的初始化值：
+![](0317DeepLearningAI04/img04.png)
+``` python
+def initialize_parameters_deep(self, layer_dims):
+    """
+    Arguments:
+    layer_dims -- 每一层的节点个数[n0, n1, ..., nl]
+    
+    Returns:
+    parameters -- {'W1':n1×n0的数组, 'b1':n1×1的数组, 'W2':n2×n1的数组, 'b2':n2×1的数组, ...}
+                    W数组使用randn*0.01填充，b数组使用0填充
+    """
+    
+    np.random.seed(3)
+    parameters = {}
+    L = len(layer_dims)            # number of layers in the network
+
+    for l in range(1, L):
+        parameters['W' + str(l)] = np.random.randn(layer_dims[l],layer_dims[l-1]) * 0.01
+        parameters['b' + str(l)] = np.zeros((layer_dims[l], 1))
+        ... 
+    return parameters
+```
+## 前向传播
+前向传播算法由三个函数完成：`linear_forward`、`linear_activation_forward`、`L_model_forward`。  
+`L_model_forward`是前向传播的主函数，它接收输入层参数X和各层W、b，从左向右遍历，根据前一层的A计算后一层的A，并缓存各层(Z、W和b)：
+``` python
+def L_model_forward(self, X, parameters):
+    """
+    实现前向算法，根据输入层X和各层W、b计算各层Z、A。隐藏层使用RELU、输出层使用sigmoid。
+    
+    Arguments:
+    X -- 输入层
+    parameters -- 各层W和b
+    
+    Returns:
+    AL -- 输出层A
+    caches -- 各层(Z, prev_A, W, b)
+    """
+
+    caches = []
+    A = X
+    L = len(parameters) // 2                  # number of layers in the neural network
+    
+    # Implement [LINEAR -> RELU]*(L-1). Add "cache" to the "caches" list.
+    for l in range(1, L):
+        A_prev = A 
+        ...
+        A, cache = self.linear_activation_forward(A_prev, parameters["W" + str(l)], parameters["b" + str(l)], activation = 'relu')
+        caches.append(cache)
+    
+    ...
+    AL, cache = self.linear_activation_forward(A, parameters["W" + str(L)], parameters["b" + str(L)], activation = 'sigmoid')
+    caches.append(cache)
+    ...
+    return AL, caches
+```
+隐藏层使用的是RELU激活函数，在输出层使用sigmoid作为激活函数，最后返回输出层的A和各层(Z, prev_A, W, b)
+
+## 成本函数
+成本函数是连接前向传播和后向传播的枢纽，因为梯度下降的核心就是通过迭代  
+$W:=W-α·dW \\
+b:=b-α·db$  
+不断计算成本函数$cost = -Σ(Y\log{A^{[L]}} + (1-Y)\log{(1-A^{[L]})})$是指变化率达到某个阈值以下。
+``` python
+def compute_cost(self, AL, Y):
+    ...
+    m = Y.shape[1]
+    ...
+    cost = -np.sum(np.multiply(Y, np.log(AL)) + np.multiply(1-Y, np.log(1-AL))) / m
+    
+    cost = np.squeeze(cost)      
+    ...
+    return cost
+```
+
+## 后向传播
+后向传播的核心算法就是，从右向左逐层遍历，根据各层$dA^{[l]}$计算$dW^{[l]}、db^{[l]}和dA^{[l-1]}$。根据成本函数可知：  
+$dA^{L} = -\frac{Y}{A^{L}} - \frac{1-Y}{1-A^{L}}$  
+在后向传播中要使用的公式是：  
+$dW^{[l]} = \frac{1}{m}dZ^{[l]}·A^{[l-1]}$  
+$db^{[l]} = \frac{1}{m}np.sum(dZ^{[l]})$  
+$dA^{[l-1]} = dZ^{[l]}·W^{[l]}$
+
+``` python
+def L_model_backward(self, AL, Y, caches):
+    """
+    根据AL和Y计算各层dA、dW和db
+    """
+    grads = {}
+    L = len(caches) # the number of layers
+    m = AL.shape[1]
+    Y = Y.reshape(AL.shape) # after this line, Y is the same shape as AL
+
+    dAL = - (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
+    ...
+    current_cache = caches[L - 1]
+    grads["dA" + str(L)], grads["dW" + str(L)], grads["db" + str(L)] = self.linear_activation_backward(dAL, current_cache, activation = "sigmoid")
+    
+    # 从右到左，逐层遍历，计算每一层的dA、dW和db
+    for l in reversed(range(L - 1)):
+        ...
+        current_cache = caches[l]
+        dA_prev_temp, dW_temp, db_temp = self.linear_activation_backward(grads["dA" + str(l + 2)], current_cache, activation = "relu")
+        grads["dA" + str(l + 1)] = dA_prev_temp
+        grads["dW" + str(l + 1)] = dW_temp
+        grads["db" + str(l + 1)] = db_temp
+        
+    return grads
+```
+前向传播和后向传播的主逻辑都很清晰，这里就不再往子函数里深入了。
+![](0317DeepLearningAI04/img05.png)
+
+<font color=red>在计算dAL时使用了矩阵的除法，这是怎么算的呢？</font>
+
+## 更新参数
+正向传播+反向传播完成一轮的最终目的是为了更新参数：$W:=W-α·dW ，\; b:=b-α·db$  
+``` python
+def update_parameters(self, parameters, grads, learning_rate):
+    ...
+    L = len(parameters) // 2 # number of layers in the neural network
+    ...
+    for l in range(L):
+        parameters["W" + str(l+1)] = parameters["W" + str(l+1)] - learning_rate * grads["dW" + str(l+1)]
+        parameters["b" + str(l+1)] = parameters["b" + str(l+1)] - learning_rate * grads["db" + str(l+1)]
+        
+    return parameters
+```
+
+
+> 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`class Coding1_3`。
