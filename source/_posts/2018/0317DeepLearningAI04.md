@@ -235,5 +235,108 @@ def update_parameters(self, parameters, grads, learning_rate):
     return parameters
 ```
 
+## 模型主体逻辑
+模型的主体逻辑非常简单和清晰：
+``` python
+def L_layer_model(self, X, Y, layers_dims, learning_rate = 0.0075, num_iterations = 3000, print_cost=False):#lr was 0.009
+    np.random.seed(1)
+    costs = []                         # keep track of cost
+    # 初始化参数
+    parameters = self.initialize_parameters_deep(layers_dims)
+    
+    # 经过num_iterations轮的梯度下降
+    for i in range(0, num_iterations):
+        # 前向传播
+        AL, caches = self.L_model_forward(X, parameters)
+        # 成本函数
+        cost = self.compute_cost(AL, Y)
+        # 后向传播
+        grads = self.L_model_backward(AL, Y, caches)
+        # 更新参数
+        parameters = self.update_parameters(parameters, grads, learning_rate)     
+        ...     
+    ...
+    return parameters
+```
+由此可见，神经网络算法其实和业务逻辑并没有太大关联，他要做的就是按照固定的算法，选择超参数，喂入数据。
+一段代码，一劳永逸！但是别高兴太早了，也正因为此，跑这样的代码总感觉有点像撞大运，如果得不到预期的结果，完全不知道从何下手来改进。
+
+我最初跑这段代码得到的结果如下：
+``` bash
+$ python3 -m mywork Coding1_3.tc3
+Cost after iteration 0: 0.693148
+Cost after iteration 100: 0.678011
+Cost after iteration 200: 0.667600
+Cost after iteration 300: 0.660422
+Cost after iteration 400: 0.655458
+Cost after iteration 500: 0.652013
+Cost after iteration 600: 0.649616
+Cost after iteration 700: 0.647942
+Cost after iteration 800: 0.646770
+Cost after iteration 900: 0.645947
+Cost after iteration 1000: 0.645368
+Cost after iteration 1100: 0.644961
+Cost after iteration 1200: 0.644673
+Cost after iteration 1300: 0.644469
+Cost after iteration 1400: 0.644325
+Cost after iteration 1500: 0.644223
+Cost after iteration 1600: 0.644151
+Cost after iteration 1700: 0.644100
+Cost after iteration 1800: 0.644063
+Cost after iteration 1900: 0.644037
+Cost after iteration 2000: 0.644019
+Cost after iteration 2100: 0.644006
+Cost after iteration 2200: 0.643997
+Cost after iteration 2300: 0.643990
+Cost after iteration 2400: 0.643985
+21:33 1236 INFO     Accuracy: 0.655502392344
+21:33 1236 INFO     Accuracy: 0.34
+```
+成本死活下不去，我尝试调整学习率和迭代次数，收效甚微。好在我跑jupyter notebook版本的assignment4_2的时候能得到正确的结果。  
+我最初想到的debug方法是给我的代码灌入和jupyter版本一样的初始参数值，理论上应该得出一样的结果。但是参数太多，迭代的次数也很多，一一比较非常麻烦。  
+后来我尝试用jupyter版中的初始化函数、前向传播、后向传播等模块替换我的代码中的模块，因为神经网络的每个模块非常独立，这种替换是很方便的。果然很快发现问题：我发现在assignment4_1中在初始化W时是这么写的：
+``` python
+parameters['W' + str(l)] = 
+np.random.randn(layer_dims[l],layer_dims[l-1]) * 0.01
+```
+而在assignment4_2中改成了酱紫：
+``` python
+parameters['W' + str(l)] = 
+np.random.randn(layer_dims[l], layer_dims[l-1]) / np.sqrt(layer_dims[l-1])
+```
+前者也是比较小的数，而且比后者更小，后者是在标准正态分布的随机数上除以layer_dims[l-1]的开方，为什么后者学习效率高出这么多？本例是有一个正确的示范告诉我怎么做，如果是我自己来解这个问题，遇到学习效率太低的情况，该怎么解决呢？
+
+修改完成后，效果立刻显现出来了：
+``` bash
+$ python3 -m mywork Coding1_3.Main
+Cost after iteration 0: 0.715732
+Cost after iteration 100: 0.674738
+Cost after iteration 200: 0.660337
+Cost after iteration 300: 0.646289
+Cost after iteration 400: 0.629813
+Cost after iteration 500: 0.606006
+Cost after iteration 600: 0.569004
+Cost after iteration 700: 0.519797
+Cost after iteration 800: 0.464157
+Cost after iteration 900: 0.408420
+Cost after iteration 1000: 0.373155
+Cost after iteration 1100: 0.305724
+Cost after iteration 1200: 0.268102
+Cost after iteration 1300: 0.238725
+Cost after iteration 1400: 0.206323
+Cost after iteration 1500: 0.179439
+Cost after iteration 1600: 0.157987
+Cost after iteration 1700: 0.142404
+Cost after iteration 1800: 0.128652
+Cost after iteration 1900: 0.112443
+Cost after iteration 2000: 0.085056
+Cost after iteration 2100: 0.057584
+Cost after iteration 2200: 0.044568
+Cost after iteration 2300: 0.038083
+Cost after iteration 2400: 0.034411
+22:05 1238 INFO     Accuracy: 0.995215311005
+22:05 1238 INFO     Accuracy: 0.78
+```
+初始值的选取对于训练结果有着决定性的作用！该怎么调参、优化？继续学习吧！
 
 > 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`class Coding1_3`。

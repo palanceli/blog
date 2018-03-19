@@ -56,6 +56,7 @@ table th:nth-of-type(11){
 |Ζ|ζ|zeta||Ξ|ξ|xi||Χ|χ|chi|
 |Η|η|eta||Ο|ο|omicron||Ψ|ψ|psi|
 |Θ|θ|theta||Π|π|pi||Ω|ω|omega|
+
 # 概率质量函数
 是离散随机变量在各特定取值上的概率。Probability Mass Function，简称PMF。
 
