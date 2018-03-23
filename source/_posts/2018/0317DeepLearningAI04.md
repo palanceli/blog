@@ -258,6 +258,7 @@ def L_layer_model(self, X, Y, layers_dims, learning_rate = 0.0075, num_iteration
     ...
     return parameters
 ```
+## 问题
 由此可见，神经网络算法其实和业务逻辑并没有太大关联，他要做的就是按照固定的算法，选择超参数，喂入数据。
 一段代码，一劳永逸！但是别高兴太早了，也正因为此，跑这样的代码总感觉有点像撞大运，如果得不到预期的结果，完全不知道从何下手来改进。
 
