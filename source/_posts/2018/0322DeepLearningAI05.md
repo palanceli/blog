@@ -125,5 +125,51 @@ $\frac{\Vert{dθ_{approx}^{[i]} \;\;\; - \; dθ^{[i]}}\Vert_2}{\Vert{dθ_{approx
 ## 初始化参数
 在上一节的[作业中](/2018/03/17/2018/0317DeepLearningAI04/#问题)我就遇到了因初始参数选择不合适导致梯度下降的成本函数很快趋平，但精度只有34%的情况。将初始化参数稍微调整一下就能在同样的迭代轮数内，精度达到了78%！可见初始化参数对训练结果有着决定性的影响。
 
+### 将W、b初始化为0
+梯度下降完全下不来：
+![](0322DeepLearningAI05/img05.png)  
+注意这是训练出来的模型等高线图：
+![](0322DeepLearningAI05/img06.png)  
+也就是说所有的样本都被判为一个结果，看输出：
+``` bash
+On the train set:
+Accuracy: 0.5
+On the test set:
+Accuracy: 0.5
+```
+准确率只有50%。文中指出如果把所有W初始化为0，会产生参数的对称性，从而使每一层所有节点训练出的值都相等，这使得多节点无效，和只有一个节点是等效的。
 
-> 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`class Coding1_3`。
+<font color=red>
+不过我还是有点疑问：  
+$Z_1^{[1]}=W_1^{[1]}·X+b_1^{[1]}, \; Z_2^{[1]}=W_2^{[1]}·X+b_2^{[1]}$，如果W为全0而b不为全0，则  
+$A_1^{[1]}=g(Z_1^{[1]}) = g(b_1^{[1]}), \; A_2^{[1]}=g(Z_2^{[1]}) = g(b_2^{[1]})$  
+由于$dW[l] = \frac{1}{m}dZ^{[l]} · A^{[l-1]} = \frac{1}{m}dA[l]·g[l]\prime(Z^{[l]})A^{[l-1]}$　　参见[此处](http://localhost:4000/2018/03/17/2018/0317DeepLearningAI04/#搭建深层神经网络块)  
+这么推导下来，如果b也为0，会导致dW各项完全相等，如果b不为0，应该dW的个元素不会像等啊，如果不相等，就导致下一轮的W个元素也就不相等了吧？
+</font>
+
+我尝试将W初始化为0，而b初始化为非零，训练的结果如下：
+![](0322DeepLearningAI05/img07.png)  
+![](0322DeepLearningAI05/img08.png)
+确实没有本质差别。
+
+因此得到结论：
+- W应当初始化为随机数，以打破对称性
+- b可以初始化为0，对称性是由W决定的
+
+### 将W初始化为随机数
+文中使用`np.random.randn(layers_dims[l], layers_dims[l-1]) * 10`来初始化W，其中`np.random.randn(...)` 生成的随机数服从正态分布，即：均值为0，方差为1。  
+为了让每次生成的数据和他相同以便于调试，在生成随机数之前先执行了`np.random.seed(3)`。它的作用是指定随机数的生成种子，对于相同的种子，之后生成的随机数序列是相同的，如果不指定种子，将以系统时间作为种子。结果比前一轮有进步：  
+![](0322DeepLearningAI05/img09.png)  
+![](0322DeepLearningAI05/img10.png)
+
+### He初始化
+本节在上一节正态分布随机数的基础上乘以$\sqrt{\frac{2}{n^{[l-1]}}}$因子：  
+`np.random.randn(layers_dims[l], layers_dims[l-1]) * np.sqrt(2./layers_dims[l-1])`  
+仅仅是初始化参数不同，就产生了质的飞跃：
+![](0322DeepLearningAI05/img11.png)  
+![](0322DeepLearningAI05/img12.png)
+
+本节给出最重要一条结论是：
+**He初始化方法最适用于当激活函数为ReLU的情况**
+
+> 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`class Coding2_1_init`。
