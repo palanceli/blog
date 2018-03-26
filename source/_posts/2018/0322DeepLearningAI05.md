@@ -98,6 +98,7 @@ $W{[l]}=np.random.randn(shape...)\times np.sqrt(\frac{2}{n^{[l-1]}})$
 $W{[l]}=np.random.randn(shape\dots)\times np.sqrt(\frac{1}{n^{[l-1]}\;})$  
 或  
 $W{[l]}=np.random.randn(shape\dots)\times np.sqrt(\frac{2}{n^{[l-1]}\; + \;n^{[l]}})$  
+
 # 1.12 梯度的数值逼近
 本节只是讲了一个简单结论：双边公差比单边公差更接近导数，即：  
 $f_{(x)}^{\prime}=\mathop{lim}\limits_{ε→0}\frac{f(x+ε) - f(x-ε)}{2ε}$比  
@@ -227,3 +228,23 @@ dA2 = dA2 / keep_prob
 > 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`class Coding2_1_reg`。
 
 ## 梯度检查
+在课程当中，梯度检查的方法是理解了，就是运用导数的定义，当ε极小时计算$f\prime(x)和\frac{f(x+ε)-f(x-ε)}{2ε}$的值，如果非常接近，说明导数求解是正确的，如果相差较大，说明很可能出错了。可是具体怎么用，课程当中并没有讲。  
+
+作业里详细展示了该方法的用途：他认为正向传播算法就是矩阵的一次运算，再加上numpy的支持，运算起来就像两个数值的一次运算一样，出错的概率极低。但在反向传播算法中，涉及求导运算，出错的概率很大，而且每轮迭代涉及的数据量也非常大，一旦出了错，很难追查。所以梯度检查主要用于定位反向传播算法的错误。具体过程是：  
+
+1. 随机初始化$X, Y, W^{[1]}, b^{[1]}, W^{[2]}, b^{[2]}, ..., W^{[L]}, b^{[L]}$
+2. 通过一轮正向传播和反向传播算法，计算出
+$$dW^{[1]}, db^{[1]}, dW^{[2]}, db^{[2]}, ..., dW^{[L]}, db^{[L]}$$
+将这些矩阵扁平化为多行一列的向量：
+$$grad=\left\lgroup \matrix{dW_1^{[1]} \cr dW_2^{[1]} \cr ... \cr dW_{n^{[1]}}^{[1]} \cr ... \cr db_1^{[1]}\cr db_2^{[1]} \cr ... \cr dW_1^{[2]} \cr ... \cr db_{n^{[L]}}^{[L]}} \right \rgroup$$
+3. 将成本函数$J(W^{[1]}, b^{[1]}, W^{[2]}, b^{[2]}, ..., W^{[L]}, b^{[L]})$扁平化为：
+$$J(W_1^{[1]}, W_2^{[1]}, ..., W_{n^{[1]}}^{[1]}, ..., b_1^{[1]}, b_2^{[1]}, ..., W_1^{[2]} \; , ..., b_{n^{[L]}}^{[L]})$$
+4. 计算：
+$$gradapprox=\left\lgroup \matrix{\mathop{lim}\limits_{ε→0}\frac{J(W_1^{[1]}+ε) - J(W_1^{[1]}-ε)}{2ε}) \cr \mathop{lim}\limits_{ε→0}\frac{J(W_2^{[1]}+ε) - J(W_2^{[1]}-ε)}{2ε}) \cr ... \cr \mathop{lim}\limits_{ε→0}\frac{J(b_{n^{[L]}}^{[L]}+ε) - J(b_{n^{[L]}}^{[L]}-ε)}{2ε}} \right \rgroup$$
+5. 代入欧式距离公式：
+$$\frac{\Vert{grad - gradapprox}\Vert_2}{\Vert{grad}\Vert_2 +  \Vert{gradapprox}\Vert_2}$$
+如果该值小于1-e7则说明反向传播算法是正确的，否则就有bug。
+
+
+
+> 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`class Coding2_1_gc`。
