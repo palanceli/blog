@@ -173,3 +173,57 @@ $A_1^{[1]}=g(Z_1^{[1]}) = g(b_1^{[1]}), \; A_2^{[1]}=g(Z_2^{[1]}) = g(b_2^{[1]})
 **He初始化方法最适用于当激活函数为ReLU的情况**
 
 > 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`class Coding2_1_init`。
+
+## 正则化
+正则化主要用来解决过拟合的问题，尤其是当数据量不够大，训练出的模型能很好地拟合训练集，但泛化能力比较弱，不能很好地预测从没见过的数据。  
+
+本节的题目是：当法国队门将开球的时候，给他一个球落点的建议，以确保该球总能被法国队员顶到。题目给出了前10场的所有落点以及是否被本球队队员顶到的历史记录，点的坐标表示球的落点，蓝色代表法国队控球，红色代表对方控球：
+![](0322DeepLearningAI05/img13.png)
+
+### 不使用正则化的版本
+执行`Coding2_1_reg.tc2`，它设置`keep_prob=1`，`lambd=0`，这将不使用任何正则化方法：
+``` python
+$ python3 -m mywork Coding2_1_reg.tc2
+```
+
+![](0322DeepLearningAI05/img14.png)
+![](0322DeepLearningAI05/img15.png)
+
+### 使用L2正则
+接下来使用L2正则，和base版本相比，它有两处变化：在正向传播计算成本函数的时候需要加上正则参数：
+$$J_{regularized} = \small \underbrace{-\frac{1}{m} \sum\limits_{i = 1}^{m} \large{(}\small y^{(i)}\log\left(a^{[L](i)}\right) + (1-y^{(i)})\log\left(1- a^{[L](i)}\right) \large{)} }_\text{cross-entropy cost} + \underbrace{\frac{1}{m} \frac{\lambda}{2} \sum\limits_l\sum\limits_k\sum\limits_j W_{k,j}^{[l]2} }_\text{L2 regularization cost}$$
+在反向传播的时候，这会影响到对$dW^{[l]}$的计算：
+$$dW^{[l]} = \frac{1}{m}dZ^{[l]}·A^{[l-1]} + \underbrace{\frac{λ}{m}W^{[l]}}_\text{为成本函数添加正则参数引起的变化}$$
+使用L2正则化之后的效果如下：
+![](0322DeepLearningAI05/img16.png)
+![](0322DeepLearningAI05/img17.png)
+
+L2正则化引入了一个超参数λ，本节课程并没有介绍如何设置合理的λ。可以理解一个趋势：λ越大，导致W越小，导致模型越倾向于线性，也就有更小的方差，同时可能会放大偏差。
+
+### 使用Dropout正则
+在前面的笔记部分已经讲解了Dropout的原理，具体实现方法分两步：一、在正向传播时使用四个步骤：
+``` python
+D1 = np.random.rand(A1.shape[0], A1.shape[1]) # 1、用随机数初始化矩阵D，每个元素∈[0, 1]
+D1 = (D1 < keep_prob)                         # 2、使用keep_prob将矩阵转成0/1值
+A1 = np.multiply(A1, D1)                      # 3、通过和D1相乘让A1中的节点失活
+A1 = A1 / keep_prob                           # 4、除以keep_prob确保A1期望值不变
+```
+二、在反向传播时，除了正常的步骤完成计算后，要使用同样的方法对A实施Dropout：
+``` python
+dZ3 = A3 - Y
+dW3 = 1./m * np.dot(dZ3, A2.T)
+db3 = 1./m * np.sum(dZ3, axis=1, keepdims = True)
+dA2 = np.dot(W3.T, dZ3)
+
+dA2 = np.multiply(dA2, D2)              
+dA2 = dA2 / keep_prob              
+```
+既然在正向传播的时候已经将相关的节点做过失活处理了，那么整个网络不就应该是“阉割”掉这些节点的么？为什么反向传播还要再做失活手术呢？原因是失活手术并没有把节点摘除掉，而是通过失活因子令其不能起作用，其实节点还在。而在反向传播时，dA是由W和dZ相乘而得，W并没有被失活，因此还需要再对dA做一次失活手术。
+这是使用了Dropout正则后的结果，比L2正则略好一些：
+![](0322DeepLearningAI05/img18.png)
+![](0322DeepLearningAI05/img19.png)
+注意：Dropout正则是在每轮迭代时都随机失活某些节点，以确保模型不过度依赖任何一撮节点。
+
+> 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`class Coding2_1_reg`。
+
+## 梯度检查
