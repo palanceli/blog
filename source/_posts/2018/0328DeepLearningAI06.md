@@ -92,7 +92,8 @@ $v_{dw} = β·v_{dw} + (1-β)·dw\\
 v_{db} = β·v_{db} + (1-β)·db\\
 w:=w - α·v_{dw}\\
 b:=b - α·v_{db}$  
-算法的核心思想就是采用指数加权平均来作用于原先的dw和db，从而使得变化率的连续性更强，防止梯度下降中的折返消耗。
+算法的核心思想就是采用指数加权平均来作用于原先的dw和db，从而使得变化率的连续性更强，防止梯度下降中的折返消耗。  
+如果β=0，则动量梯度下降法退化为普通梯度下降；β越大，每轮梯度下降的方向变化越平滑。但是β过大也会导致“船大不好调头”，从而让学习率下降。通常β的取值范围在(0.8, 0,999)，默认情况下通常取0.9。
 
 # 2.7 RMSprop
 接下来两节介绍的优化方法，在思想上和动量梯度下降法是一致的，都是希望减小方向的变化率。直接上算法：  
@@ -125,6 +126,6 @@ w:=w-α·\frac{v_{dw}}{\sqrt{S_{dw}} \;+\; ε}　　　b:=b-α·\frac{v_{db}}{\s
 最土的办法是手动调节，总之就是让后期的α能逐步衰减。
 
 # 作业
-
+本节作业演示各种优化方案的效果，题目是为双月牙散点图做个分类器。
 
 > 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`class Coding2_2`。
