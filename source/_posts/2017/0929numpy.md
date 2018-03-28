@@ -2,8 +2,8 @@
 layout: post
 title: numpy使用
 date: 2017-09-29 23:00:00 +0800
-categories: numpy
-tags: 技术随笔
+categories: 机器学习
+tags: 基础工具
 toc: true
 comments: true
 ---
