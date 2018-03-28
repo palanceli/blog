@@ -22,22 +22,41 @@ $$Y = [\underbrace{y^{(1)} \; y^{(2)} \;  ... \; y^{(1000)}} _{y^{\{1\}}\;\in\ma
 $x^{(i)}表示第i个样本\\z^{[l]}表示第l层节点\\x^{\{t\}}表示第t个样本子集$
 
 于是Mini-Batch梯度下降法可以写作：  
-$Repeat \{\\
-\;for \; t=1, ... , 5000\{\\
-\;\;执行正向传播，由X^{\{t\}}计算$  
-$\;\;Z^{[1]}=W^{[1]}·X^{\{t\}}+b^{[1]}$  
-$\;\;A^{[1]}=g^{[1]}(Z^{[1]})\\\;\;...$  
-$\;\;A^{[L]}=g^{[L]}(Z^{[L]})$  
-$\;\;计算成本函数J^{\{t\}} = \frac{1}{1000}\sum_{i=1}^{L}L(ŷ^{(i)}, y{(i)}) + \frac{λ}{2·1000}\sum_l\Vert{W^{[l]}}\Vert_F^2$  
-$\;\;执行反向传播$  
-$\;\;W^{[l]}:=W^{[l]} - α·dW^{[l]}$  
-$\;\;b^{[l]}:=b^{[l]} - α·db^{[l]}$  
-$\;\}$  
-$\}$ 
+``` python
+def model(self, X, Y, layers_dims, optimizer, learning_rate = 0.0007, mini_batch_size = 64, beta = 0.9,
+        beta1 = 0.9, beta2 = 0.999,  epsilon = 1e-8, num_epochs = 10000, print_cost = True):
+    ...
+    # 构造各层W、b的默认值
+    parameters = self.initialize_parameters(layers_dims)
+    # 循环代次
+    for i in range(num_epochs):
+        ...
+        # 洗牌、分mini-batch子集
+        minibatches = self.random_mini_batches(X, Y, mini_batch_size, seed)
+
+        for minibatch in minibatches:   # 遍历每个子集
+            # 获取子集的样本数据
+            (minibatch_X, minibatch_Y) = minibatch
+
+            # 执行前向算法
+            a3, caches = self.forward_propagation(minibatch_X, parameters)
+
+            # 计算成本
+            cost = self.compute_cost(a3, minibatch_Y)
+
+            # 执行后向算法
+            grads = self.backward_propagation(minibatch_X, minibatch_Y, caches)
+
+            # 更新参数
+            self.update_parameters_with_gd(parameters, grads, learning_rate)
+        ...
+```
 
 # 2.2 理解Mini-Batch梯度下降法
 之前没有分割小批量的梯度下降叫Batch梯度下降法，和Mini-Batch梯度下降法相比，二者的成本函数曲线不同： 
 ![](0328DeepLearningAI06/img01.png)
+结合上一节代码很容易理解这一点，因为每轮Mini-Batch执行完成后，更新生成的参数W、b被应用到下一轮Mini-Batch，两轮其实是基于不同数据生成的神经子网。如果每个Mini-Batch子集的数据是独立同分布的，生成的参数在各个子集上的趋势应该是一致的，但是终究会有偏差，这就导致了不可能平滑。注意，在代码中，每一代训练完成后，会重新洗牌打乱样本次序，重新生成新的Mini-Batch子集。
+
 观察Mini-Batch每个子集的尺寸，当在极端情况下  
 Size=m，Mini-Batch退化为batch梯度下降，它会沿着等高线切线方向直奔最小值，但是当样本量极大时，机器会承担不了海量样本向量化的内存开销，这导致计算性能下降。  
 Size=1，Mini-Batch退化为m个单样本的梯度下降，又称随机梯度下降（Stochastic gradient descent）。它导致梯度下降的方向更加曲折，虽然总体会像最低点演进，但中间会走很多冤枉路，这会增加训练的轮数，降低学习性能。  
@@ -126,6 +145,6 @@ w:=w-α·\frac{v_{dw}}{\sqrt{S_{dw}} \;+\; ε}　　　b:=b-α·\frac{v_{db}}{\s
 最土的办法是手动调节，总之就是让后期的α能逐步衰减。
 
 # 作业
-本节作业演示各种优化方案的效果，题目是为双月牙散点图做个分类器。
+本节作业演示各种优化方案的效果，题目是为双月牙散点图做个分类器。代码没有太多需要注意的，都是局部的技术性优化，就不在这里贴了。
 
 > 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`class Coding2_2`。
