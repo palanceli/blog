@@ -8,7 +8,7 @@ toc: true
 comments: true
 mathjax: true
 ---
-本节主要从模型的心连方法上给出一些可优化的点，包括可以将数据分而治之的Mini-Batch、防止梯度下降方向变化率过大的指数加权平均以及RMSprop和Adam优化算法。
+本节主要从模型的训练方法上给出一些可优化的点，包括可以将数据分而治之的Mini-Batch、防止梯度下降方向变化率过大的指数加权平均以及RMSprop和Adam优化算法。
 
 <!-- more -->
 # 2.1 Mini-Batch梯度下降法
