@@ -140,17 +140,48 @@ init = tf.global_variables_initializer()
 with tf.Session() as session:
     logging.info(session.run(2*x, feed_dict={x:3})) # 用的时候再赋值
 ```
-通过字典`feed_dict`来定义实际值。
+通过字典`feed_dict`来定义实际值。  
+
+在sigmoid函数的定义中，我使用placeholder和Variable创建两个版本，它们是等效的：
+``` python
+def sigmoid_placeholder(self, z):
+    x = tf.placeholder(tf.float32, name="x")
+    sigmoid = tf.sigmoid_placeholder(x)
+
+    with tf.Session() as sess:
+        result = sess.run(sigmoid, feed_dict={x:z})            
+    return result
+
+def sigmoid_variable(self, z):
+    x = tf.Variable(float(z), tf.float32)
+
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        result = sess.run(tf.sigmoid(x))
+    return result
+```
+
+## 成本函数
+tensorflow提供了很多比较成熟的库函数，比如以sigmoid为激活函数的成本函数：
+``` python
+def cost(self, logits, labels):
+    # 根据最后一层z（参数logits）和y（参数labels）计算以sigmoid为激活函数的成本函数值
+    ...
+    cost = tf.nn.sigmoid_cross_entropy_with_logits(logits = z, labels = y)
+    ...
+```
+掌握tensorflow关键就是熟悉这些成熟函数的调用。当然还有个前提是深刻理解背后的原理，否则只知道api怎么调用没有意义。
 
 ## 问题
 自己写的第一段代码就未获通过：
 ``` python
-x = tf.Variable(3, dtype=tf.float32)
-f = tf.Variable(x**2, name='function')
-init = tf.global_variables_initializer()
-with tf.Session() as session:
-    session.run(init) # 问题出在这里！！！
-    logging.info(session.run(train))
+def tc5(self):
+    x = tf.Variable(3, dtype=tf.float32)
+    f = tf.Variable(x**2, name='function')
+    init = tf.global_variables_initializer()
+    with tf.Session() as session:
+        session.run(init) # 问题出在这里！！！
+        logging.info(session.run(train))
 ```
 <font color=red>提示说是使用了未初始化的变量，先写在这备忘，待查到原因再来解答。</font>
 
