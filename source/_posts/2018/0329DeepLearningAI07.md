@@ -111,5 +111,47 @@ Softmax正向传播算法输出的是命中个分类的概率$ŷ=\begin{bmatrix}
 故成本函数为：$J(W^{[1]}, b^{[1]}, ...)=\frac{1}{m}\sum_{i=1}^{m}L(ŷ^{\(i\)}, y^{\(i\)})$  
 > 但在后向传播算法中，课件给出$dz^{[L]}=ŷ-y$这是怎么得出来的呢？
 
+# 作业
+## 执行Tensorflow的基本步骤
+1. 创建Tensors变量
+2. 创建基于这些变量的操作
+3. 初始化Tensors
+4. 创建一个Session
+5. 运行Session
+
+来看第一个例程：
+``` python
+y_hat = tf.constant(36, name='y_hat')      # 定义常量 ŷ=36
+y = tf.constant(39, name='y')              # 定义常量 y=39
+loss = tf.Variable((y - y_hat)**2, name='loss')  # 定义变量，损失函数L=(y-ŷ)^2
+
+init = tf.global_variables_initializer()   # 初始化Tensors，此时还没有开始执行任何运算
+with tf.Session() as session:              # 创建Session
+    session.run(init)                      # 初始化变量
+    print(session.run(loss))               # 运行损失函数，并打印
+```
+函数、值都可以定义为变量，本例子中就把损失函数定义为变量。
+
+## placeholder
+感觉placeholder有点格式化输出的意思：
+``` python
+x = tf.placeholder(tf.int64, name='x')  # 定义占位符
+init = tf.global_variables_initializer()
+with tf.Session() as session:
+    logging.info(session.run(2*x, feed_dict={x:3})) # 用的时候再赋值
+```
+通过字典`feed_dict`来定义实际值。
+
+## 问题
+自己写的第一段代码就未获通过：
+``` python
+x = tf.Variable(3, dtype=tf.float32)
+f = tf.Variable(x**2, name='function')
+init = tf.global_variables_initializer()
+with tf.Session() as session:
+    session.run(init) # 问题出在这里！！！
+    logging.info(session.run(train))
+```
+<font color=red>提示说是使用了未初始化的变量，先写在这备忘，待查到原因再来解答。</font>
 
 > 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`class Coding2_3`。
