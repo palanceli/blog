@@ -112,4 +112,4 @@ Softmax正向传播算法输出的是命中个分类的概率$ŷ=\begin{bmatrix}
 > 但在后向传播算法中，课件给出$dz^{[L]}=ŷ-y$这是怎么得出来的呢？
 
 
-> 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`class Coding2_2`。
+> 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`class Coding2_3`。
