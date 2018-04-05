@@ -132,28 +132,7 @@ padding $p^{[1]} =0$
 - 稀疏连接。运算结果中的每一个元素仅与被乘矩阵中的局部有关，这个局部的大小就是过滤器大小，过滤器大小决定了参数规模。但我觉得这个逻辑并没有将完整，应该是说运算结果矩阵的每个像素本不该与原图的较远像素有关，而是由相邻的一个区域的像素决定的，这个性质使得不必使用同等量级的乘数w。但问题是：运算的结果代表什么？为什么它的每个元素仅与源图中的局部像素相关呢？这里需要一个直觉解释。
 
 # 作业
-## zero padding
-zero padding是在做padding时的基本操作，课件代码有误，更正如下：
-``` python
-class Coding4_1(CodingWorks):
-    def zero_pad(self, X, pad):
-        """
-        在X的外围执行层数为pad的padding操作
-        
-        Argument:
-        X -- 待padding的样本，shape为 (m, n_H, n_W, n_C)
-        pad -- padding的层数
-        
-        Returns:
-        X_pad -- 执行padding后的数据， shape为 (m, n_H + 2*pad, n_W + 2*pad, n_C)
-        """
-        # 第二个参数pad_width的含义：对于第一维即m个样本，前后均不填充
-        # 对第二维即每个样本的上下均填充pad个像素，对第三维即每个样本的前后均填充pad个像素
-        # 对第四维即每个样本的各通道，均不填充
-        X_pad = np.pad(X, ((0, 0), (pad, pad), (pad, pad), (0, 0)), 'constant')
-        
-        return X_pad
-```
+
 
 
 > 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`class Coding4_1`。
