@@ -132,7 +132,42 @@ padding $p^{[1]} =0$
 - 稀疏连接。运算结果中的每一个元素仅与被乘矩阵中的局部有关，这个局部的大小就是过滤器大小，过滤器大小决定了参数规模。但我觉得这个逻辑并没有将完整，应该是说运算结果矩阵的每个像素本不该与原图的较远像素有关，而是由相邻的一个区域的像素决定的，这个性质使得不必使用同等量级的乘数w。但问题是：运算的结果代表什么？为什么它的每个元素仅与源图中的局部像素相关呢？这里需要一个直觉解释。
 
 # 作业
+本节的作业是使用TensorFlow搭建一个最基本的卷积神经网络，用来识别从0到5的手势。网络框架用不了几行代码，关键是理解每一层的策略及输入输出矩阵的维度。
 
+核心点在正向传播算法上：
+``` python
+def forward_propagation(self, X, parameters):
+    ...
+    # 获取第1层和第2层过滤器
+    W1 = parameters['W1']
+    W2 = parameters['W2']
+    
+    # 第一个卷积层。执行卷积操作，Z1 = X * W1
+    # 由于X →(m, n_H0, n_W0, n_C0)，strides在指定padding步长时需定义每个维度
+    Z1 = tf.nn.conv2d(X,W1, strides = [1,1,1,1], padding = 'SAME')
+    # A1 = RELU(Z1) # A1 → (m, n_H1, n_W1, n_C1)
+    A1 = tf.nn.relu(Z1)
+    # MAXPOOL: window 8x8, sride 8, padding 'SAME'
+    P1 = tf.nn.max_pool(A1, ksize = [1,8,8,1], strides = [1,8,8,1], padding = 'SAME')
 
+    # 第二个卷积层
+    Z2 = tf.nn.conv2d(P1,W2, strides = [1,1,1,1], padding = 'SAME')
+    # RELU
+    A2 = tf.nn.relu(Z2)
+    # MAXPOOL: window 4x4, stride 4, padding 'SAME'
+    P2 = tf.nn.max_pool(A2, ksize = [1,4,4,1], strides = [1,4,4,1], padding = 'SAME')
+
+    # FLATTEN
+    P2 = tf.contrib.layers.flatten(P2)
+    # 全连接层。注意：此处不要调用softmax，TensorFlow中softmax和成本函数被合成了一个函数，将在下一步调用
+    Z3 = tf.contrib.layers.fully_connected(P2, 6, activation_fn = None)
+
+    return Z3
+```
+
+<font color=red>
+我不太理解的是：为什么全连接层的激活函数为None呢？全连接层的作用是将P2通过神经网络正向传播成一个维度为6的向量，在这个过程中必然经历`A = g(W · A_prev + b)`的运算，为什么激活函数为空呢？</font>
+
+执行的结果并不理想，训练精度只有65.8%，测试集精度只有54.2%，远低于不使用卷积神经网络的99.9%和71.7%。在视觉领域既然优选卷积神经网络，它一定不会只是这么个操性，想让卷积神经网络牛逼起来，还需要学会调整超参数。继续学习吧！
 
 > 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`class Coding4_1`。
