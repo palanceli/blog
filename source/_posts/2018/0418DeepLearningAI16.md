@@ -94,7 +94,30 @@ Word2Vec的论文在[《efficient estimation of word representations in vector s
 
 # 2.8 GloVe词向量
 GloVe的论文详见[《GloVe: Global Vectors for Word Representation》](https://nlp.stanford.edu/pubs/glove.pdf)
+首先定义$X_{ij}$  
+表示在所有语料中，单词i出现在单词j的上下文中的次数。对于“出现在上下文”的不同解释，$X_{ij}$  的值是不一样的，比如：
+i出现在j的上下文 = i出现在j前后10个单词内，此时$X_{ij}=X_{ji}$
+i出现在j的上下文 = i出现在j前1个单词，此时$X_{ij}≠X_{ji}$
+![](0418DeepLearningAI16/img15.png)
+
+如果词典是一个m维向量，则X_ij 是一个m×m的矩阵，采用梯度下降法求  
+$minimize \sum_{i=1}^{10000}  \sum_{j=1}^{10000}  (θ_i^T e_j − logX_{ij})^2$  
+的最小值，得到θ和e即为词向量的相关值，当然这个算式表达的是求解思想，完整的算式为：  
+$minimize \sum_{i=1}^{10000}  \sum_{j=1}^{10000}  f(X_{ij})(θ_{i}^T e_j+b_i+b_j^′−logX_{ij})^2$  
+其中f(X_ij)是一个权重函数，当logX_ij=0时，为避免括号内的算式为无穷小，令f(X_ij)=0，于是整体算式为0；
+此外，对于this, is, of, a等常用词f()函数会适当降权；对于生僻词，f()函数会适当提权。
+最终得到的θ和e是两个对称的数值，即若θ=a时e=b，则θ=b时e=a，因此定义词嵌入的最终值为：
+$e_w^{final}   =\frac{e_w+θ_w}{2}$  
 
 # 2.9 情绪分类
+情绪分类要解决的问题是根据一段话，判断它表达的评分是多少。采用常规的神经网络结构如下：  
+![](0418DeepLearningAI16/img16.png)
+但是它的缺陷是对于否定或否定的否定，判断是不准确的。采用RNN结构如下：  
+![](0418DeepLearningAI16/img17.png)
+它考虑了单词的前后顺序，因此对于双重否定有更准确的判断。同时词嵌入可以有效地识别同义词，即使它们没有出现在训练样本中。
 
 # 2.10 词嵌入除偏
+本节除偏的意思是指性别、种族歧视，例如：  
+Man : Computer Programmer as Woman : Homemaker  
+Man : Doctor as Woman : Nurse  
+老师认为这是种族歧视，应该被纠正。但我觉得这是训练集本身体现出的特征，在训练集中存在就说明它是现实的客观存在，在结果中把它“纠正”过来没有任何意义。显示不会因此改变。
