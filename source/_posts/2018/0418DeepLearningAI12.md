@@ -15,7 +15,8 @@ mathjax: true
 # 2.1 为什么要进行实例探究？
 # 2.2 经典网络
 本节介绍了卷积神经网络中几个典型的框架。
-LeNet-5的作者是法国人LeCun，哥们虽然是CNN鼻祖，但学术上并非石破天惊一鸣惊人，他在1980年底提出“人工神经网络”的时候，甚至很不受学术界待见。靠着死磕精神坚持到21世纪，他的理论才逐步变的热门。他的个人网站是[http://yann.lecun.com/](http://yann.lecun.com/)在这里可以找到LeNet-5的[论文](http://yann.lecun.com/exdb/publis/index.html#lecun-98)。
+LeNet-5的作者是法国人LeCun，哥们虽然是CNN鼻祖，但学术上并非石破天惊一鸣惊人，他在1980年底提出“人工神经网络”的时候，甚至很不受学术界待见。靠着死磕精神坚持到21世纪，他的理论才逐步变的热门。他的个人网站是[http://yann.lecun.com/](http://yann.lecun.com/)在这里可以找到LeNet-5的[论文](http://yann.lecun.com/exdb/publis/index.html#lecun-98)。在今年（2018年）的GMIC大会上，LeCun做了开场的主题演讲：
+![](0418DeepLearningAI12/img16.png)
 
 LeNet-5的结构如下：
 ![](0418DeepLearningAI12/img01.png)
