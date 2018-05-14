@@ -110,3 +110,52 @@ Inception的核心思想是：原先由人来设计的过滤器、层数，这�
 
 本周的课程略显水，主要扩展了眼界，领略了当下经典的神经网络，深入理解还需要自己去看论文。希望作业的部分包含迁移学习的具体练习。
 
+# 作业
+## Keras Tutorial Happy House
+这一节介绍Keras的基本用法，Keras是一套适合用于快速建模的高级工具。高度的抽象使得Keras特别适合用一些标准模块快速拼出一个神经网络框架，适合前期快速验证一个网络结构。Kearas不擅长做更复杂的定制。具体用法可参见[Keras开发文档](http://keras-cn.readthedocs.io/en/latest/)
+
+本节例子训练集是600张64×64×3的图片，开发集是150张64×64×3的图片。最核心的代码是`HappyModel(...)`，该函数构建了卷积神经网络：
+``` python
+def HappyModel(self, input_shape):
+    ...
+    X_input = Input(input_shape) # 在本例中=(64, 64, 3)
+    
+    # 参数第1个3表示在矩阵前后行均加3行0，第2个3表示在前后列均加3列0
+    X = ZeroPadding2D((3, 3))(X_input)
+    
+    # 32个7×7的卷积核，步长为1×1，我没找到name参数的含义
+    X = Conv2D(32, (7, 7), strides = (1, 1), name = 'conv0')(X)
+    # 正则化，参见《笔记六》3.4正则化网络的激活函数
+    X = BatchNormalization(axis = 3, name = 'bn0')(X)
+    # 定义激活函数为RELU
+    X = Activation('relu')(X) 
+
+    # MAXPOOL，Pooling的尺寸为2，步长为2
+    X = MaxPooling2D((2, 2), name='max_pool')(X)
+
+    X = Flatten()(X)
+    X = Dense(1, activation='sigmoid', name='fc')(X)
+
+    ...
+    model = Model(inputs = X_input, outputs = X, name='HappyModel')
+    ...
+    
+    return model
+```
+Pooling可参见[笔记九-Padding](/2018/04/04/2018/0404DeepLearningAI11/#padding)  
+BatchNormalization可参见[笔记六-正则化网络的激活函数](/2018/03/29/2018/0329DeepLearningAI07/#正则化网络的激活函数)  
+MaxPooling可参见[笔记九-池化层](/2018/04/04/2018/0404DeepLearningAI11/#池化层)  
+生成的神经网络如下：
+![](0418DeepLearningAI12/img17.png)
+
+本节末尾可以通过代码生成算法结构图：
+``` python
+plot_model(happyModel, to_file='HappyModel.png')
+SVG(model_to_dot(happyModel).create(prog='dot', format='svg'))
+```
+这段代码使用了graphviz，需要先安装Graphviz:
+```
+brew install graphviz
+```
+生成的结构图为：
+![](0418DeepLearningAI12/img18.png)
