@@ -159,3 +159,24 @@ brew install graphviz
 ```
 生成的结构图为：
 ![](0418DeepLearningAI12/img18.png)
+
+> 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`Coding4_2_KerasTutorial`。
+
+## Residual Networks
+残差网络中的残差块有两种形式。  
+恒等块如下
+![](0418DeepLearningAI12/img19.png)
+卷积块如下
+![](0418DeepLearningAI12/img20.png)
+差异在于在shortcut路径上是否执行了卷积运算。如果`x(shortcut)`和`经过三个组件运算后的x`具有相同的维度，二者可以直接相加，就采用恒等块。否则由于纬度不同不能直接相加，需要采用卷积块运算后再相加。
+
+代码没太多要说的，我觉得写神经网络主要是画好结构图，并培养从网络结构到代码范式的直观记忆。
+
+> 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`Coding4_2_ResidualNetworks`。
+
+本节需要记住：
+
+- 非常深的“普通”网络会因为梯度消失而难以训练，因此在实践中不起作用。
+- 跳过连接有助于解决梯度消失问题，使ResNet模块可以轻松学习识别功能。
+- 有两种主要类型的块：恒等块和卷积块。
+- 通过将这些块堆叠在一起来可以构建非常深的残差网络。
