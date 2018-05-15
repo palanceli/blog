@@ -172,6 +172,8 @@ brew install graphviz
 
 代码没太多要说的，我觉得写神经网络主要是画好结构图，并培养从网络结构到代码范式的直观记忆。
 
+本节提供了一个在GPU上训练好的残差网络模型`ResNet50.h5`，<font color=red>应该掌握下怎么保存模型文件，怎么读取并继续训练。</font>
+
 > 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`Coding4_2_ResidualNetworks`。
 
 本节需要记住：
