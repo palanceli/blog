@@ -162,6 +162,10 @@ brew install graphviz
 
 > 本节作业可参见[https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py](https://github.com/palanceli/MachineLearningSample/blob/master/DeepLearningAIHomeWorks/mywork.py)`Coding4_2_KerasTutorial`。
 
+### 参考资料
+[快速开始：30s上手Keras](http://keras-cn.readthedocs.io/en/latest/#30skeras)  
+[序贯模型](http://keras-cn.readthedocs.io/en/latest/getting_started/sequential_model/)
+
 ## Residual Networks
 残差网络中的残差块有两种形式。  
 恒等块如下
