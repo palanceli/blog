@@ -12,7 +12,7 @@ mathjax: true
 
 <!-- more -->
 # 代码
-代码在框架上很简单，和上一节的例子相比，只不过多了几层运算的叠加
+代码在框架上很简单，和上一节的例子相比，只不过多了几层运算的叠加，我将分析插入到代码注释中了：
 ``` python
 def tcMain(self):
     mnist = self.loadData()
@@ -83,8 +83,32 @@ def tcMain(self):
 
     train_writer.close()
 ```
-但是从代码得到网络的结构图并不容易：
+在卷积运算中采用了SAME策略：
+``` python
+def conv2d(self, x, W):
+    ''' 构造卷积层 '''
+    # strides的含义是[batch, height, width, channels]，此处表示向右、向下的滑动步长均为1
+    # 该卷积运算前后，矩阵尺寸不变
+    return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+```
+因此每次卷积运算后，矩阵的尺寸不变，通道数变成卷积核的个数。  
+
+池化策略则是先通过padding，是的前后运算的矩阵尺寸不变，但是由于设定了步长为2，因此，每次池化后矩阵尺寸缩减为原来的一半：
+``` python
+def max_pool_2x2(self, x):
+    ''' 构造池化层 '''
+    # ksize定义池化窗口大小：2×2；strides定义步长：2×2
+    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
+                    strides=[1, 2, 2, 1], padding='SAME')
+```
+
+无论卷积还是池化，[DeepLearning.ai笔记（九）](http://localhost:4000/2018/04/04/2018/0404DeepLearningAI11/#卷积步长)中引入的卷积前后矩阵尺寸的关系公式：$n_{new} = \frac{n+2p-f}{s+1}$  
+（其中：n为被运算矩阵长、宽，p为padding宽度，f为卷积核长、宽，s为步长）  
+似乎用不到了。
+
+从代码得到网络的结构图并不容易：
 ![](0520MNISTForExperts/img01.png)
+
 
 # 使用tf.summary生成网络结构图
 在网络构建完成后，有一行代码  
@@ -100,5 +124,7 @@ TensorBoard 1.6.0 at http://palancedeMacBook-Pro.local:6006 (Press CTRL+C to qui
 
 # 参考资料
 [Deep MNIST for Experts](https://www.tensorflow.org/versions/r1.1/get_started/mnist/pros#evaluate_the_model)  
+[深入MNIST](http://www.tensorfly.cn/tfdoc/tutorials/mnist_pros.html)
+[TensorBoard：可视化学习](https://www.tensorflow.org/programmers_guide/summaries_and_tensorboard)  
 本节代码可参见：  
 [https://github.com/palanceli/MachineLearningSample/blob/master/TensorFlow/s02mnist.py之MnistAdv](https://github.com/palanceli/MachineLearningSample/blob/master/TensorFlow/s02mnist.py)
