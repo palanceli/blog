@@ -10,7 +10,6 @@ mathjax: true
 ---
 
 
-<!-- more -->
 
 # 基本概念
 pandas中的主要数据结构被实现为以下两类：
@@ -19,6 +18,8 @@ pandas中的主要数据结构被实现为以下两类：
 - Series，它是单一列。
 
 DataFrame 中包含一个或多个 Series，每个 Series 均有一个名称。
+
+<!-- more -->
 
 ## 构造Series和DataFrame
 ``` python
