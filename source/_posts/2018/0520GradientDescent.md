@@ -1,6 +1,6 @@
 ---
 layout: post
-title: 从一个最简单的例子理解梯度下降
+title: 从一个简单的例子体会TensorFlow的使用
 date: 2018-05-20 14:00:00 +0800
 categories: 机器学习
 tags: 随笔
@@ -14,7 +14,7 @@ mathjax: true
 # 题目
 给定若干个(x, y)的散点，它们大致符合`y = w·x + b`的关系，但是会在上下浮动，通过梯度下降求出w和b的值。
 
-# 生成数据
+## 生成数据
 ``` python
 import numpy as np
 import tensorflow as tf
@@ -48,7 +48,7 @@ def tc1(self):
 展现如下：  
 ![](0520GradientDescent/img01.png)
 
-# 解题
+## 解题
 ``` python
 def tc2(self):
     m = 100 # 样本数
@@ -89,7 +89,7 @@ $W:=W-α·dW和b:=b-α·db$更新这两个值
 13:46 0105 INFO     080: W = 0.79, b = 1.20
 13:46 0105 INFO     100: W = 0.80, b = 1.20
 ```
-# 验证精度
+## 验证精度
 如果只是为了算出W和b的值，就可以就此打住了，而通常还需要根据开发集或测试集验证模型的精度，因此需要把训练代码稍作修改：
 ``` python
 def tcMain(self):
@@ -137,8 +137,134 @@ def tcMain(self):
 16:31 0114 INFO     accuracy=99.29%
 ```
 
-# 总结
+## 小结
 这段代码没什么实质用处，但是所有的机器学习代码大致都是这么个结构，当遇到费解的情况时，回过头来看看这段代码，能迅速找到理论和代码之间的桥。
 
 本节代码可参见：  
 [https://github.com/palanceli/MachineLearningSample/blob/master/TensorFlow/s01baseGD.py之LinearRegression](https://github.com/palanceli/MachineLearningSample/blob/master/TensorFlow/s01baseGD.py)
+
+> 上面的例子来自[TensorFlow中文社区](http://www.tensorfly.cn/tfdoc/get_started/introduction.html)，原本写到这就结束了。但读完[TensorFlow官网](https://www.tensorflow.org/get_started/get_started_for_beginners#describe_the_data)新手入门的例子，发现最新版本的TensorFlow做出了挺大修改，有必要对山鸢花的例子重新做个解读。  
+
+# 题目
+从框架步骤上没有变化，分为：提取数据，构建模型，训练模型，评估模型和预测这些步骤。但在每一步的具体操作上变化很大。  
+这个题目是做一个分类器，样本数据标注了花萼长度、宽度、花瓣长度、宽度和品种，要求从花萼、花瓣的长宽数据中识别品种。样本数据格式为：  
+```
+120,    4,      setosa, versicolor, virginica
+6.4,    2.8,    5.6,    2.2,        2
+5.0,    2.3,    3.3,    1.0,        1
+4.9,    2.5,    4.5,    1.7,        2
+4.9,    3.1,    1.5,    0.1,        0
+…… …… ……
+```
+其中第一行表示：  
+本文件共120条数据，4个特征，3个品种的名称分别为setosa, versicolor, virginica  
+之后的120行则是花萼长度，花萼宽度，花瓣长度，花瓣宽度，品种  
+
+这个例子的代码在[https://github.com/tensorflow/models/samples/core/get_started/premade_estimator.py](https://github.com/tensorflow/models/samples/core/get_started/premade_estimator.py)
+
+## 代码
+``` python
+...
+# 1.获取数据
+(train_x, train_y), (test_x, test_y) = iris_data.load_data()
+
+# 存放了4个声明为浮点型的表头
+my_feature_columns = []
+for key in train_x.keys():
+    my_feature_columns.append(tf.feature_column.numeric_column(key=key))
+
+# 2.构造模型
+classifier = tf.estimator.DNNClassifier(
+    feature_columns=my_feature_columns,
+    # Two hidden layers of 10 nodes each.
+    hidden_units=[10, 10],
+    # The model must choose between 3 classes.
+    n_classes=3)
+
+# 3.训练模型
+classifier.train(
+    input_fn=lambda:iris_data.train_input_fn(train_x, train_y,
+                                                args.batch_size),
+    steps=args.train_steps)
+
+# 4.评估模型
+eval_result = classifier.evaluate(
+    input_fn=lambda:iris_data.eval_input_fn(test_x, test_y,
+                                            args.batch_size))
+
+print('\nTest set accuracy: {accuracy:0.3f}\n'.format(**eval_result))
+
+# Generate predictions from the model
+expected = ['Setosa', 'Versicolor', 'Virginica']
+predict_x = {
+    'SepalLength': [5.1, 5.9, 6.9],
+    'SepalWidth': [3.3, 3.0, 3.1],
+    'PetalLength': [1.7, 4.2, 5.4],
+    'PetalWidth': [0.5, 1.5, 2.1],
+}
+# 5.预测新数据
+predictions = classifier.predict(
+    input_fn=lambda:iris_data.eval_input_fn(predict_x,
+                                            labels=None,
+                                            batch_size=args.batch_size))
+
+template = ('\nPrediction is "{}" ({:.1f}%), expected "{}"')
+
+for pred_dict, expec in zip(predictions, expected):
+    class_id = pred_dict['class_ids'][0]
+    probability = pred_dict['probabilities'][class_id]
+
+    print(template.format(iris_data.SPECIES[class_id],
+                            100 * probability, expec))
+```
+### 1获取数据
+`iris_data.load_data()`返回的是代表头的DataFrame，以train_x为例，打印出来如下：
+```
+     SepalLength  SepalWidth  PetalLength  PetalWidth
+0            6.4         2.8          5.6         2.2
+1            5.0         2.3          3.3         1.0
+2            4.9         2.5          4.5         1.7
+…… …… ……
+```
+### 2构造模型
+前一个例子构造模型阶段还是能看出模型的算法结构，包括梯度下降、成本函数，你只需要体会反向传播算法。而本例更多是从概念结构上来构造模型，比如模型的用途是分类器，结构是2个隐藏层均有10个节点，分类结果是要识别3个类型：
+``` python
+classifier = tf.estimator.DNNClassifier(
+    feature_columns=my_feature_columns,
+    # Two hidden layers of 10 nodes each.
+    hidden_units=[10, 10],
+    # The model must choose between 3 classes.
+    n_classes=3)
+```
+这么简单的描述，未来一个产品经理都能拼凑一段分类器的代码。只是他把背后的原理、算法隐藏更深了，对于深入学习也就更难体会到背后的对应关系。
+
+### 3训练模型
+``` python
+classifier.train(
+    input_fn=lambda:iris_data.train_input_fn(train_x, train_y,
+                                            args.batch_size),
+    steps=args.train_steps)
+```
+`input_fn`只是返回洗牌、重组后的训练数据，确保数据充分的随机性，并不参与训练算法。  
+我判断在指定`tf.estimator.DNNClassifier`的时候，就完成了模型的计算图设计，在训练阶段完成正向传播算法和反向传播算法。
+
+### 4评估模型
+``` python
+eval_result = classifier.evaluate(
+    input_fn=lambda:iris_data.eval_input_fn(test_x, test_y,
+                                            args.batch_size))
+```
+和训练模型类似，`input_fn`仍然只是返回组织成tf.data.Dataset的测试数据。
+
+### 5预测新数据
+``` python
+# 5.预测新数据
+predictions = classifier.predict(
+    input_fn=lambda:iris_data.eval_input_fn(predict_x,
+                                            labels=None,
+                                            batch_size=args.batch_size))
+```
+和评估模型也是类似的，只是把待预测的数据组织成tf需要的Dataset
+
+## 小结
+整个编码过程只涉及部分超参数的设定，输入、输出数据的组织，连参数都不用关心了，更不用接触到算法。Tensorflow向傻瓜化支持迈出一大步。
