@@ -124,7 +124,7 @@ TensorBoard 1.6.0 at http://palancedeMacBook-Pro.local:6006 (Press CTRL+C to qui
 
 # 参考资料
 [Deep MNIST for Experts](https://www.tensorflow.org/versions/r1.1/get_started/mnist/pros#evaluate_the_model)  
-[深入MNIST](http://www.tensorfly.cn/tfdoc/tutorials/mnist_pros.html)
+[深入MNIST](http://www.tensorfly.cn/tfdoc/tutorials/mnist_pros.html)  
 [TensorBoard：可视化学习](https://www.tensorflow.org/programmers_guide/summaries_and_tensorboard)  
 本节代码可参见：  
 [https://github.com/palanceli/MachineLearningSample/blob/master/TensorFlow/s02mnist.py之MnistAdv](https://github.com/palanceli/MachineLearningSample/blob/master/TensorFlow/s02mnist.py)
