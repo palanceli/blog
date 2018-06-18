@@ -14,6 +14,7 @@ https://github.com/rspivak/lsbasi
 <!-- more -->
 文章系列共14篇，首篇开头就引入[Steve Yegge](http://steve-yegge.blogspot.com/)牛的一句话——“如果你不知道编译器是如何工作的，你就不会理解计算机是如何工作的。如果你不能100%确认你深刻理解编译器的工作原理，那么你多半是不理解的”。关于[Steve Yegge](http://steve-yegge.blogspot.com/)又是一个有意思的大牛，他有很多博客文章被翻译成中文。
 
+# 我为什么关注它？
 通常学习一门技能都会被教育为什么要学习，而我一般都不看这类陈述，一方面因为我在学习之前对于为什么要学已经想得很清楚，另一方面这类描述像拉客的广告一样没啥新意。但在这篇文章里关于“为什么”我还是读了两遍：
 
 1. 写一个编译器和解释器，需要组合使用很多种技术，这些技术在写任何软件的时候都是有用的。这有助于你提升这些技能，并成为更牛逼的软件工程师。
@@ -31,8 +32,124 @@ https://github.com/rspivak/lsbasi
 
 图中的**编译器+虚拟机+汇编编译器**是本文说的编译器，图中的**编译器**是本文中的解释器。
 
-解释器的处理过程如下：
+解释器处理代码的完整流程如下：
 
 ![](0618BuildASimpleInterpreter1/img02.png)
-
+**词法分析lexical analyzer**是将输入的字符流分割成token，这是解释其处理代码的第一步，它将输入字符流转成token流。  
+**token**是具有类型和值的对象，用来描述编译后的基本单位。
+**词位lexeme**是形成一个token的字符序列。
+从token流中查找符合预期的语法结构的过程称为**解析parsing**，执行解析的部分称为**解析器parser**。
+
 # 词法分析器
+函数`Interpreper::get_next_token()`承担**词法分析器lexical analyzer**的角色，每次调用从输入字符流中解析一个token并返回：
+![](0618BuildASimpleInterpreter1/img03.png)
+
+在Part1中，主逻辑写在函数`Interpreper::expr()`中：
+![](0618BuildASimpleInterpreter1/img04.png)
+`Interpreper::get_next_token()`负责解析一个token，`Interpreper::eat(...)`负责确认该token是否符合预期，并执行下一次`Interpreper::get_next_token()`。  
+`Interpreper::expr()`承担**解析器parser**的角色，它写死了解析的顺序是：`INTEGER - PLUS - INTEGER`——这就是符合预期的语法规范。将`get_next_token()`和`eat(...)`分开是为了将词法分析和语法分析分离——词法分析只关注输入串的合法性，而语法分析则关注token流的顺序是否符合业务逻辑。
+``` python
+class Interpreter(object):
+    ...
+    def get_next_token(self):
+        ''' 只负责解析出一个合法的Token字串 '''
+        ...
+        if current_char.isdigit():
+            token = Token(INTEGER, int(current_char))
+            self.pos += 1
+            return token
+
+        if current_char == '+':
+            token = Token(PLUS, current_char)
+            self.pos += 1
+            return token
+        ...
+
+    def eat(self, token_type):
+        ''' 如果dangqianToken符合预期，则继续执行词法分析 '''
+        ...
+        if self.current_token.type == token_type:
+            self.current_token = self.get_next_token()
+        ...
+
+    def expr(self):
+        ''' 以此获取：INTEGER - PLUS - INTEGER，完成计算 '''
+        ...
+        self.current_token = self.get_next_token()
+        ...
+        left = self.current_token
+        self.eat(INTEGER)
+        ...
+        op = self.current_token
+        self.eat(PLUS)
+        ...
+        right = self.current_token
+        self.eat(INTEGER)
+        ...
+        result = left.value + right.value
+        return result
+
+```
+## Part2
+在第二篇中添加了三个功能：  
+①处理空格  
+②支持多位数字  
+③支持减法  
+显然这三部分都与词法分析器相关。在`Interpreper::get_next_token()`过程中如果发现当前符号是空格，就继续向后解析；如果发现是数字，则继续向后解析，直到非数字，再把刚刚缓存的字窜转成数值；如果发现是符号`-`，则返回Token。
+``` python
+def skip_whitespace(self): # ①
+    while self.current_char is not None and self.current_char.isspace():
+        self.advance()
+
+def integer(self):          # ②它和①的实现非常相似
+    ...
+    result = ''
+    while self.current_char is not None and self.current_char.isdigit():
+        result += self.current_char
+        self.advance()
+    return int(result)
+
+def get_next_token(self):
+    ...
+    while self.current_char is not None:
+        if self.current_char.isspace():
+            self.skip_whitespace()   # ①
+            continue
+
+        if self.current_char.isdigit():
+            return Token(INTEGER, self.integer())
+        ...
+        if self.current_char == '-': # ③
+            self.advance()
+            return Token(MINUS, '-')
+        ...
+```
+最后在`Interpreper::expr()`中更新语义分析逻辑：
+``` python
+def expr(self):
+    ...
+    self.current_token = self.get_next_token()
+    ...
+    left = self.current_token
+    self.eat(INTEGER)
+    ...
+    op = self.current_token
+    if op.type == PLUS:
+        self.eat(PLUS)
+    else:
+        self.eat(MINUS) # 支持减号运算
+    ...
+    right = self.current_token
+    self.eat(INTEGER)
+    ...
+    if op.type == PLUS:
+        result = left.value + right.value
+    else:
+        result = left.value - right.value
+    return result
+```
+
+# 注重学习原理
+在Part2的开头，作者引用了Burger 和 Starbird在《The 5 Elements of Effective Thinking》这本书中讲述的一则故事。享誉世界的小号演奏家Tony Plog在一次大师班培训中，让学生们先演奏一首复杂的音乐片段，学生们演奏的很好；之后再让他们演奏一段非常基本简单的音乐，和前面的演奏相比听起来显得非常幼稚。演奏结束后，老师也演奏了一遍同样的乐段，但是老师的演奏却听不出幼稚——差异是明显的。Tony解释道：只有掌握演奏简单乐句的技巧，才能在演奏复杂乐句时更有掌控力。这则故事很有启发性：要培养真正的技艺，必须注重掌握简单的基本思想。正如艾默生所说：“如果你只学习方法，你将被绑死到方法上。如果你学习原理，你将可以自己设计适合自己的方法。”
+
+正是出于这段文字，我才决定深入消化包含这14篇文章的编译器系列。
