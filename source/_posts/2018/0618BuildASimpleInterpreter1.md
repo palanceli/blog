@@ -1,6 +1,6 @@
 ---
 layout: post
-title: 编写编译器和解释器
+title: 编写编译器和解释器一
 date: 2018-06-18 14:00:00 +0800
 categories: 编译器
 tags: 随笔
