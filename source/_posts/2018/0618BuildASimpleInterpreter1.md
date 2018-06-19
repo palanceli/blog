@@ -384,7 +384,47 @@ class Interpreter(object):
 
         return result
 ```
-重点是`Interpreter::term()`和`Interpreter::expr()`的变化。有了映射规则，代码很容易看懂；如果抛开规则直奔代码，难度将高出一个量级。
+以上是Part5引入的内容，重点是`Interpreter::term()`和`Interpreter::expr()`的变化。有了映射规则，代码很容易看懂；如果抛开规则直奔代码，难度将高出一个量级。
+
+Part6只是在Part5的基础上支持了括号，语法被修改为：
+```
+expr    : term((PLUS|MINUS)term)*
+term    : factor((MUL|DIV)factor)*
+factor  : INTEGER | LPAREN expr RPAREN
+```
+继续套用公式，只需要修改词法分析器对括号Token的解析和语法分析中factor函数：
+``` python
+class Lexer(object):
+    ...
+    def get_next_token(self):
+        ...
+        while self.current_char is not None:
+            ...
+            if self.current_char == '(':
+                self.advance()
+                return Token(LPAREN, '(')
+
+            if self.current_char == ')':
+                self.advance()
+                return Token(RPAREN, ')')
+            ...
+
+class Interpreter(object):
+    ...
+    def factor(self):
+        ...
+        token = self.current_token
+        if token.type == INTEGER:
+            self.eat(INTEGER)
+            return token.value
+        elif token.type == LPAREN: # 如果遇到左括号
+            self.eat(LPAREN)
+            result = self.expr()
+            self.eat(RPAREN)
+            return result
+    ...
+```
+几乎不需要思考。
 
 # 注重学习原理
 在Part2的开头，作者引用了Burger 和 Starbird在《The 5 Elements of Effective Thinking》这本书中讲述的一则故事。享誉世界的小号演奏家Tony Plog在一次大师班培训中，让学生们先演奏一首复杂的音乐片段，学生们演奏的很好；之后再让他们演奏一段非常基本简单的音乐，和前面的演奏相比听起来显得非常幼稚。演奏结束后，老师也演奏了一遍同样的乐段，但是老师的演奏却听不出幼稚——差异是明显的。Tony解释道：只有掌握演奏简单乐句的技巧，才能在演奏复杂乐句时更有掌控力。这则故事很有启发性：要培养真正的技艺，必须注重掌握简单的基本思想。正如艾默生所说：“如果你只学习方法，你将被绑死到方法上。如果你学习原理，你将可以自己设计适合自己的方法。”
