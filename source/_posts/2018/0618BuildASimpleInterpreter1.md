@@ -198,6 +198,7 @@ BNF表示法的优点在于：它更紧凑，也是更文档化的表述方式�
 通过解释语法形成的句子来定义一种语言，解释的流程为：从开始符号为起点，反复使用规则主体替换非终结符，直到生成的句子仅包含终结符。该句子就构成了语法所定义的语言。  
 按照这种规则，如果语法无法派生出某个表达式，那么就说明该表达式不符合该语法。  
 
+## 从语法到代码的映射
 以下是将语法映射成代码的规则：  
 
 1. 为语法中定义的每条规则`R`，定义一个同名函数`R()`，函数的实现遵循该条语法规则的定义。例如将`expr  : factor((MUL|DIV)factor)*`转为：
@@ -425,6 +426,162 @@ class Interpreter(object):
     ...
 ```
 几乎不需要思考。
+# 将语法解析和解释执行分离
+在Part7之前，语法解析和解释执行一直是合在一起的。这种解释其被称为**语法导向解释器**，这种解释器对源码只进行一次遍历，就直接得出结果，它适用于比较基本的语言处理程序。Part7开始将两部分分离开，第一步先构建出源码的**中间表示形式Intermediate representation (IR)**，第二步再对照IR执行。这方便应对更复杂的编程语言，语法解析器负责构建IR，解释器则负责执行IR。
+
+通过IR对源代码构建起的数据结构称为**抽象语法树abstract-syntax tree(AST)**，AST的每个非叶子节点代表一个运算符，叶子节点代表一个操作数。优先级越高的运算，放在AST中越靠近叶子的层级。下图是一个AST的示例：
+![](0618BuildASimpleInterpreter1/img06.png)
+
+和Part6相比，主要变化为：  
+① 将Interpreter拆分为语法解析器Parser和解释器Interpreter  
+② 在Parser中`Parser::expr()`保持原先的逻辑框架，只是将原先的计算操作改为创建AST节点  
+③ 在Parser中按照语法解析每个非终结符时，原先的计算都改为创建一个AST节点  
+④ 在Interpreter中，它的主逻辑是`Interpreter::interprepret()`，负责后序遍历AST，计算结果  
+``` python
+class AST(object):
+    pass
+
+class BinOp(AST):
+    def __init__(self, left, op, right):
+        self.left = left
+        self.token = self.op = op
+        self.right = right
+
+class Num(AST):
+    def __init__(self, token):
+        self.token = token
+        self.value = token.value
+
+class Parser(object):
+    ...
+    def term(self):
+        """term : factor ((MUL | DIV) factor)*"""
+        node = self.factor()
+
+        while self.current_token.type in (MUL, DIV):
+            token = self.current_token
+            if token.type == MUL:
+                self.eat(MUL)
+            elif token.type == DIV:
+                self.eat(DIV)
+            # ③ 将原先计算改为创建一个AST节点
+            node = BinOp(left=node, op=token, right=self.factor())
+
+        return node
+
+    def expr(self):
+        """
+        expr   : term ((PLUS | MINUS) term)*
+        term   : factor ((MUL | DIV) factor)*
+        factor : INTEGER | LPAREN expr RPAREN
+        """
+        node = self.term()
+
+        while self.current_token.type in (PLUS, MINUS):
+            token = self.current_token
+            if token.type == PLUS:
+                self.eat(PLUS)
+            elif token.type == MINUS:
+                self.eat(MINUS)
+            # ③ 将原先计算改为创建一个AST节点
+            node = BinOp(left=node, op=token, right=self.term())
+
+        return node
+
+    def parse(self):
+        node = self.expr()
+        ...
+
+class NodeVisitor(object):
+    def visit(self, node):
+        method_name = 'visit_' + type(node).__name__
+        visitor = getattr(self, method_name, self.generic_visit)
+        return visitor(node)
+    ...
+
+class Interpreter(NodeVisitor):
+    def __init__(self, parser):
+        self.parser = parser
+
+    def visit_BinOp(self, node): # ④ 后序遍历AST
+        if node.op.type == PLUS:
+            return self.visit(node.left) + self.visit(node.right)
+        elif node.op.type == MINUS:
+            return self.visit(node.left) - self.visit(node.right)
+        elif node.op.type == MUL:
+            return self.visit(node.left) * self.visit(node.right)
+        elif node.op.type == DIV:
+            return self.visit(node.left) / self.visit(node.right)
+
+    def visit_Num(self, node):
+        return node.value
+
+    def interpret(self):
+        tree = self.parser.parse()
+        return self.visit(tree)
+```
+
+# 支持一元操作
+一元操作包括+/-符号，一元操作的优先级高于二元操作。一个数字前面可以跟多个一元符号例如：
+`+-3 = +(-3) = -3`  
+`5--2 = 5 - (-2) = 7`  
+于是可将语法修改为：
+```
+expr   : term ((PLUS | MINUS) term)*
+term   : factor ((MUL | DIV) factor)*
+factor : (PLUS | MINUS)factor | INTEGER | LPAREN expr RPAREN 
+```
+为factor添加了`(PLUS | MINUS)factor`。  
+
+根据从语法到代码的转换规则，只需要修改语法解析器：
+``` python
+...
+class UnaryOp(AST):
+    def __init__(self, op, expr):
+        self.token = self.op = op
+        self.expr = expr
+
+class Parser(object):
+    ...
+    def factor(self):
+        """factor : (PLUS | MINUS) factor | INTEGER | LPAREN expr RPAREN"""
+        token = self.current_token
+        if token.type == PLUS:      # 添加一元+的解析
+            self.eat(PLUS)
+            node = UnaryOp(token, self.factor())
+            return node
+        elif token.type == MINUS:   # 添加一元-的解析
+            self.eat(MINUS)
+            node = UnaryOp(token, self.factor())
+            return node
+        elif token.type == INTEGER:
+            ...
+        elif token.type == LPAREN:
+            ...
+
+    def term(self):
+        ...
+
+    def expr(self):
+        """
+        主框架保持不变
+        expr   : term ((PLUS | MINUS) term)*
+        term   : factor ((MUL | DIV) factor)*
+        factor : (PLUS | MINUS) factor | INTEGER | LPAREN expr RPAREN
+        """
+        node = self.term()
+
+        while self.current_token.type in (PLUS, MINUS):
+            token = self.current_token
+            if token.type == PLUS:
+                self.eat(PLUS)
+            elif token.type == MINUS:
+                self.eat(MINUS)
+
+            node = BinOp(left=node, op=token, right=self.term())
+
+        return node
+```
 
 # 注重学习原理
 在Part2的开头，作者引用了Burger 和 Starbird在《The 5 Elements of Effective Thinking》这本书中讲述的一则故事。享誉世界的小号演奏家Tony Plog在一次大师班培训中，让学生们先演奏一首复杂的音乐片段，学生们演奏的很好；之后再让他们演奏一段非常基本简单的音乐，和前面的演奏相比听起来显得非常幼稚。演奏结束后，老师也演奏了一遍同样的乐段，但是老师的演奏却听不出幼稚——差异是明显的。Tony解释道：只有掌握演奏简单乐句的技巧，才能在演奏复杂乐句时更有掌控力。这则故事很有启发性：要培养真正的技艺，必须注重掌握简单的基本思想。正如艾默生所说：“如果你只学习方法，你将被绑死到方法上。如果你学习原理，你将可以自己设计适合自己的方法。”
