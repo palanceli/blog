@@ -694,3 +694,22 @@ END
 - 语法分析，根据语法表构造AST
 - 语义分析，根据AST检查符合语法但语义无意义的错误
 - 解释执行
+
+## 增强版语义分析
+Part13中的语义分析还是一个很弱的版本，甚至不合基本的使用需求。因为他在检查变量声明和重复定义时，没有生命期的概念。过程可以嵌套，不同层次过程的变量可以重名，基本原则是：1、如果在本层过程中找不到的符号，可以层层向上搜索，直到命中，如果到最上层都没有找到，则语义分析错误。2、如果发现符号在多层中均有定义，取最近一层。  
+Part14中给出的支持方案是采用`ScopedSymbolTable`栈，进入一层就创建一个新的`ScopedSymbolTable`对象，离开当前层次后，销毁其对应的`ScopedSymbolTable`对象，当访问符号时，从栈顶向栈底依次遍历。  
+具体代码就不在这堆了。
+
+# 总结
+我认为这篇文章极具启发性，其实主题不是那么重要。我相信在大部分领域，背后都能从业务需求提炼出数学模型，这才是支撑其设计的理想架构。设计模式也不过是实现该模型的手段。如果模型的提炼工作做得不通透，哪怕通篇处处使用设计模式，也很难让代码简洁起来——这是很多低阶的设计所犯的通病。  
+
+好的设计是要分层、分模块，但分层分模块是理解了业务逻辑，抽象出简单规则后的结果，而不是设计目标。以本文为例，词法分析、语法分析、语义分析和解释执行是基于业务的理解和抽象提炼出的阶段分割，尤其是最最关键的一步是确定语言的语法表，从语法表到代码的映射规则确定后，工程的难度就确定了。语法表就是对业务的格式化解释。  
+
+还有很关键的一步文章没有解释——那就是为什么BNF是有效的，为什么语法表到代码的映射规则是有效的？我想这应该是文末列出的参考书目解释的问题：  
+[《Language Implementation Patterns: Create Your Own Domain - Specific and General Programming Languages》](https://www.amazon.com/gp/product/193435645X/ref=as_li_tl?ie=UTF8&camp=1789&creative=9325&creativeASIN=193435645X&linkCode=as2&tag=russblo0b-20&linkId=5d5ca8c07bff5452ea443d8319e7703d)  
+[《Engineering: A Compiler 2nd Edition》](https://www.amazon.com/gp/product/012088478X/ref=as_li_tl?ie=UTF8&camp=1789&creative=9325&creativeASIN=012088478X&linkCode=as2&tag=russblo0b-20&linkId=74578959d7d04bee4050c7bff1b7d02e)  
+[《Programming Language Pragmatics, Fourth Edition》](https://www.amazon.com/gp/product/0124104096/ref=as_li_tl?ie=UTF8&camp=1789&creative=9325&creativeASIN=0124104096&linkCode=as2&tag=russblo0b-20&linkId=8db1da254b12fe6da1379957dda717fc)  
+[《Compilers: Principles, Techniques, and Tools (2nd Edition)》](https://www.amazon.com/gp/product/0321486811/ref=as_li_tl?ie=UTF8&camp=1789&creative=9325&creativeASIN=0321486811&linkCode=as2&tag=russblo0b-20&linkId=31743d76157ef1377153dba78c54e177)  
+[《Writing Compilers and Interpreters: A Software Engineering Approach 3rd Edition》](https://www.amazon.com/gp/product/0470177071/ref=as_li_tl?ie=UTF8&camp=1789&creative=9325&creativeASIN=0470177071&linkCode=as2&tag=russblo0b-20&linkId=542d1267e34a529e0f69027af20e27f3)  
+
+试想，如果没有理论为基础，直接从0到1运用工程技术去生写，哪怕也会有迭代改进，最终产出的代码：1、没有深度，缺少更高一阶的改进空间；2、难免出现一些tricky和补丁。我见过维护了十年的这类项目，不同的人，不同的想法叠加在上面，很多代码你能读懂他做了什么，却无法理解当初为什么这么做。从结果来看，它的确解决了问题，而且很出色，但是程序员做的很没有成就感。回到本文的上下文中，深刻理解编译原理，才能成为这个领域的专家，进一步理解编译原理背后更普遍的原理，并尝试应用到其他领域，才能在扩宽技术视野的同时，让每一步走得更坚实。这是我认为程序员成长的理想路径，而不只是天天接需求，把它翻译成代码。
