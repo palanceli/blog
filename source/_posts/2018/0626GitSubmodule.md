@@ -28,7 +28,12 @@ $ git commit -m"commit changes"
 $ git push
 ```
 
-下次再执行`git clone`主项目的时候，将直接将指定tag的submodule更新下来。不过我没找到这个tag是记录在本地哪个配置文件中。在新的目录下执行clone验证一下：
+下次再执行`git clone`主项目之后，再更新module：
+```
+$ git submodule update --init --recursive
+```
+将直接将指定tag的submodule更新下来。不过我没找到这个tag是记录在本地哪个配置文件中。  
+在新的目录下执行clone验证一下：  
 ```
 $ git clone https://github.com/palanceli/libgooglepinyin.git
 $ cd libgooglepinyin/googletest
