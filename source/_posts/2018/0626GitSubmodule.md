@@ -40,3 +40,5 @@ $ cd libgooglepinyin/googletest
 $ git describe --tags
 release-1.8.0
 ```
+
+删除某个submodule，需要1、在`.gitmodules`中删除相关字段；2、在`.git/config`中删除相关字段；3、删除模块的文件夹。
