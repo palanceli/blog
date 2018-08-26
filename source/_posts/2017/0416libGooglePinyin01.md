@@ -55,7 +55,8 @@ bool DictBuilder::build_dict(const char *fn_raw,
   lemma_num_ = read_raw_dict(fn_raw, fn_validhzs, 240000);
   ...
 ```
-数据结构`lemma_arr_`是从`rawdict_utf16_65105_freq.txt`读出系统词库并组织成的数组，每个元素是一个LemmaEntry结构体：![lemma_arr_](0416libGooglePinyin01/img04.png)
+数据结构`lemma_arr_`是从`rawdict_utf16_65105_freq.txt`读出系统词库并组织成的数组，每个元素是一个LemmaEntry结构体。
+在记录拼音的时候，它默认将拼音字母转成大写，仅对双声母中的h使用小写。  ![lemma_arr_](0416libGooglePinyin01/img04.png)
 在解析拼音串的同时，它用哈希表`raw_spellings_`构建了一张拼音表，具体过程在Step4中分析。其有效元素即合法的音节字串个数413，这张哈希表的空间远比这个数字大，不过这个细节并不重要：
 ![raw_spellings](0416libGooglePinyin01/img05.png)
 
