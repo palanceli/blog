@@ -1,6 +1,6 @@
 ---
 layout: post
-title: 又是一年黑马季（一）—— 往事
+title: 又是一年黑马季
 date: 2018-10-04 14:00:00 +0800
 categories: 随笔
 tags: 工作随笔
