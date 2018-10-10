@@ -15,3 +15,5 @@ comments: true
 参考[《How to write RecursiveASTVisitor based ASTFrontendActions.》](http://clang.llvm.org/docs/RAVFrontendAction.html)，这篇文章演示了如何遍历AST。在阅读代码之前有必要先了解RecursiveASTVisitor/FrontEndAction/ASTConsumer的概念以及相互关系。
 
 # Visitor/Action/Consumer结构
+
+<font color=red>待续...</font>
