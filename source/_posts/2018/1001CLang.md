@@ -16,4 +16,7 @@ comments: true
 
 # Visitor/Action/Consumer结构
 
+## RecursiveASTVisitor
+查找AST中的节点，既可以遍历AST，也可以使用Clang封装好的算法——RecursiveASTVisitor
+
 <font color=red>待续...</font>
