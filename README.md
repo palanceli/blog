@@ -1,3 +1,3 @@
 # blog
 Palance的博客  
-http://palanceli.
+http://palanceli.com
