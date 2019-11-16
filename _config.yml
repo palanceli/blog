@@ -7,7 +7,7 @@ title: Palance's Blog
 subtitle:
 description: 学习，重生
 author: Palance Li
-language: zh-CN
+language: zh-Hans
 timezone:
 avatar: https://avatars0.githubusercontent.com/u/13184524
 duoshuo_shortname: palanceli
@@ -82,10 +82,28 @@ search:
   format: html
   limit: 10000
 
+# math:
+#   engine: 'mathjax' # or 'katex'
+#   mathjax:
+#     # src: custom_mathjax_source
+#     config:
+#       # MathJax config
+math:
+  engine: 'mathjax' # or 'katex'
+  mathjax:
+    src: custom_mathjax_source
+    config:
+      # MathJax config
+  # katex:
+  #   css: custom_css_source
+  #   js: custom_js_source # not used
+  #   config:
+  #     # KaTeX config
+      
 # MathJax Support
-mathjax:
-  enable: true
-  per_page: true
+# math.mathjax:
+#   enable: true
+#   per_page: true
 
 sitemap:
   path: sitemap.xml
