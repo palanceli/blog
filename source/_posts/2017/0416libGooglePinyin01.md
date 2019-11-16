@@ -153,7 +153,8 @@ for循环则遍历`lemma_arr_`数组，更新每个元素的`spl_idx_arr`字段�
   assert(dl_success);
 ```
 `dict_trie->dict_list_->init_list(...)`函数将单字表拆成两个数组：![scis_hz_&scis_splid_](0416libGooglePinyin01/img16.png)
-它把系统词库里所有汉字串成一个总串保存到`DictList::buf_`中，用`DictList::start_pos_`分别指向1字词、2字词……9字词的起点，用`DictList::start_id_`指向1字词、2字词……9字词在lemma_arr_中的起始位置：![start_pos_&start_id_](0416libGooglePinyin01/img17.png)
+它把系统词库里所有汉字串成一个总串保存到`DictList::buf_`中，用`DictList::start_pos_`分别指向1字词、2字词……9字词的起点，用`DictList::start_id_`指向1字词、2字词……9字词在lemma_arr_中的起始位置：  
+![start_pos_&start_id_](0416libGooglePinyin01/img17.png)
 ``` c++
   // 🏁Step9 将词频数据归拢到256个值
   NGram& ngram = NGram::get_instance();
@@ -179,7 +180,8 @@ for循环则遍历`lemma_arr_`数组，更新每个元素的`spl_idx_arr`字段�
     return false;
   }
 ```
-函数`construct_subset(...)`主要生成了`lema_nodes_le0`、`lema_nodes_ge1`和`homo_idx_buf_`三个数据结构，这三坨数据也需要结合在一起解读，它们共同把系统词库按照读音组织成一个Trie树。![系统词Trie树逻辑结构](0416libGooglePinyin01/img20.png)它对应的存储结构为：![系统词Trie树](0416libGooglePinyin01/img19.png)
+函数`construct_subset(...)`主要生成了`lema_nodes_le0`、`lema_nodes_ge1`和`homo_idx_buf_`三个数据结构，这三坨数据也需要结合在一起解读，它们共同把系统词库按照读音组织成一个Trie树。  
+![系统词Trie树逻辑结构](0416libGooglePinyin01/img20.png)它对应的存储结构为：![系统词Trie树](0416libGooglePinyin01/img19.png)
 首先把lemma_arr_按照拼音排序，将其idx_by_hz抽取出来存储到homo_idx_buf_中。
 lema_nodes_le0和lema_nodes_ge1的逻辑结构是完全一致的，只是出于空间开销的考虑，前者每个元素占用16个字节，后者仅占用8个字节。
 lema_nodes_le0的首个元素记录Trie树第0层信息。字段son_1st_off表示第一个子元素在本表中的下标；num_of_son表示子元素个数。
